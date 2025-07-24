@@ -1,0 +1,9 @@
+## Title: RatedStats – Achievements
+## Interface: 110107
+## DefaultState: enabled
+## LoadOnDemand: 1
+## RequiredDeps: RatedStats
+## SavedVariables: RSTATS_Database
+
+region_eu.lua
+achievements.lua
