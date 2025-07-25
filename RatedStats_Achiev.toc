@@ -4,6 +4,7 @@
 ## LoadOnDemand: 1
 ## RequiredDeps: RatedStats
 ## SavedVariables: RSTATS_Database
+## IconTexture: Interface\AddOns\RatedStats\RatedStats.tga
 
 region_eu.lua
 achievements.lua
