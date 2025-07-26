@@ -7,4 +7,7 @@
 ## IconTexture: Interface\AddOns\RatedStats\RatedStats.tga
 
 region_eu.lua
+region_us.lua
+region_tw.lua
+region_kr.lua
 achievements.lua
