@@ -8,12 +8,29 @@ if (!fileChanged) {
     process.exit(1);
 }
 
-fs.appendFileSync('debug.log', `[${new Date().toISOString()}] save-and-tag.js triggered with file: ${fileChanged}\n`);
+<<<<<<< HEAD
+// fs.appendFileSync('debug.log', `[${new Date().toISOString()}] save-and-tag.js triggered with file: ${fileChanged}\n`);
 
 function getLatestTag() {
     try {
         const tag = execSync('git describe --tags --abbrev=0').toString().trim();
         return tag;
+=======
+// fs.appendFileSync('debug.log', `[${new Date().toISOString()}] save-and-tag.js triggered with file: ${fileChanged}\n`);
+
+function getLatestTag() {
+    try {
+        const tags = execSync('git tag', { encoding: 'utf8' })
+            .split('\n')
+            .filter(tag => /^v\d+\.\d+-beta$/.test(tag))
+            .sort((a, b) => {
+                const [amaj, apatch] = a.match(/\d+/g).map(Number);
+                const [bmaj, bpatch] = b.match(/\d+/g).map(Number);
+                return amaj !== bmaj ? amaj - bmaj : apatch - bpatch;
+            });
+
+        return tags[tags.length - 1] || 'v1.00-beta';
+>>>>>>> dev
     } catch (e) {
         return 'v1.00-beta';
     }
@@ -41,8 +58,13 @@ function promptForMessage() {
     try {
         const message = execFileSync('powershell', [
             '-Command',
+<<<<<<< HEAD
             `[System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null;` +
             `[Microsoft.VisualBasic.Interaction]::InputBox('Enter commit message:', 'Commit Message')`
+=======
+            `[System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null; ` +
+            `[Microsoft.VisualBasic.Interaction]::InputBox('Enter commit message:', 'Commit Message'); exit` // Force exit PowerShell after prompt
+>>>>>>> dev
         ], { encoding: 'utf8' }).trim();
 
         return message;
@@ -73,6 +95,11 @@ function commitAndTag(version, message, file) {
     } catch (e) {
         console.error("Git operation failed:", e.message);
     }
+<<<<<<< HEAD
+=======
+
+    process.exit(0); // Clean exit to close the terminal window
+>>>>>>> dev
 }
 
 const latest = getLatestTag();
