@@ -9,7 +9,7 @@
       "commands": [
         {
           "match": ".*",
-          "cmd": "start cmd /c node save-and-tag.js ${file}",
+          "cmd": "node save-and-tag.js ${file}",
           "runningIn": "terminal",
           "cwd": "${workspaceFolder}"
         }
