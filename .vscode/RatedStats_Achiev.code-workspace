@@ -8,7 +8,7 @@
     "emeraldwalk.runonsave": {
       "commands": [
         {
-          "match": ".*\\.lua$",
+          "match": ".*",
           "cmd": "start cmd /k node save-and-tag.js ${file}",
           "runningIn": "terminal",
           "cwd": "${workspaceFolder}"
