@@ -17,7 +17,18 @@ f:SetScript("OnEvent", function(self, event, addonName)
     self:UnregisterEvent("ADDON_LOADED")
 end)
 
-local regionData = ACHIEVEMENTS_EU or {}
+-- Determine the region and use the appropriate achievement data
+local regionMap = {
+    [1] = "US",
+    [2] = "KR",
+    [3] = "EU",
+    [4] = "TW",
+}
+
+local regionID = GetCurrentRegion()
+local regionCode = regionMap[regionID] or "US"
+local regionData = _G["ACHIEVEMENTS_" .. regionCode] or {}
+
 -- Cache table to avoid repeat lookups
 local achievementCache = {}
 
