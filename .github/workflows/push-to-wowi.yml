@@ -1,8 +1,8 @@
 name: Push to WoWInterface
 
 on:
+  workflow_dispatch:
   push:
-    workflow_dispatch:
     tags:
       - 'v*'
 
