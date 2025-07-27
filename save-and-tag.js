@@ -8,7 +8,7 @@ if (!fileChanged) {
     process.exit(1);
 }
 
-fs.appendFileSync('debug.log', `[${new Date().toISOString()}] save-and-tag.js triggered with file: ${fileChanged}\n`);
+// fs.appendFileSync('debug.log', `[${new Date().toISOString()}] save-and-tag.js triggered with file: ${fileChanged}\n`);
 
 function getLatestTag() {
     try {
