@@ -49,8 +49,8 @@ function promptForMessage() {
     try {
         const message = execFileSync('powershell', [
             '-Command',
-            `[System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null;` +
-            `[Microsoft.VisualBasic.Interaction]::InputBox('Enter commit message:', 'Commit Message')`
+            `[System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null; ` +
+            `[Microsoft.VisualBasic.Interaction]::InputBox('Enter commit message:', 'Commit Message'); exit` // Force exit PowerShell after prompt
         ], { encoding: 'utf8' }).trim();
 
         return message;
@@ -81,6 +81,8 @@ function commitAndTag(version, message, file) {
     } catch (e) {
         console.error("Git operation failed:", e.message);
     }
+
+    process.exit(0); // Clean exit to close the terminal window
 }
 
 const latest = getLatestTag();
