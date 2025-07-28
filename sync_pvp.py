@@ -86,7 +86,7 @@ REGION = os.getenv("REGION", "eu")
 API_HOST = f"{REGION}.api.blizzard.com"
 API_BASE = f"https://{API_HOST}"
 NAMESPACE_PROFILE = f"profile-{REGION}"
-OUTFILE = Path(f"achiev/region_{REGION}.lua")
+OUTFILE = Path(f"region_{REGION}.lua")
 REGION_VAR = f"ACHIEVEMENTS_{REGION.upper()}"
 
 LOCALES = {
@@ -741,9 +741,6 @@ async def process_characters(characters, leaderboard_keys):
     # DEBUG: now that rows_map exists, inspect it
     print(f"[DEBUG] rows_map entries={len(rows_map)}, sample keys={list(rows_map)[:5]}")
 
-    # make sure achiev/ exists no matter which branch we're on
-    OUTFILE.parent.mkdir(parents=True, exist_ok=True)
-
     # build a lookup so we can pull guid + ach_map by key
     rows_map = { key: (guid, ach_map)
                  for key, guid, ach_map in db_iter_rows() }
@@ -751,7 +748,7 @@ async def process_characters(characters, leaderboard_keys):
     # write out only one “root” per connected component,
     # choosing roots that actually came from the leaderboard
     with open(OUTFILE, "w", encoding="utf-8") as f:
-        f.write(f'-- File: RatedStats/achiev/region_{REGION}.lua\n')
+        f.write(f'-- File: RatedStats/region_{REGION}.lua\n')
         f.write("local achievements = {\n")
 
         for comp in groups:
