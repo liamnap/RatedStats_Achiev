@@ -8,6 +8,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 1380
     strategy:
       matrix:
         region: [us, eu, kr, tw]
