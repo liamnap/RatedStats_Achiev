@@ -34,6 +34,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install aiohttp requests psutil
 
+      - name: Show public IP of runner
+        run: |
+          echo "IPv4:"
+          curl -s https://api.ipify.org || echo "curl failed"
+          echo ""
+          echo "IPv6:"
+          curl -s https://api64.ipify.org || echo "curl failed"
+
       # 4. run the sync *on the dev work-tree*
       - name: Run PvP Sync for ${{ matrix.region }}
         env:
