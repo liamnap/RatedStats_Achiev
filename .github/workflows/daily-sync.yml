@@ -45,14 +45,26 @@ jobs:
       # 4. run the sync *on the dev work-tree*
       - name: Run PvP Sync for ${{ matrix.region }}
         env:
-          BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
-          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
-          BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
-          BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
-          BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
-          BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
-          REGION:                 ${{ matrix.region }}
-        run: python sync_pvp.py
+         BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
+         BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+         BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
+         BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
+         BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
+         BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
+         REGION:                 ${{ matrix.region }}
+        run: |
+         python sync_pvp.py &  # run in background
+         pid=$!
+         echo "Started sync_pvp.py with PID $pid"
+
+         # Keep the step alive
+         while kill -0 "$pid" 2>/dev/null; do
+           echo "[Runner is still working at $(date)]"
+           sleep 60
+         done
+
+         wait "$pid"
+         echo "Sync process completed."
 
       # 5. commit back to dev
       - name: Commit & push results
