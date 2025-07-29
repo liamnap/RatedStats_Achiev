@@ -55,7 +55,12 @@ jobs:
               ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"is_last\":$IS_LAST}")
             done
           done
-          echo "::set-output name=matrix::{\"include\":[${ITEMS[*]}]}"
+          # build a comma‑separated JSON array
+          matrix_items=$(printf ',%s' "${ITEMS[@]}")
+          matrix_array="[${matrix_items:1}]"
+
+          # emit via the new environment‑file method
+          echo "matrix={\"include\":$matrix_array}" >> $GITHUB_OUTPUT
 
   # 2) One runner per (region,offset) slice
   sync:
