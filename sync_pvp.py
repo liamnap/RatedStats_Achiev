@@ -176,7 +176,7 @@ CACHE_DIR     = Path("partial_outputs")
 CACHE_DIR.mkdir(exist_ok=True)
 BRACKET_CACHE = CACHE_DIR / f"{REGION}_brackets.json"
 
-if MODE == "batch" and BRACKET_CACHE.exists():
+if BRACKET_CACHE.exists():
     cached = json.loads(BRACKET_CACHE.read_text())
     PVP_SEASON_ID = cached["season_id"]
     BRACKETS      = cached["brackets"]
