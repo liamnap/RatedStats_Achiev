@@ -61,6 +61,13 @@ jobs:
           name: "${{ matrix.region }}-all-batches"
           path: "partial_outputs/${{ matrix.region }}_batch_*.lua"
 
+      - name: Upload final Lua if present
+        if: exists('region_${{ matrix.region }}.lua')
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ matrix.region }}-final-lua"
+          path: region_${{ matrix.region }}.lua
+
   finalize:
     needs: sync
     runs-on: ubuntu-latest
