@@ -436,15 +436,21 @@ async def process_characters(characters, leaderboard_keys):
         with open(OUTFILE,"w",encoding="utf-8") as f:
             f.write(f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n")
             for comp in groups:
-                leaders=[m for m in comp if m in leaderboard_keys]
-                if not leaders: continue
-                root=leaders[0]; alts=[m for m in comp if m!=root]
-                guid,ach_map=rows_map[root]
-                parts=[f'character="{root}"',f'alts={{{",".join(f'"{a}"\' for a in alts)}}}',f'guid={guid}']
-                for i,(aid,info) in enumerate(sorted(ach_map.items()),start=1):
-                    parts+= [f"id{i}={aid}",f'name{i}="{info["name"].replace("\"","\\\"")}"']
-                f.write("    { "+",".join(parts)+" },\n")
-            f.write("}\n\n"+f"{REGION_VAR}=achievements\n")
+                leaders = [m for m in comp if m in leaderboard_keys]
+                if not leaders:
+                    continue
+                root = leaders[0]
+                alts = [m for m in comp if m != root]
+                guid, ach_map = rows_map[root]
+
+                # build a Lua-style table for alts
+                alts_str = "{" + ",".join(f'"{alt}"' for alt in alts) + "}"
+
+                parts = [
+                    f'character="{root}"',
+                    f'alts={alts_str}',
+                    f'guid={guid}',
+                ]
     else:  # batch
         PARTIAL=Path("partial_outputs"); PARTIAL.mkdir(exist_ok=True)
         out=PARTIAL/f"{REGION}_batch_{BATCH_ID}.lua"
@@ -453,9 +459,10 @@ async def process_characters(characters, leaderboard_keys):
             for k,g,ach in db_iter_rows():
                 if k not in characters: continue
                 parts=[f'character="{k}"', 'alts={}',f'guid={g}']
-                for i,(aid,info) in enumerate(sorted(ach.items()),start=1):
-                    parts+= [f"id{i}={aid}",f'name{i}="{info["name"].replace("\"","\\\"")}"']
-                f.write("    { "+",".join(parts)+" },\n")
+                for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
+                    esc = info["name"].replace('"', '\\"')
+                    parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+                f.write("    { " + ", ".join(parts) + " },\n")
             f.write("}\n")
     db.close()
 
