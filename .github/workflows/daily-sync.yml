@@ -100,7 +100,7 @@ jobs:
       - name: Show public IP of runner
         run: |
           echo "IPv4:"; curl -s https://api.ipify.org || echo "curl failed"
-          echo "IPv6:"; curl -s https://api64.ipify.org || echo "curl failed"
+          echo "IPv6:"; curl -s https://api6.ipify.org || echo "curl failed"
 
       # 2.4 run the sync slice in the foreground
       - name: Run PvP Sync for ${{ matrix.region }} [offset ${{ matrix.offset }}]
