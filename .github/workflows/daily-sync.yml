@@ -5,25 +5,24 @@ on:
   schedule:
     - cron: '0 1 * * *'  # Run daily at 01:00 UTC
 
+env:
+  BATCH_SIZE: 2500
+  REGIONS: us eu kr tw
+
 jobs:
-  sync:
+  # 1) Build the matrix of (region,offset,is_last) slices
+  prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 1380
-    strategy:
-      matrix:
-        region: [us, eu, kr, tw]
-
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      # 1. full-depth checkout so we can switch branches
-      - uses: actions/checkout@v3
+      - name: Check out dev branch
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0      # needed for git checkout later
-
-      # 2. move onto the dev branch
-      - name: Checkout dev branch
+          fetch-depth: 0
+      - name: Switch to dev
         run: git checkout dev
 
-      # 3. set up Python environment
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -34,41 +33,83 @@ jobs:
           python -m pip install --upgrade pip
           pip install aiohttp requests psutil
 
+      - name: Build batch matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          ITEMS=()
+          for region in $REGIONS; do
+            TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
+            COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
+            for ((i=0;i<COUNT;i++)); do
+              OFFSET=$(( i * BATCH_SIZE ))
+              IS_LAST=$([[ $i -eq $((COUNT-1)) ]] && echo true || echo false)
+              ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"is_last\":$IS_LAST}")
+            done
+          done
+          echo "::set-output name=matrix::{\"include\":[${ITEMS[*]}]}"
+
+  # 2) One runner per (region,offset) slice
+  sync:
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    # serialize per-region so you stay within your 36 k/hr limit
+    concurrency:
+      group: sync-${{ matrix.region }}
+      cancel-in-progress: false
+
+    strategy:
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      max-parallel: 5   # tune this if you have spare runners
+
+    timeout-minutes: 1380
+
+    steps:
+      # 2.1 full-depth checkout & switch to dev
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Checkout dev branch
+        run: git checkout dev
+
+      # 2.2 Python setup & deps
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install aiohttp requests psutil
+
+      # 2.3 show runner IP
       - name: Show public IP of runner
         run: |
-          echo "IPv4:"
-          curl -s https://api.ipify.org || echo "curl failed"
-          echo ""
-          echo "IPv6:"
-          curl -s https://api64.ipify.org || echo "curl failed"
+          echo "IPv4:"; curl -s https://api.ipify.org || echo "curl failed"
+          echo "IPv6:"; curl -s https://api64.ipify.org || echo "curl failed"
 
-      # 4. run the sync *on the dev work-tree*
-      - name: Run PvP Sync for ${{ matrix.region }}
+      # 2.4 run the sync slice in the foreground
+      - name: Run PvP Sync for ${{ matrix.region }} [offset ${{ matrix.offset }}]
         env:
-         BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
-         BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
-         BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
-         BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
-         BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
-         BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
-         REGION:                 ${{ matrix.region }}
-         BATCH_SIZE:             2500      # configure your batch size here
+          BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
+          BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
+          BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
+          BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
+          REGION:                 ${{ matrix.region }}
+          BATCH_SIZE:             ${{ env.BATCH_SIZE }}
         run: |
-         python sync_pvp.py &  # run in background
-         pid=$!
-         echo "Started sync_pvp.py with PID $pid"
+          echo "=== syncing region $REGION, offset=${{ matrix.offset }}… ==="
+          python sync_pvp.py \
+            --region "$REGION" \
+            --offset ${{ matrix.offset }} \
+            --limit $BATCH_SIZE
 
-         # Keep the step alive
-         while kill -0 "$pid" 2>/dev/null; do
-           echo "[Runner is still working at $(date)]"
-           sleep 60
-         done
-
-         wait "$pid"
-         echo "Sync process completed."
-
-      # 5. commit back to dev
+      # 2.5 only on the final slice for each region: commit & push
       - name: Commit & push results
+        if: ${{ matrix.is_last == 'true' }}
         run: |
           git config user.name  "GitHub Action"
           git config user.email "action@github.com"
@@ -80,14 +121,14 @@ jobs:
 
           git fetch --all
           git rebase origin/dev || {
-            echo "⚠️ Rebase failed. Saving backup of current state for manual review."
+            echo "⚠️ Rebase failed; saving backup for manual review."
             mkdir -p .sync_backups
             cp region_*.lua ".sync_backups/region_${{ matrix.region }}_$(date +%s).lua"
             exit 0
           }
 
           git push --force-with-lease origin dev || {
-            echo "❌ Push failed. Backup saved. You’ll need to resolve this manually."
+            echo "❌ Push failed; backup saved."
             mkdir -p .sync_backups
             cp region_*.lua ".sync_backups/region_${{ matrix.region }}_$(date +%s).lua"
             exit 0
