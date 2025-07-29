@@ -829,38 +829,38 @@ async def process_characters(characters, leaderboard_keys):
 
 # RUN
 if __name__ == "__main__":
+    # 1) seed from any existing region_X.lua
     old_chars = seed_db_from_lua(OUTFILE)
     print(f"[DEBUG] seed_db_from_lua loaded {len(old_chars)} prior entries")
+
+    # 2) fetch raw API characters (initially keyed by integer ID)
     token = get_access_token(REGION)
     headers = {"Authorization": f"Bearer {token}"}
-    # fetch raw API characters
-    api_chars = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
-    # normalize into the same lower-case name-realm key that we use in db_upsert()
-    leaderboard_keys = {
-        f"{c['name'].lower()}-{c['realm'].lower()}"
-        for c in api_chars.values()
+    raw_api_chars = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
+
+    # 3) normalize API chars to string keys "name-realm"
+    api_chars = {
+        f\"{c['name'].lower()}-{c['realm'].lower()}\": c
+        for c in raw_api_chars.values()
     }
-    # merge API chars with any seeded-from-lua chars
+    leaderboard_keys = set(api_chars.keys())
+
+    # 4) merge API chars with any old seeded chars (string-only keys)
     merged = { **api_chars, **old_chars }
 
-    # Determine which slice of characters to process
-    batch_id = int(os.getenv("BATCH_ID", "0"))
-    total_batches = int(os.getenv("TOTAL_BATCHES", "1"))
-    keys = sorted(merged.keys())
-    slice_size = (len(keys) + total_batches - 1) // total_batches
-    start = batch_id * slice_size
+    # 5) compute this batch's slice
+    keys = sorted(merged.keys())        # now all strings, sortable
+    slice_size = (len(keys) + TOTAL_BATCHES - 1) // TOTAL_BATCHES
+    start = BATCH_ID * slice_size
     end = start + slice_size
     batch_keys = keys[start:end]
-    chars = {k: merged[k] for k in batch_keys}
-    print(f"[FINAL DEBUG] Total chars this run: {len(chars)}")
-    if chars:
-         pass
-#        print("[FINAL DEBUG] Characters found:", list(chars.values())[0])
-    else:
-        print("[FINAL DEBUG] No characters matched.")
+    chars = { k: merged[k] for k in batch_keys }
+    print(f\"[FINAL DEBUG] Total chars this run: {len(chars)}\")
+    if not chars:
+        print(\"[FINAL DEBUG] No characters matched.\")
 
+    # 6) process this slice
     try:
         asyncio.run(process_characters(chars, leaderboard_keys))
     except CancelledError:
-        # swallow any leftover “operation was canceled” so the script exits cleanly
-        print(f"{YELLOW}[WARN] Top-level run was cancelled, exiting.{RESET}")
+        print(f\"{YELLOW}[WARN] Top-level run was cancelled, exiting.{RESET}\")
