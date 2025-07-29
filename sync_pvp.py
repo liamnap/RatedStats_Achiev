@@ -167,6 +167,32 @@ def get_available_brackets(region: str, season_id: int) -> list[str]:
     return brackets
 
 # --------------------------------------------------------------------------
+# Fetch PvP leaderboard characters
+# --------------------------------------------------------------------------
+def get_characters_from_leaderboards(region: str, headers: dict, season_id: int, brackets: list[str]) -> dict[int,dict]:
+    seen: dict[int, dict] = {}
+    for bracket in brackets:
+        url = (
+            f"https://{region}.api.blizzard.com/"
+            f"data/wow/pvp-season/{season_id}/pvp-leaderboard/{bracket}"
+            f"?namespace=dynamic-{region}&locale={LOCALE}"
+        )
+        resp = requests.get(url, headers=headers)
+        if resp.status_code != 200:
+            print(f"[WARN] Failed leaderboard: {bracket} - {resp.status_code}")
+            continue
+        for entry in resp.json().get("entries", []):
+            c = entry.get("character")
+            if not c or c["id"] in seen:
+                continue
+            seen[c["id"]] = {
+                "id": c["id"],
+                "name": c["name"],
+                "realm": c["realm"]["slug"],
+            }
+    return seen
+
+# --------------------------------------------------------------------------
 # Static namespace discovery
 # --------------------------------------------------------------------------
 def get_latest_static_namespace(region: str) -> str:
