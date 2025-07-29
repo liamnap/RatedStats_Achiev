@@ -440,7 +440,7 @@ async def process_characters(characters, leaderboard_keys):
                 if not leaders: continue
                 root=leaders[0]; alts=[m for m in comp if m!=root]
                 guid,ach_map=rows_map[root]
-                parts=[f'character="{root}"',f'alts={{{",".join(f\'"{a}"\' for a in alts)}}}',f'guid={guid}']
+                parts=[f'character="{root}"',f'alts={{{",".join(f'"{a}"\' for a in alts)}}}',f'guid={guid}']
                 for i,(aid,info) in enumerate(sorted(ach_map.items()),start=1):
                     parts+= [f"id{i}={aid}",f'name{i}="{info["name"].replace("\"","\\\"")}"']
                 f.write("    { "+",".join(parts)+" },\n")
