@@ -42,13 +42,14 @@ jobs:
           mkdir -p partial_outputs
           for BATCH_ID in $(seq 0 $((TOTAL_BATCHES - 1))); do
             echo "=== Running batch ${BATCH_ID} for ${REGION} ==="
-            python sync_pvp.py \
+            OUTPUT=$(python sync_pvp.py \
               --mode batch \
               --region "${REGION}" \
               --batch-id "${BATCH_ID}" \
-              --total-batches "${TOTAL_BATCHES}"
-            # if the script just wrote out the full file, stop here
-            if grep -q "Wrote full" region_${REGION}.lua 2>/dev/null; then
+              --total-batches "${TOTAL_BATCHES}")
+            echo "$OUTPUT"
+            # if the script printed "Wrote full …", stop here
+            if echo "$OUTPUT" | grep -q "Wrote full"; then
               echo "✅ Finalize has run; stopping at batch ${BATCH_ID}"
               break
             fi
