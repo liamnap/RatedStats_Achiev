@@ -855,12 +855,12 @@ if __name__ == "__main__":
     end = start + slice_size
     batch_keys = keys[start:end]
     chars = { k: merged[k] for k in batch_keys }
-    print(f\"[FINAL DEBUG] Total chars this run: {len(chars)}\")
+    print(f"[FINAL DEBUG] Total chars this run: {len(chars)}")
     if not chars:
-        print(\"[FINAL DEBUG] No characters matched.\")
+        print("[FINAL DEBUG] No characters matched.")
 
     # 6) process this slice
     try:
         asyncio.run(process_characters(chars, leaderboard_keys))
     except CancelledError:
-        print(f\"{YELLOW}[WARN] Top-level run was cancelled, exiting.{RESET}\")
+        print(f"{YELLOW}[WARN] Top-level run was cancelled, exiting.{RESET}")
