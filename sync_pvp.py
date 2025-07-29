@@ -430,7 +430,11 @@ def seed_db_from_lua(lua_path: Path) -> dict:
         if not gm:
             continue
         guid = int(gm.group(1))
-        ach  = {int(aid): name for _, aid, name in ach_rx.findall(block)}
+        # preserve the same structure as live‐fetched entries
+        ach = {
+            int(aid): {"name": name, "ts": None}
+            for _, aid, name in ach_rx.findall(block)
+        }
         db_upsert(key, guid, ach)
         n, r = key.split('-', 1)
         rows[key] = {"id": guid, "name": n, "realm": r}
