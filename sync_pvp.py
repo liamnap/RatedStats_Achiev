@@ -216,8 +216,30 @@ def get_available_brackets(region, season_id):
     print(f"[INFO] Valid brackets for season {season_id}: {', '.join(brackets)}")
     return brackets
 
-PVP_SEASON_ID = get_current_pvp_season_id(REGION)
-BRACKETS = get_available_brackets(REGION, PVP_SEASON_ID)
+# --------------------------------------------------------------------------
+# STATIC SEASON & BRACKETS (cached per‐runner in partial_outputs/)
+# --------------------------------------------------------------------------
+CACHE_DIR         = Path("partial_outputs")
+CACHE_DIR.mkdir(exist_ok=True)
+BRACKET_CACHE     = CACHE_DIR / f"{REGION}_brackets.json"
+
+if MODE == "batch" and BRACKET_CACHE.exists():
+    # reuse cached season+brackets
+    data = json.loads(BRACKET_CACHE.read_text())
+    PVP_SEASON_ID = data["season_id"]
+    BRACKETS     = data["brackets"]
+else:
+    # first time (or finalize mode) → fetch from Blizzard
+    PVP_SEASON_ID = get_current_pvp_season_id(REGION)
+    BRACKETS      = get_available_brackets(REGION, PVP_SEASON_ID)
+    # cache for future batch calls
+    try:
+        BRACKET_CACHE.write_text(json.dumps({
+            "season_id": PVP_SEASON_ID,
+            "brackets":  BRACKETS
+        }))
+    except Exception:
+        pass  # ignore cache‐write errors
 
 # STATIC NAMESPACE
 def get_latest_static_namespace(region):
