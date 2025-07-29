@@ -101,7 +101,7 @@ jobs:
         run: |
           git config user.name  "GitHub Action"
           git config user.email "action@github.com"
-          git add achiev/region_${{ matrix.region }}.lua
+          git add region_${{ matrix.region }}.lua
           git commit -m "PvP sync update for ${{ matrix.region }}" || echo "No changes to commit"
           git fetch origin dev
           git rebase origin/dev || echo "⚠️ Rebase failed"
