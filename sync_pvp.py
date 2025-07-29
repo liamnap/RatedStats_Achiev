@@ -51,7 +51,7 @@ HTTP_429_QUEUED = 0
 CALL_TIMES     = deque()
 
 GREEN, YELLOW, RED, RESET = "\033[92m", "\033[93m", "\033[91m", "\033[0m"
-OUTFILE        = Path(f"region_{REGION}.lua")
+OUTFILE        = Path("partial_outputs") / f"region_{REGION}.lua"
 REGION_VAR     = f"ACHIEVEMENTS_{REGION.upper()}"
 LOCALES        = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
 LOCALE         = LOCALES.get(REGION, "en_US")
