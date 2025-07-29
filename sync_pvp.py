@@ -200,11 +200,6 @@ else:
     except Exception:
         pass
 
-else:
-    # no bracket info needed for `--list-ids-only` mode
-    PVP_SEASON_ID = None
-    BRACKETS      = []
-
 # --------------------------------------------------------------------------
 # Fetch PvP leaderboard characters
 # --------------------------------------------------------------------------
