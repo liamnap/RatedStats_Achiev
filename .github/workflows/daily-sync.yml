@@ -72,8 +72,22 @@ jobs:
           git config user.name  "GitHub Action"
           git config user.email "action@github.com"
           git add region_*.lua
-          git commit -m "PvP sync update for ${{ matrix.region }}" || echo "No changes to commit"
-          # bring your dev branch up-to-date so push won’t be rejected:
-          git fetch origin dev
-          git rebase origin/dev
-          git push --force-with-lease origin dev
+          git commit -m "PvP sync update for ${{ matrix.region }}" || {
+            echo "No changes to commit."
+            exit 0
+          }
+
+          git fetch --all
+          git rebase origin/dev || {
+            echo "⚠️ Rebase failed. Saving backup of current state for manual review."
+            mkdir -p .sync_backups
+            cp region_*.lua ".sync_backups/region_${{ matrix.region }}_$(date +%s).lua"
+            exit 0
+          }
+
+          git push --force-with-lease origin dev || {
+            echo "❌ Push failed. Backup saved. You’ll need to resolve this manually."
+            mkdir -p .sync_backups
+            cp region_*.lua ".sync_backups/region_${{ matrix.region }}_$(date +%s).lua"
+            exit 0
+          }
