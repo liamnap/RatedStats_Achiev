@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import sqlite3
 import tempfile
@@ -603,8 +604,22 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 # --------------------------------------------------------------------------
 if __name__ == "__main__":
     # 1) seed from existing full Lua
-    old_chars = seed_db_from_lua(OUTFILE)
-    print(f"[DEBUG] seed_db_from_lua loaded {len(old_chars)} prior entries")
+    # ── CLI flags for matrix‐driven batching ──
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--list-ids-only', action='store_true',
+                        help='Print total number of characters and exit')
+    parser.add_argument('--offset',      type=int, default=0,
+                        help='Skip this many characters at start')
+    parser.add_argument('--limit',       type=int, default=None,
+                        help='Process at most this many characters')
+    parser.add_argument('--region',      type=str, default=None,
+                        help='Override REGION environment variable')
+    args = parser.parse_args()
+
+    if args.region:
+        REGION = args.region
+
+    # ── load previously‐seeded chars ──    print(f"[DEBUG] seed_db_from_lua loaded {len(old_chars)} prior entries")
 
     # 2) fetch leaderboard characters
     token = get_access_token(REGION)
@@ -621,7 +636,23 @@ if __name__ == "__main__":
     leaderboard_keys = set(api_chars)
 
     # 4) merge old + new
-    merged = {**api_chars, **old_chars}
+    # merge bracket API chars + any seeded‑from‑lua chars
+    chars = { **api_chars, **old_chars }
+    print(f"[FINAL DEBUG] Total chars this run: {len(chars)}")
+
+    # when listing for matrix, just emit count and exit
+    if args.list_ids_only:
+        print(len(chars))
+        sys.exit(0)
+
+    # apply offset/limit slicing for batch run
+    all_ids = list(chars.keys())
+    slice_ids = (
+        all_ids[args.offset: args.offset + args.limit]
+        if args.limit is not None
+        else all_ids[args.offset:]
+    )
+    chars = { k: chars[k] for k in slice_ids }
 
     # 5) slice for this batch
     keys = sorted(merged)
