@@ -620,6 +620,11 @@ if __name__ == "__main__":
     characters = {k: merged[k] for k in slice_keys}
     print(f"[FINAL DEBUG] Total chars this run: {len(characters)}")
 
+    # if we're in batch mode but there are no chars left, do a finalize instead
+    if MODE == "batch" and not characters:
+        print("[INFO] No more characters left; switching to finalize mode automatically.")
+        MODE = "finalize"
+
     # 6) process slice
     try:
         asyncio.run(process_characters(characters, leaderboard_keys))
