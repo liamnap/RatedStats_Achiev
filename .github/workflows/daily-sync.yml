@@ -3,27 +3,34 @@ name: Daily PvP Sync
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'  # Run daily at 01:00 UTC
+    - cron: '0 1 * * *'  # Daily at 01:00 UTC
 
 jobs:
-  sync:
+
+  generate-matrix:
     runs-on: ubuntu-latest
-    timeout-minutes: 1380
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          echo "Generating matrix..."
+          MATRIX=$(python3 -c "import json; print(json.dumps({'include': [{'region': r, 'batch': b} for r in ['us','eu','kr','tw'] for b in range(100)]}))")
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  sync:
+    needs: generate-matrix
+    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        region: [us, eu, kr, tw]
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+      fail-fast: false
+    timeout-minutes: 120
 
     steps:
-      # 1. full-depth checkout so we can switch branches
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0      # needed for git checkout later
+          fetch-depth: 0
 
-      # 2. move onto the dev branch
-      - name: Checkout dev branch
-        run: git checkout dev
-
-      # 3. set up Python environment
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -34,60 +41,56 @@ jobs:
           python -m pip install --upgrade pip
           pip install aiohttp requests psutil
 
-      - name: Show public IP of runner
-        run: |
-          echo "IPv4:"
-          curl -s https://api.ipify.org || echo "curl failed"
-          echo ""
-          echo "IPv6:"
-          curl -s https://api64.ipify.org || echo "curl failed"
-
-      # 4. run the sync *on the dev work-tree*
-      - name: Run PvP Sync for ${{ matrix.region }}
+      - name: Run Batch Sync
         env:
-         BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
-         BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
-         BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
-         BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
-         BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
-         BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
-         REGION:                 ${{ matrix.region }}
+          REGION: ${{ matrix.region }}
+          BATCH: ${{ matrix.batch }}
+          BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
+          BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
+          BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
+          BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
         run: |
-         python sync_pvp.py &  # run in background
-         pid=$!
-         echo "Started sync_pvp.py with PID $pid"
+          python sync_pvp.py --region "$REGION" --batch "$BATCH"
 
-         # Keep the step alive
-         while kill -0 "$pid" 2>/dev/null; do
-           echo "[Runner is still working at $(date)]"
-           sleep 60
-         done
+      - name: Upload partial batch output
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ matrix.region }}-batch-${{ matrix.batch }}"
+          path: "partial_outputs/${{ matrix.region }}_batch_${{ matrix.batch }}.lua"
+          if-no-files-found: ignore
 
-         wait "$pid"
-         echo "Sync process completed."
+  finalize:
+    needs: sync
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: [us, eu, kr, tw]
 
-      # 5. commit back to dev
-      - name: Commit & push results
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all_batches
+
+      - name: Combine batch outputs
+        run: |
+          mkdir -p achiev
+          touch achiev/region_${{ matrix.region }}.lua
+          for file in all_batches/${{ matrix.region }}-batch-*/*.lua; do
+            cat "$file" >> achiev/region_${{ matrix.region }}.lua
+          done
+
+      - name: Commit merged result
         run: |
           git config user.name  "GitHub Action"
           git config user.email "action@github.com"
-          git add region_*.lua
-          git commit -m "PvP sync update for ${{ matrix.region }}" || {
-            echo "No changes to commit."
-            exit 0
-          }
-
-          git fetch --all
-          git rebase origin/dev || {
-            echo "⚠️ Rebase failed. Saving backup of current state for manual review."
-            mkdir -p .sync_backups
-            cp region_*.lua ".sync_backups/region_${{ matrix.region }}_$(date +%s).lua"
-            exit 0
-          }
-
-          git push --force-with-lease origin dev || {
-            echo "❌ Push failed. Backup saved. You’ll need to resolve this manually."
-            mkdir -p .sync_backups
-            cp region_*.lua ".sync_backups/region_${{ matrix.region }}_$(date +%s).lua"
-            exit 0
-          }
+          git add achiev/region_${{ matrix.region }}.lua
+          git commit -m "PvP sync update for ${{ matrix.region }}" || echo "No changes to commit"
+          git fetch origin dev
+          git rebase origin/dev || echo "⚠️ Rebase failed"
+          git push --force-with-lease origin dev || echo "❌ Push failed"
