@@ -86,6 +86,12 @@ jobs:
           name: "${{ matrix.region }}-all-batches"
           path: all_batches
 
+      - name: Download final Lua
+        uses: actions/download-artifact@v4
+        with:
+          name: '${{ matrix.region }}-final-lua'
+          path: '.'            # drop it into repo root
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
