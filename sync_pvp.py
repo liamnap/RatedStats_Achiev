@@ -200,6 +200,11 @@ else:
     except Exception:
         pass
 
+else:
+    # no bracket info needed for `--list-ids-only` mode
+    PVP_SEASON_ID = None
+    BRACKETS      = []
+
 # --------------------------------------------------------------------------
 # Fetch PvP leaderboard characters
 # --------------------------------------------------------------------------
@@ -625,9 +630,10 @@ leaderboard_keys = set(api_chars)
 # 3) merge bracket + seeded chars
 chars = {**api_chars, **old_chars}
 
-# 4) list‐IDs mode (for matrix building)
+# 4) list‐IDs mode (for matrix building) – output one key per line
 if args.list_ids_only:
-    print(len(chars))
+    for k in sorted(chars):
+        print(k)
     sys.exit(0)
 
 # 5) apply offset/limit slicing
