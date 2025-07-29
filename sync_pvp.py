@@ -560,7 +560,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     root = real_leaders[0]
                 else:
                     # no bracket hit → still include this character
-                    root = comp[0]]
+                    root = comp[0]
                 alts = [m for m in comp if m != root]
                 guid, ach_map = rows_map[root]
                 alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
