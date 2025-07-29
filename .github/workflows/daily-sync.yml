@@ -69,12 +69,12 @@ jobs:
 
     # serialize per-region so you stay within your 36 k/hr limit
     concurrency:
-      group: sync-${{ matrix.region }}
+      group: sync-${{ matrix.region }}-${{ github.run_id }}
       cancel-in-progress: false
 
     strategy:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
-      max-parallel: 5   # tune this if you have spare runners
+      max-parallel: 4   # one batch runner per region at a time
 
     timeout-minutes: 1380
 
