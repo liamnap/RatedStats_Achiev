@@ -49,7 +49,7 @@ jobs:
               --total-batches "${TOTAL_BATCHES}")
             echo "$OUTPUT"
             # if the script printed "Wrote full …", stop here
-            if echo "$OUTPUT" | grep -q "Wrote full"; then
+            if [ -f partial_outputs/${REGION}_final.marker ]; then
               echo "✅ Finalize has run; stopping at batch ${BATCH_ID}"
               break
             fi
