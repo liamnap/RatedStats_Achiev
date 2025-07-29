@@ -34,6 +34,15 @@ parser.add_argument("--batch-id",      type=int, default=int(os.getenv("BATCH_ID
                     help="0-based batch index for batch mode")
 parser.add_argument("--total-batches", type=int, default=int(os.getenv("TOTAL_BATCHES", "1")),
                     help="Total number of batches for batch mode")
+
+# ── Flags for matrix‐driven batching ──
+parser.add_argument("--list-ids-only", action="store_true",
+                    help="Print the total number of characters and exit")
+parser.add_argument("--offset",       type=int, default=0,
+                    help="Skip this many characters at start")
+parser.add_argument("--limit",        type=int, default=None,
+                    help="Process at most this many characters")
+
 args = parser.parse_args()
 
 REGION        = args.region
@@ -599,75 +608,42 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 
     db.close()
 
-# --------------------------------------------------------------------------
-# Entry point
-# --------------------------------------------------------------------------
-if __name__ == "__main__":
-    # 1) seed from existing full Lua
-    # ── CLI flags for matrix‐driven batching ──
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--list-ids-only', action='store_true',
-                        help='Print total number of characters and exit')
-    parser.add_argument('--offset',      type=int, default=0,
-                        help='Skip this many characters at start')
-    parser.add_argument('--limit',       type=int, default=None,
-                        help='Process at most this many characters')
-    parser.add_argument('--region',      type=str, default=None,
-                        help='Override REGION environment variable')
-    args = parser.parse_args()
+# ──────────────────────────────────────────────────────────────────────────────
+# Main entrypoint: seed, merge, slice, then dispatch to process_characters()
+# ──────────────────────────────────────────────────────────────────────────────
 
-    if args.region:
-        REGION = args.region
+# 1) seed from existing full Lua
+old_chars = seed_db_from_lua(OUTFILE)
 
-    # ── load previously‐seeded chars ──    print(f"[DEBUG] seed_db_from_lua loaded {len(old_chars)} prior entries")
+# 2) fetch bracket‐API chars
+token = get_access_token(REGION)
+headers = {"Authorization": f"Bearer {token}"}
+api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
+api_chars = {f"{c['name'].lower()}-{c['realm'].lower()}": c for c in api_chars_intkey.values()}
+leaderboard_keys = set(api_chars)
 
-    # 2) fetch leaderboard characters
-    token = get_access_token(REGION)
-    headers = {"Authorization": f"Bearer {token}"}
-    raw_api = get_available_brackets  # silence unused
-    # get_characters_from_leaderboards already returns { id: character_dict, … }
-    api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
+# 3) merge bracket + seeded chars
+chars = {**api_chars, **old_chars}
 
-    # 3) normalize to "name-realm" keys
-    api_chars = {
-        f"{c['name'].lower()}-{c['realm'].lower()}": c
-        for c in api_chars_intkey.values()
-    }
-    leaderboard_keys = set(api_chars)
+# 4) list‐IDs mode (for matrix building)
+if args.list_ids_only:
+    print(len(chars))
+    sys.exit(0)
 
-    # 4) merge old + new
-    # merge bracket API chars + any seeded‑from‑lua chars
-    chars = { **api_chars, **old_chars }
-    print(f"[FINAL DEBUG] Total chars this run: {len(chars)}")
+# 5) apply offset/limit slicing
+all_keys   = sorted(chars)
+limit      = args.limit or len(chars)
+slice_keys = all_keys[args.offset : args.offset + limit]
+characters = {k: chars[k] for k in slice_keys}
+print(f"[FINAL DEBUG] Total chars this run: {len(characters)}")
 
-    # when listing for matrix, just emit count and exit
-    if args.list_ids_only:
-        print(len(chars))
-        sys.exit(0)
+# 6) if in batch mode but empty slice, switch to finalize
+if MODE == "batch" and not characters:
+    print("[INFO] no characters left → finalizing instead")
+    MODE = "finalize"
 
-    # apply offset/limit slicing for batch run
-    all_ids = list(chars.keys())
-    slice_ids = (
-        all_ids[args.offset: args.offset + args.limit]
-        if args.limit is not None
-        else all_ids[args.offset:]
-    )
-    chars = { k: chars[k] for k in slice_ids }
-
-    # 5) slice for this batch
-    keys = sorted(merged)
-    BATCH_SIZE = 2500
-    slice_keys = keys[BATCH_ID * BATCH_SIZE : (BATCH_ID + 1) * BATCH_SIZE]
-    characters = {k: merged[k] for k in slice_keys}
-    print(f"[FINAL DEBUG] Total chars this run: {len(characters)}")
-
-    # if we're in batch mode but there are no chars left, do a finalize instead
-    if MODE == "batch" and not characters:
-        print("[INFO] No more characters left; switching to finalize mode automatically.")
-        MODE = "finalize"
-
-    # 6) process slice
-    try:
-        asyncio.run(process_characters(characters, leaderboard_keys))
-    except CancelledError:
-        print(f"{YELLOW}[WARN] Top-level run was cancelled, exiting.{RESET}")
+# 7) execute
+try:
+    asyncio.run(process_characters(characters, leaderboard_keys))
+except CancelledError:
+    print(f"{YELLOW}[WARN] run was cancelled, exiting.{RESET}")
