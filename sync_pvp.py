@@ -840,7 +840,7 @@ if __name__ == "__main__":
 
     # 3) normalize API chars to string keys "name-realm"
     api_chars = {
-        f\"{c['name'].lower()}-{c['realm'].lower()}\": c
+        f"{c['name'].lower()}-{c['realm'].lower()}": c
         for c in raw_api_chars.values()
     }
     leaderboard_keys = set(api_chars.keys())
