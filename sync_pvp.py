@@ -569,6 +569,14 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             f.write("}\n\n")
             f.write(f"{REGION_VAR} = achievements\n")
         print(f"[DEBUG] Wrote full {OUTFILE}")
+
+        # --- new: drop a marker so the GH loop knows finalize ran ---
+        from pathlib import Path
+        final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
+        final_marker.parent.mkdir(exist_ok=True)
+        final_marker.write_text("")  # zero‐length file is fine
+        print(f"[DEBUG] Wrote finalize marker {final_marker}")
+        # -----------------------------------------------------------)
     else:
         PARTIAL_DIR = Path("partial_outputs")
         PARTIAL_DIR.mkdir(exist_ok=True)
