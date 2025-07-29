@@ -615,8 +615,8 @@ if __name__ == "__main__":
 
     # 5) slice for this batch
     keys = sorted(merged)
-    slice_size = (len(keys) + TOTAL_BATCHES - 1) // TOTAL_BATCHES
-    slice_keys = keys[BATCH_ID * slice_size : (BATCH_ID+1) * slice_size]
+    BATCH_SIZE = 2500
+    slice_keys = keys[BATCH_ID * BATCH_SIZE : (BATCH_ID + 1) * BATCH_SIZE]
     characters = {k: merged[k] for k in slice_keys}
     print(f"[FINAL DEBUG] Total chars this run: {len(characters)}")
 
