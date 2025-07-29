@@ -1,3 +1,4 @@
+
 import os
 import json
 import sqlite3
@@ -22,6 +23,19 @@ except ImportError:
 UTC = datetime.timezone.utc
 start_time = time.time()
 #---------------------------------------------------------------------------
+
+import argparse
+
+# accept batch vs finalize params (env vars are still a fallback)
+parser = argparse.ArgumentParser()
+parser.add_argument("--batch-id",      type=int, default=int(os.getenv("BATCH_ID","0")))
+parser.add_argument("--total-batches", type=int, default=int(os.getenv("TOTAL_BATCHES","1")))
+args = parser.parse_args()
+
+# override globals so the rest of your script uses these
+BATCH_ID      = args.batch_id
+TOTAL_BATCHES = args.total_batches
+# REGION was already from env; no change needed there
 
 # --------------------------------------------------------------------------
 # Helper – pretty-print an integer number of seconds as
@@ -745,48 +759,64 @@ async def process_characters(characters, leaderboard_keys):
     rows_map = { key: (guid, ach_map)
                  for key, guid, ach_map in db_iter_rows() }
 
-    # write out only one “root” per connected component,
-    # choosing roots that actually came from the leaderboard
-    with open(OUTFILE, "w", encoding="utf-8") as f:
-        f.write(f'-- File: RatedStats/region_{REGION}.lua\n')
-        f.write("local achievements = {\n")
+    # ── Decide full vs batch output ─────────────────────────────────────
+    if TOTAL_BATCHES == 1:
+        # Final runner: write the complete region_X.lua
+        with open(OUTFILE, "w", encoding="utf-8") as f:
+            f.write(f'-- File: RatedStats_Achiev/region_{REGION}.lua\n')
+            f.write("local achievements = {\n")
+            for comp in groups:
+                # DEBUG: each group we’re about to write
+                print(f"[DEBUG] group of size={len(comp)}, leaders={len([m for m in comp if m in leaderboard_keys])}")
 
-        for comp in groups:
-            # DEBUG: each group we’re about to write
-            print(f"[DEBUG] group of size={len(comp)}, leaders={len([m for m in comp if m in leaderboard_keys])}")
+                real_leaders = [m for m in comp if m in leaderboard_keys]
+                if not real_leaders:
+                    continue
 
-            real_leaders = [m for m in comp if m in leaderboard_keys]
-            if not real_leaders:
-                continue
+                root = real_leaders[0]
+                # DEBUG: writing the root entry for this component
+                print(f"[DEBUG] writing character={root}")
+                alts = [m for m in comp if m != root]
 
-            root = real_leaders[0]
-            # DEBUG: writing the root entry for this component
-            print(f"[DEBUG] writing character={root}")
-            alts = [m for m in comp if m != root]
+                # DEBUG: root we’ll write
+                print(f"[DEBUG] writing entry for root {root}")
 
-            # DEBUG: root we’ll write
-            print(f"[DEBUG] writing entry for root {root}")
+                guid, ach_map = rows_map[root]
+                alts_str = "{" + ",".join(f'"{alt}"' for alt in alts) + "}"
 
-            guid, ach_map = rows_map[root]
-            alts_str = "{" + ",".join(f'"{alt}"' for alt in alts) + "}"
+                parts = [
+                    f'character="{root}"',
+                    f'alts={alts_str}',
+                    f'guid={guid}'
+                ]
+                for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
+                    name = info["name"]
+                    esc  = name.replace('"', '\\"')
+                    parts.extend([f"id{i}={aid}", f'name{i}="{esc}"'])
 
-            parts = [
-                f'character="{root}"',
-                f'alts={alts_str}',
-                f'guid={guid}'
-            ]
-            for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
-                name = info["name"]
-                esc  = name.replace('"', '\\"')
-                parts.extend([f"id{i}={aid}", f'name{i}="{esc}"'])
+                f.write("    { " + ", ".join(parts) + " },\n")
 
-            f.write("    { " + ", ".join(parts) + " },\n")
-
-        f.write("}\n\n")
-        f.write(f"{REGION_VAR} = achievements\n")
-
-    # ── DEBUG: confirm how many “root” entries we just emitted
-    print(f"[DEBUG] Emitted {len(groups)} entries into region_{REGION}.lua")
+            f.write("}\n\n")
+            f.write(f"{REGION_VAR} = achievements\n")
+        print(f"[DEBUG] Emitted {len(groups)} entries into region_{REGION}.lua")
+    else:
+        # Batch mode: write only this batch’s slice
+        PARTIAL_DIR = Path("partial_outputs")
+        PARTIAL_DIR.mkdir(exist_ok=True)
+        out_file = PARTIAL_DIR / f"{REGION}_batch_{BATCH_ID}.lua"
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(f"-- Partial batch {BATCH_ID}/{TOTAL_BATCHES} for {REGION}\n")
+            f.write("local entries = {\n")
+            for key, guid, ach_map in db_iter_rows():
+                if key not in characters:
+                    continue
+                parts = [f'character="{key}"', 'alts={}', f'guid={guid}']
+                for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
+                    esc = info["name"].replace('"','\\"')
+                    parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+                f.write("    { " + ", ".join(parts) + " },\n")
+            f.write("}\n")
+        print(f"[DEBUG] Wrote partial file: {out_file}")
 
     db.close()
 
