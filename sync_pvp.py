@@ -185,20 +185,26 @@ CACHE_DIR     = Path("partial_outputs")
 CACHE_DIR.mkdir(exist_ok=True)
 BRACKET_CACHE = CACHE_DIR / f"{REGION}_brackets.json"
 
-if BRACKET_CACHE.exists():
-    cached = json.loads(BRACKET_CACHE.read_text())
-    PVP_SEASON_ID = cached["season_id"]
-    BRACKETS      = cached["brackets"]
+# if we're just listing IDs to build the matrix, skip any Blizzard calls
+if not args.list_ids_only:
+    if BRACKET_CACHE.exists():
+        cached = json.loads(BRACKET_CACHE.read_text())
+        PVP_SEASON_ID = cached["season_id"]
+        BRACKETS      = cached["brackets"]
+    else:
+        PVP_SEASON_ID = get_current_pvp_season_id(REGION)
+        BRACKETS      = get_available_brackets(REGION, PVP_SEASON_ID)
+        try:
+            BRACKET_CACHE.write_text(json.dumps({
+                "season_id": PVP_SEASON_ID,
+                "brackets":  BRACKETS
+            }))
+        except Exception:
+            pass
 else:
-    PVP_SEASON_ID = get_current_pvp_season_id(REGION)
-    BRACKETS      = get_available_brackets(REGION, PVP_SEASON_ID)
-    try:
-        BRACKET_CACHE.write_text(json.dumps({
-            "season_id": PVP_SEASON_ID,
-            "brackets":  BRACKETS
-        }))
-    except Exception:
-        pass
+    # no bracket info needed for `--list-ids-only` mode
+    PVP_SEASON_ID = None
+    BRACKETS      = []
 
 # --------------------------------------------------------------------------
 # Fetch PvP leaderboard characters
