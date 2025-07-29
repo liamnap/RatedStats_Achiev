@@ -475,7 +475,8 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 
         remaining = list(characters.values())
         retry_interval = 10
-        BATCH_SIZE = 2500
+        # allow overriding via env var for flexible sizing
+        BATCH_SIZE = int(os.environ["BATCH_SIZE"])
 
         while remaining:
             retry_bucket = {}
@@ -553,10 +554,13 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         with open(OUTFILE, "w", encoding="utf-8") as f:
             f.write(f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n")
             for comp in groups:
-                leaders = [m for m in comp if m in leaderboard_keys]
-                if not leaders:
-                    continue
-                root = leaders[0]
+                # find any bracket‑seen leader, otherwise pick the seed‑only char
+                real_leaders = [m for m in comp if m in leaderboard_keys]
+                if real_leaders:
+                    root = real_leaders[0]
+                else:
+                    # no bracket hit → still include this character
+                    root = comp[0]]
                 alts = [m for m in comp if m != root]
                 guid, ach_map = rows_map[root]
                 alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
