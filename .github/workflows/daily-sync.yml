@@ -47,6 +47,11 @@ jobs:
               --region "${REGION}" \
               --batch-id "${BATCH_ID}" \
               --total-batches "${TOTAL_BATCHES}"
+            # if the script just wrote out the full file, stop here
+            if grep -q "Wrote full" partial_outputs/${REGION}_batch_${BATCH_ID}.lua 2>/dev/null; then
+              echo "✅ Finalize has run; stopping at batch ${BATCH_ID}"
+              break
+            fi
           done
 
       - name: Upload all partial batches
