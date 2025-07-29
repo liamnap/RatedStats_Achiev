@@ -167,28 +167,6 @@ def get_available_brackets(region: str, season_id: int) -> list[str]:
     return brackets
 
 # --------------------------------------------------------------------------
-# Cache season/brackets to disk so batch runs only fetch once
-# --------------------------------------------------------------------------
-CACHE_DIR     = Path("partial_outputs")
-CACHE_DIR.mkdir(exist_ok=True)
-BRACKET_CACHE = CACHE_DIR / f"{REGION}_brackets.json"
-
-if MODE == "batch" and BRACKET_CACHE.exists():
-    cached = json.loads(BRACKET_CACHE.read_text())
-    PVP_SEASON_ID = cached["season_id"]
-    BRACKETS      = cached["brackets"]
-else:
-    PVP_SEASON_ID = get_current_pvp_season_id(REGION)
-    BRACKETS      = get_available_brackets(REGION, PVP_SEASON_ID)
-    try:
-        BRACKET_CACHE.write_text(json.dumps({
-            "season_id": PVP_SEASON_ID,
-            "brackets":  BRACKETS
-        }))
-    except Exception:
-        pass
-
-# --------------------------------------------------------------------------
 # Static namespace discovery
 # --------------------------------------------------------------------------
 def get_latest_static_namespace(region: str) -> str:
