@@ -6,25 +6,12 @@ on:
     - cron: '0 1 * * *'  # Daily at 01:00 UTC
 
 jobs:
-
-  generate-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - id: set-matrix
-        run: |
-          echo "Generating matrix..."
-          MATRIX=$(python3 -c "import json; print(json.dumps({'include': [{'region': r, 'batch': b} for r in ['us','eu','kr','tw'] for b in range(100)]}))")
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-
   sync:
-    needs: generate-matrix
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
-      fail-fast: false
-    timeout-minutes: 120
+      matrix:
+        region: [us, eu, kr, tw]
+    timeout-minutes: 240
 
     steps:
       - uses: actions/checkout@v3
@@ -41,26 +28,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install aiohttp requests psutil
 
-      - name: Run Batch Sync
+      - name: Run Batches Sequentially
         env:
-          REGION: ${{ matrix.region }}
-          BATCH: ${{ matrix.batch }}
-          BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
-          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          REGION:         ${{ matrix.region }}
+          TOTAL_BATCHES:  100
+          BLIZZARD_CLIENT_ID:        ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET:    ${{ secrets.BLIZZARD_CLIENT_SECRET }}
           BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
           BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
           BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
           BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
         run: |
-          python sync_pvp.py --region "$REGION" --batch "$BATCH"
+          mkdir -p partial_outputs
+          for BATCH_ID in $(seq 0 $((TOTAL_BATCHES - 1))); do
+            echo "=== Running batch ${BATCH_ID} for ${REGION} ==="
+            python sync_pvp.py \
+              --mode batch \
+              --region "${REGION}" \
+              --batch-id "${BATCH_ID}" \
+              --total-batches "${TOTAL_BATCHES}"
+          done
 
-      - name: Upload partial batch output
-        if: success()
+      - name: Upload all partial batches
         uses: actions/upload-artifact@v4
         with:
-          name: "${{ matrix.region }}-batch-${{ matrix.batch }}"
-          path: "partial_outputs/${{ matrix.region }}_batch_${{ matrix.batch }}.lua"
-          if-no-files-found: ignore
+          name: "${{ matrix.region }}-all-batches"
+          path: "partial_outputs/${{ matrix.region }}_batch_*.lua"
 
   finalize:
     needs: sync
@@ -71,19 +64,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      - name: Download all artifacts
+      - name: Download all partial batches
         uses: actions/download-artifact@v4
         with:
+          name: "${{ matrix.region }}-all-batches"
           path: all_batches
 
-      - name: Combine batch outputs
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Finalize region file
         run: |
-          mkdir -p achiev
-          touch achiev/region_${{ matrix.region }}.lua
-          for file in all_batches/${{ matrix.region }}-batch-*/*.lua; do
-            cat "$file" >> achiev/region_${{ matrix.region }}.lua
-          done
+          python sync_pvp.py \
+            --mode finalize \
+            --region "${{ matrix.region }}"
 
       - name: Commit merged result
         run: |
