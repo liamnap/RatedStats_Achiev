@@ -804,7 +804,17 @@ if __name__ == "__main__":
         for c in api_chars.values()
     }
     # merge API chars with any seeded-from-lua chars
-    chars = { **api_chars, **old_chars }
+    merged = { **api_chars, **old_chars }
+
+    # Determine which slice of characters to process
+    batch_id = int(os.getenv("BATCH_ID", "0"))
+    total_batches = int(os.getenv("TOTAL_BATCHES", "1"))
+    keys = sorted(merged.keys())
+    slice_size = (len(keys) + total_batches - 1) // total_batches
+    start = batch_id * slice_size
+    end = start + slice_size
+    batch_keys = keys[start:end]
+    chars = {k: merged[k] for k in batch_keys}
     print(f"[FINAL DEBUG] Total chars this run: {len(chars)}")
     if chars:
          pass
