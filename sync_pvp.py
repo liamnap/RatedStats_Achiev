@@ -600,10 +600,8 @@ if __name__ == "__main__":
     token = get_access_token(REGION)
     headers = {"Authorization": f"Bearer {token}"}
     raw_api = get_available_brackets  # silence unused
-    api_chars_intkey = {
-        c["id"]: c
-        for c in get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
-    }
+    # get_characters_from_leaderboards already returns { id: character_dict, … }
+    api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
 
     # 3) normalize to "name-realm" keys
     api_chars = {
