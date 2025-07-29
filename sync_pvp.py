@@ -1,4 +1,3 @@
-
 import os
 import json
 import sqlite3
@@ -26,16 +25,24 @@ start_time = time.time()
 
 import argparse
 
-# accept batch vs finalize params (env vars are still a fallback)
-parser = argparse.ArgumentParser()
-parser.add_argument("--batch-id",      type=int, default=int(os.getenv("BATCH_ID","0")))
-parser.add_argument("--total-batches", type=int, default=int(os.getenv("TOTAL_BATCHES","1")))
+# CLI arguments (env vars are still the fallback)
+parser = argparse.ArgumentParser(description="PvP sync runner")
+parser.add_argument("--mode", choices=["batch","finalize"], default=None,
+                    help="Mode: 'batch' to emit partials, 'finalize' to merge & write full Lua")
+parser.add_argument("--region", default=os.getenv("REGION","eu"),
+                    help="Region code: us, eu, kr, tw")
+parser.add_argument("--batch-id", type=int, default=int(os.getenv("BATCH_ID","0")),
+                    help="0-based batch index for batch mode")
+parser.add_argument("--total-batches", type=int, default=int(os.getenv("TOTAL_BATCHES","1")),
+                    help="Total number of batches for batch mode")
 args = parser.parse_args()
 
-# override globals so the rest of your script uses these
+# Override globals
+REGION        = args.region
 BATCH_ID      = args.batch_id
 TOTAL_BATCHES = args.total_batches
-# REGION was already from env; no change needed there
+# Determine actual mode
+MODE = args.mode or ("finalize" if TOTAL_BATCHES == 1 else "batch")
 
 # --------------------------------------------------------------------------
 # Helper – pretty-print an integer number of seconds as
@@ -760,7 +767,7 @@ async def process_characters(characters, leaderboard_keys):
                  for key, guid, ach_map in db_iter_rows() }
 
     # ── Decide full vs batch output ─────────────────────────────────────
-    if TOTAL_BATCHES == 1:
+    if MODE == "finalize":
         # Final runner: write the complete region_X.lua
         with open(OUTFILE, "w", encoding="utf-8") as f:
             f.write(f'-- File: RatedStats_Achiev/region_{REGION}.lua\n')
@@ -799,7 +806,7 @@ async def process_characters(characters, leaderboard_keys):
             f.write("}\n\n")
             f.write(f"{REGION_VAR} = achievements\n")
         print(f"[DEBUG] Emitted {len(groups)} entries into region_{REGION}.lua")
-    else:
+    elif MODE == "batch":
         # Batch mode: write only this batch’s slice
         PARTIAL_DIR = Path("partial_outputs")
         PARTIAL_DIR.mkdir(exist_ok=True)
