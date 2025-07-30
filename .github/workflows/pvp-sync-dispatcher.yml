@@ -66,6 +66,8 @@ jobs:
                   region: job.region,
                   offset: String(job.offset),
                   limit: String(process.env.BATCH_SIZE),
+                  batch_id: job.index,
+                  total_batches: matrix.length
                 }
               });
               console.log(`▶️ Dispatched ${job.region}@${job.offset}`);
