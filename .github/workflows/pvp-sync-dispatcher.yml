@@ -61,7 +61,7 @@ jobs:
             const matrix = JSON.parse(process.env.PREPARE_MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             for (const job of matrix) {
-              await github.actions.createWorkflowDispatch({
+              await github.rest.actions.createWorkflowDispatch({
                 owner,
                 repo,
                 workflow_id: 'pvp-sync-batch.yml',
