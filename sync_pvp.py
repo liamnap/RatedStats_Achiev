@@ -73,13 +73,17 @@ args = parser.parse_args()
 
 # ── short‑circuit for prepare‑stage list‑only mode ──
 if args.list_ids_only:
-    # just seed from any existing region file on disk and count the keys
-    # we do NOT open the full DB again; use seed_db_from_lua on the target file
-    region = args.region or os.getenv("REGION", "eu")
-    lua_path = Path(f"region_{region}.lua")
-    old = seed_db_from_lua(lua_path)
-    # print one character key per line, so `| wc -l` works
-    for k in sorted(old):
+    region   = args.region or os.getenv("REGION", "eu")
+    lua_file = Path(f"region_{region}.lua")
+    if not lua_file.exists():
+        # no file yet → zero lines
+        sys.exit(0)
+    text = lua_file.read_text(encoding="utf-8")
+    # grab any character="name-realm" entries
+    import re
+    keys = re.findall(r'character="([^"]+)"', text)
+    # print one per line for `| wc -l`
+    for k in sorted(set(keys)):
         print(k)
     sys.exit(0)
 
