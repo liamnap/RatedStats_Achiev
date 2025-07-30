@@ -17,6 +17,7 @@ on:
       limit:
         required: true
         type: string
+        
   workflow_dispatch:                       # so we can `createWorkflowDispatch` via API
     inputs:
       region:
@@ -29,6 +30,14 @@ on:
         type: string
       limit:
         description: 'batch size'
+        required: true
+        type: string
+      batch_id:
+        description: '0-based batch index'
+        required: true
+        type: string
+      total_batches:
+        description: 'Total number of batches'
         required: true
         type: string
         
