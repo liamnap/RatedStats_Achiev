@@ -2,6 +2,12 @@ name: PvP Sync Batch
 on:
   workflow_call:
     inputs:
+      batch_id:
+        required: true
+        type: string
+      total_batches:
+        required: true
+        type: string
       region:
         required: true
         type: string
@@ -50,6 +56,9 @@ jobs:
           BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
         run: |
           python sync_pvp.py \
+            --mode batch \
             --region "${{ inputs.region }}" \
+            --batch-id ${{ inputs.batch_id }} \
+            --total-batches ${{ inputs.total_batches }} \
             --offset ${{ inputs.offset }} \
             --limit ${{ inputs.limit }}
