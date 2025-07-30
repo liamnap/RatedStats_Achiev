@@ -72,22 +72,3 @@ jobs:
             }
         env:
           MATRIX: ${{ needs.prepare.outputs.MATRIX }}
-
-  # optionally: a final job that waits for all dispatches to finish
-  finalize:
-    needs: dispatch
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for all batch runs
-        uses: wagoid/gh-actions-wait@v1
-        with:
-          check-name: PvP Sync Batch
-          conclusion: success
-      - name: Merge & finalize .lua
-        run: |
-          # checkout, then run sync_pvp.py in finalize mode
-          git checkout dev
-          python sync_pvp.py --region us --mode finalize
-          python sync_pvp.py --region eu --mode finalize
-          python sync_pvp.py --region kr --mode finalize
-          python sync_pvp.py --region tw --mode finalize
