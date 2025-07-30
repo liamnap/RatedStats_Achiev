@@ -1,4 +1,6 @@
 name: PvP Sync Batch
+run-name: PvP Sync for ${{ inputs.region }} ${{ inputs['batch-id'] }} / ${{ inputs['total-batches'] }}
+
 on:
   workflow_call:
     inputs:
