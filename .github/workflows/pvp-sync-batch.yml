@@ -1,0 +1,38 @@
+name: PvP Sync Batch
+on:
+  workflow_call:
+    inputs:
+      region:
+        required: true
+        type: string
+      offset:
+        required: true
+        type: number
+      limit:
+        required: true
+        type: number
+
+jobs:
+  batch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with: { fetch-depth: 0 }
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with: { python-version: '3.x' }
+      - name: Install deps
+        run: |
+          pip install aiohttp requests psutil
+      - name: Run PvP Sync batch
+        env:
+          REGION: ${{ inputs.region }}
+          BATCH_SIZE: ${{ inputs.limit }}
+          BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          # …and the other secrets…
+        run: |
+          python sync_pvp.py \
+            --region "${{ inputs.region }}" \
+            --offset ${{ inputs.offset }} \
+            --limit ${{ inputs.limit }}
