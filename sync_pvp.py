@@ -100,7 +100,7 @@ if args.list_ids_only:
 REGION        = args.region
 BATCH_ID      = args.batch_id
 TOTAL_BATCHES = args.total_batches
-MODE          = args.mode or ("finalize" if TOTAL_BATCHES == 1 else "batch")
+MODE          = args.mode or "batch"
 
 # --------------------------------------------------------------------------
 # Globals & Constants
@@ -669,8 +669,10 @@ if __name__ == "__main__":
         # process exactly one batch, then exit
         batch_id = int(BATCH_ID) if "BATCH_ID" in globals() else 0
         total_batches = int(TOTAL_BATCHES) if "TOTAL_BATCHES" in globals() else computed_total
-        start = batch_id * batch_size
-        slice_keys = all_keys[start : start + batch_size]
+        # Prefer explicit CLI window when provided; otherwise use batch math
+        start = args.offset if args.offset else batch_id * batch_size
+        cur_limit = args.limit if args.limit else batch_size
+        slice_keys = all_keys[start : start + cur_limit]
         characters = {k: chars[k] for k in slice_keys}
         print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars")
         try:
@@ -687,24 +689,6 @@ if __name__ == "__main__":
         asyncio.run(process_characters(chars, leaderboard_keys))
         db.close()
         sys.exit(0)
-
-    elif MODE == "both":
-        # preserve existing "all batches then finalize" flow (use computed batching)
-        total_batches = computed_total
-        for batch_id in range(total_batches):
-            start = batch_id * batch_size
-            slice_keys = all_keys[start : start + batch_size]
-            characters = {k: chars[k] for k in slice_keys}
-            print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars")
-            try:
-                asyncio.run(process_characters(characters, leaderboard_keys))
-            except CancelledError:
-                print(f"{YELLOW}[WARN] batch {batch_id+1} cancelled, exiting.{RESET}")
-                sys.exit(1)
-        print(f"[INFO] Finalizing region {REGION}")
-        MODE = "finalize"
-        asyncio.run(process_characters(chars, leaderboard_keys))
-        db.close()
 
     else:
         print(f"{RED}[ERROR] Unknown MODE={MODE}{RESET}")
