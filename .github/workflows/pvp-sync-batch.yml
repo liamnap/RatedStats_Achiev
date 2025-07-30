@@ -112,7 +112,7 @@ jobs:
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             const region        = process.env.REGION;
             const limit         = process.env.LIMIT;
-            const curID         = Number(process.env.CUR_ID) + 1;
+            const curId         = Number(process.env.CUR_ID) + 1;
             const total         = Number(process.env.TOTAL);
             const groupKey      = process.env.GROUP_KEY;  // already region-scoped
             
