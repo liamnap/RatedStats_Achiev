@@ -1,5 +1,5 @@
 name: PvP Sync Batch
-run-name: PvP Sync Batch ${{ inputs.batch_id }} / ${{ inputs.total_batches }} for ${{ inputs.region }}
+run-name: PvP Sync Batch ${{ inputs.batch_id + 1}} / ${{ inputs.total_batches }} for ${{ inputs.region }}
 
 permissions:
   actions: write
