@@ -1,5 +1,5 @@
 name: PvP Sync Batch
-run-name: PvP Sync for ${{ inputs.region }} ${{ inputs.batch_id }} / ${{ inputs.total_batches }} (group ${{ inputs['group-id'] }})
+run-name: PvP Sync for ${{ inputs.region }} ${{ inputs.batch_id }} / ${{ inputs.total_batches }} / {{ inputs.group-id }}
 
 on:
   workflow_call:
@@ -84,7 +84,7 @@ jobs:
       - name: Upload partial Lua
         uses: actions/upload-artifact@v4
         with:
-          name: pvp-partial-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs['group-id'] }}
+          name: pvp-partial-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs.group-id }}
           path: partial_outputs/${{ inputs.region }}_batch_${{ inputs.batch_id }}.lua
           if-no-files-found: error
           retention-days: 7
@@ -92,7 +92,7 @@ jobs:
       - name: Upload DB shard
         uses: actions/upload-artifact@v4
         with:
-          name: pvp-db-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs['group-id'] }}
+          name: pvp-db-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs.group-id }}
           path: partial_outputs/achdb_${{ inputs.region }}_b${{ inputs.batch_id }}.sqlite
           if-no-files-found: error
           retention-days: 7
