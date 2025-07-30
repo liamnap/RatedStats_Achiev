@@ -91,8 +91,8 @@ if args.list_ids_only:
     for m in alts_rx.finditer(text):
         for alt in m.group(1).split(','):
             keys.add(alt.strip().strip('"'))
-            
-    # print one per line for `| wc -l`
+
+# print one per line for `| wc -l`
     for k in sorted(set(keys)):
         print(k)
     sys.exit(0)
@@ -636,8 +636,6 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             f.write("}\n")
         print(f"[DEBUG] Wrote partial {out_file}")
 
-    db.close()
-
 #─────────────────────────────────────────────────────────────────────────────
 # Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
@@ -678,3 +676,5 @@ if __name__ == "__main__":
     print(f"[INFO] Finalizing region {REGION}")
     MODE = "finalize"
     asyncio.run(process_characters(chars, leaderboard_keys))
+    # close the SQLite handle *once*, after all batches are processed
+    db.close()
