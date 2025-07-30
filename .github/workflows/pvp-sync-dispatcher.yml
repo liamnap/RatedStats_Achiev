@@ -38,7 +38,7 @@ jobs:
             COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
             for ((i=0;i<COUNT;i++)); do
               OFFSET=$(( i * BATCH_SIZE ))
-              ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET}")
+              ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"batch_id\":$i,\"total_batches\":$COUNT}")
             done
           done
           # comma‑join
