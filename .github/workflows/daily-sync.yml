@@ -10,71 +10,13 @@ env:
   REGIONS: us eu kr tw
 
 jobs:
-  # 1) Build the matrix of (region,offset,is_last) slices
-  prepare:
-    runs-on: ubuntu-latest
-    env:
-      # allow sync_pvp.py in list-ids-only mode to call Blizzard
-      BLIZZARD_CLIENT_ID:        ${{ secrets.BLIZZARD_CLIENT_ID }}
-      BLIZZARD_CLIENT_SECRET:    ${{ secrets.BLIZZARD_CLIENT_SECRET }}
-      BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
-      BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
-      BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
-      BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Check out dev branch
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Switch to dev
-        run: git checkout dev
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install aiohttp requests psutil
-
-      - name: Build batch matrix
-        id: set-matrix
-        shell: bash
-        run: |
-          ITEMS=()
-          for region in $REGIONS; do
-            TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
-            COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
-            for ((i=0;i<COUNT;i++)); do
-              OFFSET=$(( i * BATCH_SIZE ))
-              IS_LAST=$([[ $i -eq $((COUNT-1)) ]] && echo true || echo false)
-              ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"is_last\":$IS_LAST}")
-            done
-          done
-          # build a comma‑separated JSON array
-          matrix_items=$(printf ',%s' "${ITEMS[@]}")
-          matrix_array="[${matrix_items:1}]"
-
-          # emit via the new environment‑file method
-          echo "matrix={\"include\":$matrix_array}" >> $GITHUB_OUTPUT
-
-  # 2) One runner per (region,offset) slice
+  # single runner per region; script does its own BATCH_SIZE loops
   sync:
-    needs: prepare
     runs-on: ubuntu-latest
-
-    # serialize per-region so you stay within your 36 k/hr limit
-    concurrency:
-      group: sync-${{ matrix.region }}-${{ github.run_id }}
-      cancel-in-progress: false
-
     strategy:
-      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
-      max-parallel: 4   # one batch runner per region at a time
+      matrix:
+        region: ${{ split(env.REGIONS, ' ') }}
+      max-parallel: 4   # one region at a time, 4 regions in parallel
 
     timeout-minutes: 1380
 
@@ -103,7 +45,7 @@ jobs:
           echo "IPv6:"; curl -s https://api6.ipify.org || echo "curl failed"
 
       # 2.4 run the sync slice in the foreground
-      - name: Run PvP Sync for ${{ matrix.region }} [offset ${{ matrix.offset }}]
+      - name: Run PvP Sync (full) for ${{ matrix.region }}
         env:
           BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
@@ -114,15 +56,12 @@ jobs:
           REGION:                 ${{ matrix.region }}
           BATCH_SIZE:             ${{ env.BATCH_SIZE }}
         run: |
-          echo "=== syncing region $REGION, offset=${{ matrix.offset }}… ==="
-          python sync_pvp.py \
-            --region "$REGION" \
-            --offset ${{ matrix.offset }} \
-            --limit $BATCH_SIZE
+          echo "=== full-sync for region $REGION (batch size=$BATCH_SIZE) ==="
+          python sync_pvp.py --region "$REGION"
 
       # 2.5 only on the final slice for each region: commit & push
       - name: Commit & push results
-        if: ${{ matrix.is_last == 'true' }}
+        if: ${{ always() }}
         run: |
           git config user.name  "GitHub Action"
           git config user.email "action@github.com"
