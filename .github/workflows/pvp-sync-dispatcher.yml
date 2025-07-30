@@ -65,6 +65,7 @@ jobs:
             const matrix = JSON.parse(process.env.MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             const groupId = process.env.GROUP_ID;
+            const groupBase = process.env.GROUP_ID;
             for (const job of matrix) {
               await github.rest.actions.createWorkflowDispatch({
                 owner,
