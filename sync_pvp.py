@@ -86,7 +86,8 @@ if args.list_ids_only:
     keys = set()
     for m in char_rx.finditer(text):
         keys.add(m.group(1))
-# if you also want to capture alts (for informational/debug), you can:
+        
+    # if you also want to capture alts (for informational/debug), you can:
     for m in alts_rx.finditer(text):
         for alt in m.group(1).split(','):
             keys.add(alt.strip().strip('"'))
