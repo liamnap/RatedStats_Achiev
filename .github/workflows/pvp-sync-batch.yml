@@ -30,7 +30,10 @@ jobs:
           BATCH_SIZE: ${{ inputs.limit }}
           BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
-          # …and the other secrets…
+          BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
+          BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
+          BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
+          BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
         run: |
           python sync_pvp.py \
             --region "${{ inputs.region }}" \
