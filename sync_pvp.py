@@ -193,6 +193,12 @@ def get_access_token(region: str) -> str:
         cid = os.getenv("BLIZZARD_CLIENT_ID_US")
         cs  = os.getenv("BLIZZARD_CLIENT_SECRET_US")
     else:
+        # Warn if a region-specific pair is missing and we fall back.
+        if region in ("eu", "us") and not (
+            os.getenv(f"BLIZZARD_CLIENT_ID_{region.upper()}") and
+            os.getenv(f"BLIZZARD_CLIENT_SECRET_{region.upper()}")
+        ):
+            print(f"[WARN] {region.upper()} credentials not set; using default BLIZZARD_CLIENT_ID/SECRET")
         cid = os.getenv("BLIZZARD_CLIENT_ID")
         cs  = os.getenv("BLIZZARD_CLIENT_SECRET")
 
