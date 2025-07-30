@@ -59,6 +59,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           wf="PvP Sync Batch"
           branch='${{ github.event.workflow_run.head_branch }}'
           group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([0-9]\+\)).*/\1/p')
@@ -66,14 +67,17 @@ jobs:
                  --jq "[ .[] | select(.displayTitle | contains(\"group ${group}\")) ]")
           mkdir -p partial_outputs
           for id in $(echo "$runs" | jq -r '.[].databaseId'); do
-            # download only DB artifacts (they extract into per-artifact dirs)
-            gh run download "$id" -n "pvp-db-" -D partial_outputs || true
+            # download only DB artifacts; extract under per‑artifact dirs
+            gh run download "$id" --pattern "pvp-db-*" -D partial_outputs || true
           done
+          # flatten shards so sync_pvp.py can glob partial_outputs/achdb_*.sqlite
+          find partial_outputs -type f -name "achdb_*.sqlite" -exec mv -t partial_outputs {} +
 
       - name: Verify all group runs succeeded and collect regions
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           wf="PvP Sync Batch"
           branch='${{ github.event.workflow_run.head_branch }}'
           group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([0-9]\+\)).*/\1/p')
