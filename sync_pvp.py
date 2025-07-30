@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import shutil
 import json
 import sqlite3
 import tempfile
@@ -473,6 +474,27 @@ def db_iter_rows():
     for k, g, j in cur:
         yield k, g, json.loads(j)
 
+def merge_db_shards(dirpath: Path):
+    # upsert rows from all shards into the main DB
+    shards = sorted(dirpath.glob("achdb_*.sqlite"))
+    if not shards:
+        return 0
+    merged = 0
+    for s in shards:
+        try:
+            with sqlite3.connect(s) as src:
+                for k,g,j in src.execute("SELECT key,guid,ach_json FROM char_data"):
+                    db.execute(
+                        "INSERT OR REPLACE INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
+                        (k, g, j)
+                    )
+                    merged += 1
+        except Exception as e:
+            print(f"[WARN] failed to merge shard {s}: {e}")
+    db.commit()
+    print(f"[DEBUG] merged {merged} rows from {len(shards)} shard(s)")
+    return merged
+
 # --------------------------------------------------------------------------
 # Main processing
 # --------------------------------------------------------------------------
@@ -567,13 +589,32 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         for k, _, ach in db_iter_rows()
     }
     alt_map = {k: [] for k in fingerprints}
-    keys = list(fingerprints)
-    for i in range(len(keys)):
-        for j in range(i+1, len(keys)):
-            a, b = keys[i], keys[j]
-            if len(fingerprints[a] & fingerprints[b]) >= 5:
-                alt_map[a].append(b)
-                alt_map[b].append(a)
+    # scalable pair generation via inverted index over tokens (aid, ts)
+    from collections import defaultdict
+    bucket = defaultdict(list)  # token -> [char keys]
+    for k, toks in fingerprints.items():
+        for t in toks:
+            bucket[t].append(k)
+    pair_counts = defaultdict(int)
+    # guard against giant buckets (very common tokens); skip if too large
+    MAX_BUCKET = 1000
+    for members in bucket.values():
+        n = len(members)
+        if n < 2 or n > MAX_BUCKET:
+            continue
+        for i in range(n-1):
+            ai = members[i]
+            for j in range(i+1, n):
+                bj = members[j]
+                if ai < bj:
+                    pair_counts[(ai, bj)] += 1
+                else:
+                    pair_counts[(bj, ai)] += 1
+    THRESH = 5
+    for (a, b), cnt in pair_counts.items():
+        if cnt >= THRESH:
+            alt_map[a].append(b)
+            alt_map[b].append(a)
 
     # connected components
     visited = set()
@@ -644,6 +685,13 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         # Single-batch guarantee: when running in --mode batch, do *not* process
         # any additional batches and do not fall through to finalize.
         if MODE == "batch":
+            # export the SQLite shard so CI can upload it
+            shard = Path("partial_outputs") / f"achdb_{REGION}_b{BATCH_ID}.sqlite"
+            try:
+                shutil.copy2(DB_PATH, shard)
+                print(f"[DEBUG] Wrote DB shard {shard}")
+            except Exception as e:
+                print(f"[WARN] failed to export DB shard: {e}")
             return
             
 #─────────────────────────────────────────────────────────────────────────────
@@ -690,9 +738,12 @@ if __name__ == "__main__":
         sys.exit(0)
 
     elif MODE == "finalize":
-        # only finalize
+        # only finalize (no re-fetch): merge all shards, then write full Lua
         print(f"[INFO] Finalizing region {REGION}")
-        asyncio.run(process_characters(chars, leaderboard_keys))
+        # make any downloaded shards visible
+        merge_db_shards(Path("partial_outputs"))
+        # run the writer path (characters dict can be empty)
+        asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
         sys.exit(0)
 
