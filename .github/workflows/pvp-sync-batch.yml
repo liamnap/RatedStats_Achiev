@@ -1,5 +1,5 @@
 name: PvP Sync Batch
-run-name: PvP Sync for ${{ inputs.region }} ${{ inputs.batch_id }} / ${{ inputs.total_batches }}
+run-name: PvP Sync for ${{ inputs.region }} ${{ inputs.batch_id }} / ${{ inputs.total_batches }} (group ${{ inputs['group-id'] }})
 
 on:
   workflow_call:
@@ -18,6 +18,9 @@ on:
         type: string
       limit:
         required: true
+        type: string
+      group-id:
+        required: false
         type: string
         
   workflow_dispatch:                       # so we can `createWorkflowDispatch` via API
@@ -40,6 +43,10 @@ on:
         type: string
       total_batches:
         description: 'Total number of batches'
+        required: true
+        type: string
+      group-id:
+        description: 'Dispatcher run id used to correlate this batch'
         required: true
         type: string
         
@@ -73,3 +80,19 @@ jobs:
             --total-batches ${{ inputs.total_batches }} \
             --offset ${{ inputs.offset }} \
             --limit ${{ inputs.limit }}
+
+      - name: Upload partial Lua
+        uses: actions/upload-artifact@v4
+        with:
+          name: pvp-partial-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs['group-id'] }}
+          path: partial_outputs/${{ inputs.region }}_batch_${{ inputs.batch_id }}.lua
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload DB shard
+        uses: actions/upload-artifact@v4
+        with:
+          name: pvp-db-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs['group-id'] }}
+          path: partial_outputs/achdb_${{ inputs.region }}_b${{ inputs.batch_id }}.sqlite
+          if-no-files-found: error
+          retention-days: 7
