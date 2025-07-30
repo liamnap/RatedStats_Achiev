@@ -31,6 +31,7 @@ def seed_db_from_lua(lua_path: Path) -> dict:
     row_rx  = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
     ach_rx  = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
     guid_rx = re.compile(r'guid\s*=\s*(\d+)')
+    alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
     for m in row_rx.finditer(txt):
         block = m.group(0)
         key   = m.group(1)
@@ -46,6 +47,14 @@ def seed_db_from_lua(lua_path: Path) -> dict:
         db_upsert(key, guid, ach)
         n, r = key.split('-', 1)
         rows[key] = {"id": guid, "name": n, "realm": r}
+        # also seed alt *keys* into the to‑fetch list (id will be filled on fetch)
+        am = alts_rx.search(block)
+        if am:
+            for alt in am.group(1).split(','):
+                altk = alt.strip().strip('"')
+                if altk and altk not in rows:
+                    an, ar = altk.split('-', 1)
+                    rows[altk] = {"id": 0, "name": an, "realm": ar}
     db.commit()
     return rows
 
@@ -76,25 +85,27 @@ args = parser.parse_args()
 if args.list_ids_only:
     region   = args.region or os.getenv("REGION", "eu")
     lua_file = Path(f"region_{region}.lua")
-    if not lua_file.exists():
-        sys.exit(0)
-    text = lua_file.read_text(encoding="utf-8")
-    # match both character="name-realm" and optional alts={…}
-    # allow arbitrary spaces around '='
-    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-    alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
-
     keys = set()
-    for m in char_rx.finditer(text):
-        keys.add(m.group(1))
-        
-    # if you also want to capture alts (for informational/debug), you can:
-    for m in alts_rx.finditer(text):
-        for alt in m.group(1).split(','):
-            keys.add(alt.strip().strip('"'))
-
-# print one per line for `| wc -l`
-    for k in sorted(set(keys)):
+    if lua_file.exists():
+        text = lua_file.read_text(encoding="utf-8")
+        char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+        alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
+        for m in char_rx.finditer(text):
+            keys.add(m.group(1))
+        for m in alts_rx.finditer(text):
+            for alt in m.group(1).split(','):
+                keys.add(alt.strip().strip('"'))
+    # union with current bracket characters
+    try:
+        season_id = get_current_pvp_season_id(region)
+        brackets  = get_available_brackets(region, season_id)
+        token     = get_access_token(region)
+        hdrs      = {"Authorization": f"Bearer {token}"}
+        api_chars = get_characters_from_leaderboards(region, hdrs, season_id, brackets)
+        keys |= { f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values() }
+    except Exception as e:
+        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}", file=sys.stderr)
+    for k in sorted(keys):
         print(k)
     sys.exit(0)
 
