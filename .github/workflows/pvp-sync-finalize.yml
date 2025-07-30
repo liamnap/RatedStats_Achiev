@@ -35,8 +35,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           wf="PvP Sync Batch"
-          # Extract group id from the triggering run's display title, e.g. "... (group 123456789)"
-          group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([0-9]\+\)).*/\1/p')
+          # Extract group id from the triggering run's display title, e.g. "... (group 16624659864-us)"
+          group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([^)]\+\)).*/\1/p')
           branch='${{ github.event.workflow_run.head_branch }}'
           if [ -z "$group" ]; then
             echo "ERROR: group id not found in run-name. Ensure batch run-name ends with '(group <id>)'."
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           wf="PvP Sync Batch"
           branch='${{ github.event.workflow_run.head_branch }}'
-          group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([0-9]\+\)).*/\1/p')
+          group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([^)]\+\)).*/\1/p')
           runs=$(gh run list -w "$wf" -b "$branch" -L 500 --json databaseId,displayTitle \
                  --jq "[ .[] | select(.displayTitle | contains(\"group ${group}\")) ]")
           mkdir -p partial_outputs
@@ -73,7 +73,7 @@ jobs:
           # flatten shards so sync_pvp.py can glob partial_outputs/achdb_*.sqlite
           find partial_outputs -type f -name "achdb_*.sqlite" -exec mv -t partial_outputs {} +
 
-      - name: Verify all group runs succeeded and collect regions
+      - name: Verify all group runs succeeded and set REGION
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -90,10 +90,10 @@ jobs:
             echo "$runs" | jq -r '.[] | "\(.databaseId)\t\(.status)\t\(.conclusion)\t\(.displayTitle)"'
             exit 1
           fi
-          # Derive regions from run titles: "PvP Sync for <region> ..."
-          regions=$(echo "$runs" | jq -r '.[].displayTitle' | sed -n 's/^PvP Sync for \([a-z][a-z]\) .*(group .*$/\1/p' | sort -u | tr '\n' ' ')
-          echo "Finalizing regions: $regions"
-          echo "REGIONS=$regions" >> $GITHUB_ENV
+          # Our group id is "<dispatcher_run_id>-<region>", so grab the <region> suffix:
+          region="${group##*-}"
+          echo "Finalizing region: $region"
+          echo "REGIONS=$region" >> $GITHUB_ENV
 
       - name: Merge batches & write final .lua
         env:
