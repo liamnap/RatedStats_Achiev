@@ -4,6 +4,14 @@ on:
   schedule:
     - cron: '0 1 * * *'
 
+permissions:
+  actions: write   # needed to call createWorkflowDispatch
+  contents: read
+
+concurrency:
+  group: pvp-sync-dispatcher-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   BATCH_SIZE: 2500
   REGIONS: us eu kr tw
@@ -21,11 +29,11 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - name: Set up Python
-        uses: actions/setup-python@v4
-        with: { python-version: '3.x' }
+        uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
       - name: Install deps
         run: pip install aiohttp requests psutil
       - name: Build batch matrix
@@ -56,6 +64,7 @@ jobs:
           script: |
             const matrix = JSON.parse(process.env.MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            const groupId = process.env.GROUP_ID;
             for (const job of matrix) {
               await github.rest.actions.createWorkflowDispatch({
                 owner,
@@ -68,9 +77,12 @@ jobs:
                   limit: String(process.env.BATCH_SIZE),
                   batch_id:      String(job.batch_id),
                   total_batches: String(job.total_batches)
+                  'group-id':      String(groupId)
                 }
               });
               console.log(`▶️ Dispatched ${job.region}@${job.offset}`);
             }
         env:
           MATRIX: ${{ needs.prepare.outputs.MATRIX }}
+          GROUP_ID:   ${{ github.run_id }}
+          BATCH_SIZE: ${{ env.BATCH_SIZE }}
