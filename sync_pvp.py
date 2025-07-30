@@ -328,10 +328,10 @@ if args.list_ids_only:
         char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
         alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
         for m in char_rx.finditer(text):
-            keys.add(m.group(1))
+            keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
             for alt in m.group(1).split(','):
-                keys.add(alt.strip().strip('"'))
+                keys.add(alt.strip().strip('"').lower())
     # Optionally include current leaderboard keys (best effort).
     try:
         season_id = get_current_pvp_season_id(region)
@@ -765,8 +765,8 @@ if __name__ == "__main__":
         }
         leaderboard_keys = set(api_chars)
 
-        # 3) merge bracket + seeded chars
-        chars = {**api_chars, **old_chars}
+        # 3) merge bracket + seeded chars (prefer API metadata where present)
+        chars = {**old_chars, **api_chars}
 
     # 4) behavior depends on MODE
     all_keys = sorted(chars)
