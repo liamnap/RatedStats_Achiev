@@ -51,7 +51,6 @@ jobs:
     env:
       # pull in what prepare emitted
       PREPARE_MATRIX: ${{ needs.prepare.outputs.matrix }}
-      BATCH_SIZE:     ${{ env.BATCH_SIZE }}
     steps:
       - name: Dispatch PvP Sync Batch workflows
         uses: actions/github-script@v7
