@@ -57,40 +57,42 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     steps:
-      - name: Fire off each batch via REST
+      - name: Fire off the first batch per region
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const matrix = JSON.parse(process.env.MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
-            const rootId = process.env.GROUP_ID;               // dispatcher run id
-            // Only dispatch the FIRST batch in each region.
+            const rootId = process.env.GROUP_ID;  // dispatcher run id
+
+            // Only dispatch the first batch for each region
             const firstBatches = Object.values(
               matrix.reduce((acc, j) => {
                 if (!acc[j.region] || j.batch_id < acc[j.region].batch_id) acc[j.region] = j;
                 return acc;
               }, {})
             );
+
             for (const job of firstBatches) {
-              const groupKey = `${job.region}-${rootId}`;       // region‑scoped group
+              const groupKey = `${job.region}-${rootId}`;
               await github.rest.actions.createWorkflowDispatch({
                 owner,
                 repo,
                 workflow_id: 'pvp-sync-batch.yml',
                 ref: 'dev',
                 inputs: {
-                  region: job.region,
-                  offset: String(job.offset),
-                  limit: String(process.env.BATCH_SIZE),
+                  region:        job.region,
+                  offset:        String(job.offset),
+                  limit:         String(process.env.BATCH_SIZE),
                   batch_id:      String(job.batch_id),
                   total_batches: String(job.total_batches),
-                  'group-id':    String(rootId)
+                  "group-id":    String(groupKey)
                 }
               });
-              console.log(`▶️ Dispatched ${job.region}@${job.offset} (group ${groupKey})`);
+              core.info(`▶️ Dispatched ${job.region}@${job.offset} (group ${groupKey})`);
             }
         env:
-          MATRIX: ${{ needs.prepare.outputs.matrix }}
+          MATRIX:     ${{ needs.prepare.outputs.MATRIX }}
           GROUP_ID:   ${{ github.run_id }}
           BATCH_SIZE: ${{ env.BATCH_SIZE }}
