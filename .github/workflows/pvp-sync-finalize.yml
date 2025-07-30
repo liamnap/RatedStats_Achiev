@@ -1,0 +1,43 @@
+name: Finalize PvP Sync
+
+on:
+  workflow_run:
+    workflows: ["PvP Sync Batch"]   # must exactly match the name: of your batch workflow
+    types: [completed]
+
+jobs:
+  finalize:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Merge batches & write final .lua
+        env:
+          BLIZZARD_CLIENT_ID:     ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          BLIZZARD_CLIENT_ID_EU:     ${{ secrets.BLIZZARD_CLIENT_ID_EU }}
+          BLIZZARD_CLIENT_SECRET_EU: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU }}
+          BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
+          BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
+        run: |
+          python sync_pvp.py --region us --mode finalize
+          python sync_pvp.py --region eu --mode finalize
+          python sync_pvp.py --region kr --mode finalize
+          python sync_pvp.py --region tw --mode finalize
+
+      - name: Commit & push finalized .lua
+        run: |
+          git config user.name  "GitHub Action"
+          git config user.email "action@github.com"
+          git add region_*.lua
+          git commit -m "Finalize PvP sync" || echo "No changes to commit"
+          git push origin dev
