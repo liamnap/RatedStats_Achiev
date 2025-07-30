@@ -7,10 +7,10 @@ on:
         type: string
       offset:
         required: true
-        type: number
+        type: string
       limit:
         required: true
-        type: number
+        type: string
 
 jobs:
   batch:
