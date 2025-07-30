@@ -526,70 +526,70 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             completed = 0
             last_hb = time.time()
 
-        async def proc_one(c):
-            nonlocal inserted
-            async with sem:
-                name, realm, cid = c["name"].lower(), c["realm"].lower(), c["id"]
-                key = f"{name}-{realm}"
-                try:
-                    data = await get_character_achievements(session, headers, realm, name)
-                except RateLimitExceeded:
-                    raise RetryCharacter(c)
-                if not data:
-                    return
-                earned = data.get("achievements", [])
-                ach_dict = {}
-                for ach in earned:
-                    aid = ach["id"]
-                    if aid not in pvp_achs:
-                        continue
-                    ts = ach.get("completed_timestamp")
-                    ach_dict[aid] = {"name": ach["achievement"]["name"], "ts": ts}
-                if ach_dict:
-                    db_upsert(key, cid, ach_dict)
-                    inserted += 1
-
-        remaining = list(characters.values())
-        retry_interval = 10
-        # allow overriding via env var for flexible sizing
-        BATCH_SIZE = int(os.environ["BATCH_SIZE"])
-
-        while remaining:
-            retry_bucket = {}
-            batches = (len(remaining) + BATCH_SIZE - 1) // BATCH_SIZE
-            for i in range(batches):
-                batch = remaining[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
-                tasks = [create_task(proc_one(c)) for c in batch]
-                for t in as_completed(tasks):
+            async def proc_one(c):
+                nonlocal inserted
+                async with sem:
+                    name, realm, cid = c["name"].lower(), c["realm"].lower(), c["id"]
+                    key = f"{name}-{realm}"
                     try:
-                        await shield(t)
-                    except RetryCharacter as rc:
-                        k = f"{rc.char['name']}-{rc.char['realm']}"
-                        retry_bucket[k] = rc.char
-                    except Exception:
-                        continue
-                    else:
-                        completed += 1
-                        now = time.time()
-                        if now - last_hb > 10:
-                            url_cache.clear()
-                            gc.collect()
-                            ts = time.strftime("%H:%M:%S", time.localtime(now))
-                            sec_rate = len(per_sec.calls)/per_sec.period
-                            avg60    = len(CALL_TIMES)/60
-                            rem_calls= (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
-                            eta      = _fmt_duration(int((now-start_time)/CALLS_DONE*rem_calls)) if CALLS_DONE and rem_calls else "–"
-                            print(f"[{ts}] [HEARTBEAT] {completed}/{total} done ({completed/total*100:.1f}%), sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, ETA={eta}")
-                            last_hb = now
-            url_cache.clear()
-            if retry_bucket:
-                await asyncio.sleep(retry_interval)
-                remaining = list(retry_bucket.values())
-            else:
-                break
+                        data = await get_character_achievements(session, headers, realm, name)
+                    except RateLimitExceeded:
+                        raise RetryCharacter(c)
+                    if not data:
+                        return
+                    earned = data.get("achievements", [])
+                    ach_dict = {}
+                    for ach in earned:
+                        aid = ach["id"]
+                        if aid not in pvp_achs:
+                            continue
+                        ts = ach.get("completed_timestamp")
+                        ach_dict[aid] = {"name": ach["achievement"]["name"], "ts": ts}
+                    if ach_dict:
+                        db_upsert(key, cid, ach_dict)
+                        inserted += 1
 
-        db.commit()
-        print(f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}")
+            remaining = list(characters.values())
+            retry_interval = 10
+            # allow overriding via env var for flexible sizing (safe default)
+            BATCH_SIZE = int(os.getenv("BATCH_SIZE", "2500"))
+
+            while remaining:
+                retry_bucket = {}
+                batches = (len(remaining) + BATCH_SIZE - 1) // BATCH_SIZE
+                for i in range(batches):
+                    batch = remaining[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
+                    tasks = [create_task(proc_one(c)) for c in batch]
+                    for t in as_completed(tasks):
+                        try:
+                            await shield(t)
+                        except RetryCharacter as rc:
+                            k = f"{rc.char['name']}-{rc.char['realm']}"
+                            retry_bucket[k] = rc.char
+                        except Exception:
+                            continue
+                        else:
+                            completed += 1
+                            now = time.time()
+                            if now - last_hb > 10:
+                                url_cache.clear()
+                                gc.collect()
+                                ts = time.strftime("%H:%M:%S", time.localtime(now))
+                                sec_rate = len(per_sec.calls)/per_sec.period
+                                avg60    = len(CALL_TIMES)/60
+                                rem_calls= (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
+                                eta      = _fmt_duration(int((now-start_time)/CALLS_DONE*rem_calls)) if CALLS_DONE and rem_calls else "–"
+                                print(f"[{ts}] [HEARTBEAT] {completed}/{total} done ({completed/total*100:.1f}%), sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, ETA={eta}")
+                                last_hb = now
+                url_cache.clear()
+                if retry_bucket:
+                    await asyncio.sleep(retry_interval)
+                    remaining = list(retry_bucket.values())
+                else:
+                    break
+
+            db.commit()
+            print(f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}")
 
     # build fingerprints & alt_map
     fingerprints = {
