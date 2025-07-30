@@ -76,13 +76,13 @@ jobs:
                   offset: String(job.offset),
                   limit: String(process.env.BATCH_SIZE),
                   batch_id:      String(job.batch_id),
-                  total_batches: String(job.total_batches)
-                  'group-id':      String(groupId)
+                  total_batches: String(job.total_batches),
+                  group-id:      String(groupId)
                 }
               });
               console.log(`▶️ Dispatched ${job.region}@${job.offset}`);
             }
         env:
-          MATRIX: ${{ needs.prepare.outputs.MATRIX }}
+          MATRIX: ${{ needs.prepare.outputs.matrix }}
           GROUP_ID:   ${{ github.run_id }}
           BATCH_SIZE: ${{ env.BATCH_SIZE }}
