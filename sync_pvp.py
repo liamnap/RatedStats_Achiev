@@ -612,43 +612,43 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 
     db.close()
 
+#─────────────────────────────────────────────────────────────────────────────
+# Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
-# Main entrypoint: seed, merge, slice, then dispatch to process_characters()
-# ──────────────────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # 1) seed from existing full Lua
+    old_chars = seed_db_from_lua(OUTFILE)
 
-# 1) seed from existing full Lua
-old_chars = seed_db_from_lua(OUTFILE)
+    # 2) fetch bracket‐API chars
+    token = get_access_token(REGION)
+    headers = {"Authorization": f"Bearer {token}"}
+    api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
+    api_chars = {
+        f"{c['name'].lower()}-{c['realm'].lower()}": c
+        for c in api_chars_intkey.values()
+    }
+    leaderboard_keys = set(api_chars)
 
-# 2) fetch bracket‐API chars
-token = get_access_token(REGION)
-headers = {"Authorization": f"Bearer {token}"}
-api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
-api_chars = {f"{c['name'].lower()}-{c['realm'].lower()}": c for c in api_chars_intkey.values()}
-leaderboard_keys = set(api_chars)
+    # 3) merge bracket + seeded chars
+    chars = {**api_chars, **old_chars}
 
-# 3) merge bracket + seeded chars
-chars = {**api_chars, **old_chars}
+    # 4) auto‐chunk into BATCH_SIZE slices, sequentially
+    all_keys = sorted(chars)
+    batch_size = int(os.getenv("BATCH_SIZE", "2500"))
+    total_batches = (len(all_keys) + batch_size - 1) // batch_size
 
-# 4) list‐IDs mode (for matrix building) – output one key per line
-if args.list_ids_only:
-    for k in sorted(chars):
-        print(k)
-    sys.exit(0)
+    for batch_id in range(total_batches):
+        start = batch_id * batch_size
+        slice_keys = all_keys[start : start + batch_size]
+        characters = {k: chars[k] for k in slice_keys}
+        print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars")
+        try:
+            asyncio.run(process_characters(characters, leaderboard_keys))
+        except CancelledError:
+            print(f"{YELLOW}[WARN] batch {batch_id+1} cancelled, exiting.{RESET}")
+            sys.exit(1)
 
-# 5) apply offset/limit slicing
-all_keys   = sorted(chars)
-limit      = args.limit or len(chars)
-slice_keys = all_keys[args.offset : args.offset + limit]
-characters = {k: chars[k] for k in slice_keys}
-print(f"[FINAL DEBUG] Total chars this run: {len(characters)}")
-
-# 6) if in batch mode but empty slice, switch to finalize
-if MODE == "batch" and not characters:
-    print("[INFO] no characters left → finalizing instead")
+    # 5) finalize full write
+    print(f"[INFO] Finalizing region {REGION}")
     MODE = "finalize"
-
-# 7) execute
-try:
-    asyncio.run(process_characters(characters, leaderboard_keys))
-except CancelledError:
-    print(f"{YELLOW}[WARN] run was cancelled, exiting.{RESET}")
+    asyncio.run(process_characters(chars, leaderboard_keys))
