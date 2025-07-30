@@ -45,6 +45,18 @@ parser.add_argument("--limit",        type=int, default=None,
 
 args = parser.parse_args()
 
+# ── short‑circuit for prepare‑stage list‑only mode ──
+if args.list_ids_only:
+    # just seed from any existing region file on disk and count the keys
+    # we do NOT open the full DB again; use seed_db_from_lua on the target file
+    region = args.region or os.getenv("REGION", "eu")
+    lua_path = Path(f"region_{region}.lua")
+    old = seed_db_from_lua(lua_path)
+    # print one character key per line, so `| wc -l` works
+    for k in sorted(old):
+        print(k)
+    sys.exit(0)
+
 REGION        = args.region
 BATCH_ID      = args.batch_id
 TOTAL_BATCHES = args.total_batches
