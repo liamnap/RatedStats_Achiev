@@ -77,7 +77,7 @@ jobs:
                   limit: String(process.env.BATCH_SIZE),
                   batch_id:      String(job.batch_id),
                   total_batches: String(job.total_batches),
-                  group-id:      String(groupId)
+                  'group-id':      String(groupId)
                 }
               });
               console.log(`▶️ Dispatched ${job.region}@${job.offset}`);
