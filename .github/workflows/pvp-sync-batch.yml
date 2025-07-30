@@ -88,6 +88,10 @@ jobs:
             --offset ${{ inputs.offset }} \
             --limit ${{ inputs.limit }}
 
+      - name: Compute display id (1-based)
+        id: math
+        run: echo "display_id=$(( ${{ inputs.batch_id }} + 1 ))" >> "$GITHUB_OUTPUT"
+
       - name: Upload partial Lua
         uses: actions/upload-artifact@v4
         with:
