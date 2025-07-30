@@ -86,6 +86,7 @@ jobs:
                   offset:        String(job.offset),
                   limit:         String(process.env.BATCH_SIZE),
                   batch_id:      String(job.batch_id),
+                  batch_num:     String(job.batch_id + 1),
                   total_batches: String(job.total_batches),
                   "group-id":    String(groupKey)
                 }
