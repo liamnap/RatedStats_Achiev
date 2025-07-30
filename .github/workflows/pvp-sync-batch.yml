@@ -141,7 +141,7 @@ jobs:
                 "group-id":    String(groupKey)
               }
             });
-            console.log(`➡️ Queued next batch ${region} ${nextId}/${total} (group ${groupKey})`);
+            console.log(`➡️ Queued next batch ${region} ${nextId + 1}/${total} (group ${groupKey})`);
         env:
           REGION:    ${{ inputs.region }}
           LIMIT:     ${{ inputs.limit }}
