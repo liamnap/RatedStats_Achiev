@@ -1,0 +1,77 @@
+name: Dispatch PvP Sync Batches
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * *'
+
+env:
+  BATCH_SIZE: 2500
+  REGIONS: us eu kr tw
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+        with: { fetch-depth: 0 }
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with: { python-version: '3.x' }
+      - name: Install deps
+        run: pip install aiohttp requests psutil
+      - name: Build batch matrix
+        id: matrix
+        shell: bash
+        run: |
+          ITEMS=()
+          for region in $REGIONS; do
+            TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
+            COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
+            for ((i=0;i<COUNT;i++)); do
+              OFFSET=$(( i * BATCH_SIZE ))
+              ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET}")
+            done
+          done
+          # comma‑join
+          m=$(printf ',%s' "${ITEMS[@]}")
+          echo "matrix=[${m:1}]" >> $GITHUB_OUTPUT
+
+  dispatch:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch each batch as its own run
+        uses: peter-evans/workflow-dispatch@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          workflow: pvp-sync-batch.yml
+          ref: dev
+          wait-for-completion: false
+          # loop over matrix:
+          matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+          matrix-include: |
+            region: ${{ matrix.region }}
+            offset: ${{ matrix.offset }}
+            limit: ${{ env.BATCH_SIZE }}
+
+  # optionally: a final job that waits for all dispatches to finish
+  finalize:
+    needs: dispatch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for all batch runs
+        uses: wagoid/gh-actions-wait@v1
+        with:
+          check-name: PvP Sync Batch
+          conclusion: success
+      - name: Merge & finalize .lua
+        run: |
+          # checkout, then run sync_pvp.py in finalize mode
+          git checkout dev
+          python sync_pvp.py --region us --mode finalize
+          python sync_pvp.py --region eu --mode finalize
+          python sync_pvp.py --region kr --mode finalize
+          python sync_pvp.py --region tw --mode finalize
