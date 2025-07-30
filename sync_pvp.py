@@ -635,7 +635,11 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 f.write("    { " + ", ".join(parts) + " },\n")
             f.write("}\n")
         print(f"[DEBUG] Wrote partial {out_file}")
-
+        # Single-batch guarantee: when running in --mode batch, do *not* process
+        # any additional batches and do not fall through to finalize.
+        if MODE == "batch":
+            return
+            
 #─────────────────────────────────────────────────────────────────────────────
 # Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
@@ -656,25 +660,52 @@ if __name__ == "__main__":
     # 3) merge bracket + seeded chars
     chars = {**api_chars, **old_chars}
 
-    # 4) auto‐chunk into BATCH_SIZE slices, sequentially
-    all_keys = sorted(chars)
-    batch_size = int(os.getenv("BATCH_SIZE", "2500"))
-    total_batches = (len(all_keys) + batch_size - 1) // batch_size
-
-    for batch_id in range(total_batches):
-        start = batch_id * batch_size
-        slice_keys = all_keys[start : start + batch_size]
-        characters = {k: chars[k] for k in slice_keys}
-        print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars")
-        try:
-            asyncio.run(process_characters(characters, leaderboard_keys))
-        except CancelledError:
-            print(f"{YELLOW}[WARN] batch {batch_id+1} cancelled, exiting.{RESET}")
-            sys.exit(1)
-
-    # 5) finalize full write
-    print(f"[INFO] Finalizing region {REGION}")
-    MODE = "finalize"
-    asyncio.run(process_characters(chars, leaderboard_keys))
-    # close the SQLite handle *once*, after all batches are processed
-    db.close()
++    # 4) behavior depends on MODE
++    all_keys = sorted(chars)
++    batch_size = int(os.getenv("BATCH_SIZE"))
++    computed_total = (len(all_keys) + batch_size - 1) // batch_size
++
++    if MODE == "batch":
++        # process exactly one batch, then exit
++        batch_id = int(BATCH_ID) if "BATCH_ID" in globals() else 0
++        total_batches = int(TOTAL_BATCHES) if "TOTAL_BATCHES" in globals() else computed_total
++        start = batch_id * batch_size
++        slice_keys = all_keys[start : start + batch_size]
++        characters = {k: chars[k] for k in slice_keys}
++        print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars")
++        try:
++            asyncio.run(process_characters(characters, leaderboard_keys))
++        except CancelledError:
++            print(f"{YELLOW}[WARN] batch {batch_id+1} cancelled, exiting.{RESET}")
++            sys.exit(1)
++        db.close()
++        sys.exit(0)
++
++    elif MODE == "finalize":
++        # only finalize
++        print(f"[INFO] Finalizing region {REGION}")
++        asyncio.run(process_characters(chars, leaderboard_keys))
++        db.close()
++        sys.exit(0)
++
++    elif MODE == "both":
++        # preserve existing "all batches then finalize" flow (use computed batching)
++        total_batches = computed_total
++        for batch_id in range(total_batches):
++            start = batch_id * batch_size
++            slice_keys = all_keys[start : start + batch_size]
++            characters = {k: chars[k] for k in slice_keys}
++            print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars")
++            try:
++                asyncio.run(process_characters(characters, leaderboard_keys))
++            except CancelledError:
++                print(f"{YELLOW}[WARN] batch {batch_id+1} cancelled, exiting.{RESET}")
++                sys.exit(1)
++        print(f"[INFO] Finalizing region {REGION}")
++        MODE = "finalize"
++        asyncio.run(process_characters(chars, leaderboard_keys))
++        db.close()
++
++    else:
++        print(f"{RED}[ERROR] Unknown MODE={MODE}{RESET}")
++        sys.exit(2)
