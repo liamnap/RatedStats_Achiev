@@ -236,28 +236,30 @@ def get_available_brackets(region: str, season_id: int) -> list[str]:
     return brackets
 
 # --------------------------------------------------------------------------
-# Season & Bracket initialization
+# Season & Bracket initialization (skip all network in finalize)
 # --------------------------------------------------------------------------
-
-# make sure partial_outputs exists
 CACHE_DIR     = Path("partial_outputs")
 CACHE_DIR.mkdir(exist_ok=True)
 BRACKET_CACHE = CACHE_DIR / f"{REGION}_brackets.json"
 
-if BRACKET_CACHE.exists():
-    cached = json.loads(BRACKET_CACHE.read_text())
-    PVP_SEASON_ID = cached["season_id"]
-    BRACKETS      = cached["brackets"]
+if MODE == "finalize":
+    PVP_SEASON_ID = None
+    BRACKETS      = []
 else:
-    PVP_SEASON_ID = get_current_pvp_season_id(REGION)
-    BRACKETS      = get_available_brackets(REGION, PVP_SEASON_ID)
-    try:
-        BRACKET_CACHE.write_text(json.dumps({
-            "season_id": PVP_SEASON_ID,
-            "brackets":  BRACKETS
-        }))
-    except Exception:
-        pass
+    if BRACKET_CACHE.exists():
+        cached = json.loads(BRACKET_CACHE.read_text())
+        PVP_SEASON_ID = cached["season_id"]
+        BRACKETS      = cached["brackets"]
+    else:
+        PVP_SEASON_ID = get_current_pvp_season_id(REGION)
+        BRACKETS      = get_available_brackets(REGION, PVP_SEASON_ID)
+        try:
+            BRACKET_CACHE.write_text(json.dumps({
+                "season_id": PVP_SEASON_ID,
+                "brackets":  BRACKETS
+            }))
+        except Exception:
+            pass
 
 # --------------------------------------------------------------------------
 # Fetch PvP leaderboard characters
@@ -306,7 +308,10 @@ def get_latest_static_namespace(region: str) -> str:
         pass
     return fallback
 
-NAMESPACE_STATIC = get_latest_static_namespace(REGION)
+# Avoid external call when finalizing: we don't hit achievement APIs then.
+NAMESPACE_STATIC = (
+    get_latest_static_namespace(REGION) if MODE != "finalize" else f"static-{REGION}"
+)
 print(f"[INFO] Region: {REGION}, Locale: {LOCALE}, Static NS: {NAMESPACE_STATIC}")
 
 # --------------------------------------------------------------------------
@@ -476,7 +481,7 @@ def db_iter_rows():
 
 def merge_db_shards(dirpath: Path):
     # upsert rows from all shards into the main DB
-    shards = sorted(dirpath.glob("achdb_*.sqlite"))
+    shards = sorted(dirpath.glob(f"achdb_{REGION}_*.sqlite"))
     if not shards:
         return 0
     merged = 0
@@ -500,23 +505,26 @@ def merge_db_shards(dirpath: Path):
 # --------------------------------------------------------------------------
 async def process_characters(characters: dict, leaderboard_keys: set):
     global HTTP_429_QUEUED, TOTAL_CALLS
-    token       = get_access_token(REGION)
-    headers     = {"Authorization": f"Bearer {token}"}
+    # Only need auth/HTTP if we're actually fetching characters
+    if characters:
+        token   = get_access_token(REGION)
+        headers = {"Authorization": f"Bearer {token}"}
     inserted    = 0
     TOTAL_CALLS = len(characters) + 1
 
-    timeout = aiohttp.ClientTimeout(total=5)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        pvp_achs = await get_pvp_achievements(session, headers)
-        print(f"[DEBUG] PvP keywords loaded: {len(pvp_achs)}")
+    if characters:
+        timeout = aiohttp.ClientTimeout(total=5)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            pvp_achs = await get_pvp_achievements(session, headers)
+            print(f"[DEBUG] PvP keywords loaded: {len(pvp_achs)}")
 
-        per_sec.tokens     = 0
-        per_sec.timestamp  = asyncio.get_event_loop().time()
-        per_sec.calls.clear()
-        sem = asyncio.Semaphore(SEM_CAP)
-        total = len(characters)
-        completed = 0
-        last_hb = time.time()
+            per_sec.tokens     = 0
+            per_sec.timestamp  = asyncio.get_event_loop().time()
+            per_sec.calls.clear()
+            sem = asyncio.Semaphore(SEM_CAP)
+            total = len(characters)
+            completed = 0
+            last_hb = time.time()
 
         async def proc_one(c):
             nonlocal inserted
@@ -701,22 +709,28 @@ if __name__ == "__main__":
     # 1) seed from existing full Lua
     old_chars = seed_db_from_lua(OUTFILE)
 
-    # 2) fetch bracket‐API chars
-    token = get_access_token(REGION)
-    headers = {"Authorization": f"Bearer {token}"}
-    api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
-    api_chars = {
-        f"{c['name'].lower()}-{c['realm'].lower()}": c
-        for c in api_chars_intkey.values()
-    }
-    leaderboard_keys = set(api_chars)
+    if MODE == "finalize":
+        # offline finalize: do not hit any APIs
+        api_chars = {}
+        leaderboard_keys = set()
+        chars = {**old_chars}
+    else:
+        # 2) fetch bracket‐API chars
+        token = get_access_token(REGION)
+        headers = {"Authorization": f"Bearer {token}"}
+        api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
+        api_chars = {
+            f"{c['name'].lower()}-{c['realm'].lower()}": c
+            for c in api_chars_intkey.values()
+        }
+        leaderboard_keys = set(api_chars)
 
-    # 3) merge bracket + seeded chars
-    chars = {**api_chars, **old_chars}
+        # 3) merge bracket + seeded chars
+        chars = {**api_chars, **old_chars}
 
     # 4) behavior depends on MODE
     all_keys = sorted(chars)
-    batch_size = int(os.getenv("BATCH_SIZE"))
+    batch_size = int(os.getenv("BATCH_SIZE", "2500"))
     computed_total = (len(all_keys) + batch_size - 1) // batch_size
 
     if MODE == "batch":
