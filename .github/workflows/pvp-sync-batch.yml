@@ -11,7 +11,21 @@ on:
       limit:
         required: true
         type: string
-
+  workflow_dispatch:                       # so we can `createWorkflowDispatch` via API
+    inputs:
+      region:
+        description: 'us, eu, kr, tw'
+        required: true
+        type: string
+      offset:
+        description: 'list offset'
+        required: true
+        type: string
+      limit:
+        description: 'batch size'
+        required: true
+        type: string
+        
 jobs:
   batch:
     runs-on: ubuntu-latest
