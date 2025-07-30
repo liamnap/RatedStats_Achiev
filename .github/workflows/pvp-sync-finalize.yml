@@ -4,6 +4,15 @@ on:
   workflow_run:
     workflows: ["PvP Sync Batch"]   # must exactly match the name: of your batch workflow
     types: [completed]
+    branches: [dev]                 # ensure we only react to batch runs on 'dev' branch
+
+permissions:
+  contents: write   # needed for git push
+  actions: read
+
+concurrency:
+  group: finalize-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   finalize:
@@ -11,14 +20,76 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: dev
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.13'
+
+      - name: Wait until all batch runs in this group are finished
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          wf="PvP Sync Batch"
+          # Extract group id from the triggering run's display title, e.g. "... (group 123456789)"
+          group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([0-9]\+\)).*/\1/p')
+          branch='${{ github.event.workflow_run.head_branch }}'
+          if [ -z "$group" ]; then
+            echo "ERROR: group id not found in run-name. Ensure batch run-name ends with '(group <id>)'."
+            exit 1
+          fi
+          echo "Polling for unfinished batch runs for group ${group} on branch ${branch}..."
+          while true; do
+            # Count runs for this workflow that are not yet 'completed'
+            remaining=$(gh run list -w "$wf" -b "$branch" -L 500 --json status,displayTitle \
+              --jq "[ .[]                                                     \
+                     | select(.displayTitle | contains(\"group ${group}\"))   \
+                     | select(.status != \"completed\") ]                     \
+                    | length")
+            echo "Remaining in-progress/queued: $remaining"
+            [ "$remaining" -eq 0 ] && break
+            sleep 10
+          done
+
+      - name: Download DB shards for this group
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          wf="PvP Sync Batch"
+          branch='${{ github.event.workflow_run.head_branch }}'
+          group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([0-9]\+\)).*/\1/p')
+          runs=$(gh run list -w "$wf" -b "$branch" -L 500 --json databaseId,displayTitle \
+                 --jq "[ .[] | select(.displayTitle | contains(\"group ${group}\")) ]")
+          mkdir -p partial_outputs
+          for id in $(echo "$runs" | jq -r '.[].databaseId'); do
+            # download only DB artifacts (they extract into per-artifact dirs)
+            gh run download "$id" -n "pvp-db-" -D partial_outputs || true
+          done
+
+      - name: Verify all group runs succeeded and collect regions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          wf="PvP Sync Batch"
+          branch='${{ github.event.workflow_run.head_branch }}'
+          group=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle' | sed -n 's/.*(group \([0-9]\+\)).*/\1/p')
+          runs=$(gh run list -w "$wf" -b "$branch" -L 500 --json databaseId,displayTitle,status,conclusion \
+                 --jq "[ .[] | select(.displayTitle | contains(\"group ${group}\")) ]")
+          total=$(echo "$runs" | jq 'length')
+          ok=$(echo "$runs" | jq '[ .[] | select(.conclusion == "success") ] | length')
+          if [ "$ok" -ne "$total" ]; then
+            echo "ERROR: Some batch runs in group ${group} failed:"
+            echo "$runs" | jq -r '.[] | "\(.databaseId)\t\(.status)\t\(.conclusion)\t\(.displayTitle)"'
+            exit 1
+          fi
+          # Derive regions from run titles: "PvP Sync for <region> ..."
+          regions=$(echo "$runs" | jq -r '.[].displayTitle' | sed -n 's/^PvP Sync for \([a-z][a-z]\) .*(group .*$/\1/p' | sort -u | tr '\n' ' ')
+          echo "Finalizing regions: $regions"
+          echo "REGIONS=$regions" >> $GITHUB_ENV
 
       - name: Merge batches & write final .lua
         env:
@@ -29,10 +100,15 @@ jobs:
           BLIZZARD_CLIENT_ID_US:     ${{ secrets.BLIZZARD_CLIENT_ID_US }}
           BLIZZARD_CLIENT_SECRET_US: ${{ secrets.BLIZZARD_CLIENT_SECRET_US }}
         run: |
-          python sync_pvp.py --region us --mode finalize
-          python sync_pvp.py --region eu --mode finalize
-          python sync_pvp.py --region kr --mode finalize
-          python sync_pvp.py --region tw --mode finalize
+          set -euo pipefail
+          if [ -z "${REGIONS:-}" ]; then
+            echo "No regions detected for this group; defaulting to all: us eu kr tw"
+            REGIONS="us eu kr tw"
+          fi
+          for r in $REGIONS; do
+            echo "Finalizing region $r"
+            python sync_pvp.py --region "$r" --mode finalize
+          done
 
       - name: Commit & push finalized .lua
         run: |
