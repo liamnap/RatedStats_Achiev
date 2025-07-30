@@ -11,6 +11,9 @@ on:
       batch_id:
         required: true
         type: string
+      batch_num:
+        required: true
+        type: string
       total_batches:
         required: true
         type: string
@@ -43,6 +46,9 @@ on:
         type: string
       batch_id:
         description: '0-based batch index'
+        required: true
+        type: string
+      batch_num:
         required: true
         type: string
       total_batches:
@@ -137,6 +143,7 @@ jobs:
                 offset:        String(offset),
                 limit:         String(limit),
                 batch_id:      String(nextId),
+                batch_num:     String(nextId + 1),
                 total_batches: String(total),
                 "group-id":    String(groupKey)
               }
