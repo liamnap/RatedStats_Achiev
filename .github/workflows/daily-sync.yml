@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        region: ${{ split(env.REGIONS, ' ') }}
+        region: [us, eu, kr, tw]
       max-parallel: 4   # one region at a time, 4 regions in parallel
 
     timeout-minutes: 1380
