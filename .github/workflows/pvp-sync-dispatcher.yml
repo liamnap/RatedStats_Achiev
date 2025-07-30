@@ -60,7 +60,7 @@ jobs:
             // parse the matrix JSON that prepare wrote out
             const matrix = JSON.parse(process.env.PREPARE_MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
-            for (const job of matrix.include) {
+            for (const job of matrix) {
               await github.actions.createWorkflowDispatch({
                 owner,
                 repo,
