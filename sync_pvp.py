@@ -22,6 +22,32 @@ try:
 except ImportError:
     psutil = None
 
+def seed_db_from_lua(lua_path: Path) -> dict:
+    rows = {}
+    if not lua_path.exists():
+        return rows
+    txt = lua_path.read_text(encoding="utf-8")
+    row_rx  = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
+    ach_rx  = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
+    guid_rx = re.compile(r'guid\s*=\s*(\d+)')
+    for m in row_rx.finditer(txt):
+        block = m.group(0)
+        key   = m.group(1)
+        gm    = guid_rx.search(block)
+        if not gm:
+            continue
+        guid = int(gm.group(1))
+        # preserve the same structure as live‐fetched entries
+        ach = {
+            int(aid): {"name": name, "ts": None}
+            for _, aid, name in ach_rx.findall(block)
+        }
+        db_upsert(key, guid, ach)
+        n, r = key.split('-', 1)
+        rows[key] = {"id": guid, "name": n, "realm": r}
+    db.commit()
+    return rows
+
 # --------------------------------------------------------------------------
 # CLI + MODE + REGION + BATCH SETTINGS
 # --------------------------------------------------------------------------
@@ -426,32 +452,6 @@ def db_iter_rows():
     cur = db.execute("SELECT key,guid,ach_json FROM char_data ORDER BY key")
     for k, g, j in cur:
         yield k, g, json.loads(j)
-
-def seed_db_from_lua(lua_path: Path) -> dict:
-    rows = {}
-    if not lua_path.exists():
-        return rows
-    txt = lua_path.read_text(encoding="utf-8")
-    row_rx  = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
-    ach_rx  = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
-    guid_rx = re.compile(r'guid\s*=\s*(\d+)')
-    for m in row_rx.finditer(txt):
-        block = m.group(0)
-        key   = m.group(1)
-        gm    = guid_rx.search(block)
-        if not gm:
-            continue
-        guid = int(gm.group(1))
-        # preserve the same structure as live‐fetched entries
-        ach = {
-            int(aid): {"name": name, "ts": None}
-            for _, aid, name in ach_rx.findall(block)
-        }
-        db_upsert(key, guid, ach)
-        n, r = key.split('-', 1)
-        rows[key] = {"id": guid, "name": n, "realm": r}
-    db.commit()
-    return rows
 
 # --------------------------------------------------------------------------
 # Main processing
