@@ -48,21 +48,33 @@ jobs:
   dispatch:
     needs: prepare
     runs-on: ubuntu-latest
+    env:
+      # pull in what prepare emitted
+      PREPARE_MATRIX: ${{ needs.prepare.outputs.matrix }}
+      BATCH_SIZE:     ${{ env.BATCH_SIZE }}
     steps:
-      - name: Dispatch each batch as its own run
-        uses: peter-evans/workflow-dispatch@v1
+      - name: Dispatch PvP Sync Batch workflows
+        uses: actions/github-script@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          workflow: pvp-sync-batch.yml
-          ref: dev
-          wait-for-completion: false
-          # loop over matrix:
-          matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
-          matrix-include: |
-            region: ${{ matrix.region }}
-            offset: ${{ matrix.offset }}
-            limit: ${{ env.BATCH_SIZE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // parse the matrix JSON that prepare wrote out
+            const matrix = JSON.parse(process.env.PREPARE_MATRIX);
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            for (const job of matrix.include) {
+              await github.actions.createWorkflowDispatch({
+                owner,
+                repo,
+                workflow_id: 'pvp-sync-batch.yml',
+                ref: 'dev',
+                inputs: {
+                  region: job.region,
+                  offset: String(job.offset),
+                  limit: String(process.env.BATCH_SIZE),
+                }
+              });
+              console.log(`▶️ Triggered batch for ${job.region} @ offset ${job.offset}`);
+            }
 
   # optionally: a final job that waits for all dispatches to finish
   finalize:
