@@ -81,30 +81,29 @@ parser.add_argument("--limit",        type=int, default=None,
 
 args = parser.parse_args()
 
-# ── short‑circuit for prepare‑stage list‑only mode ──
-if args.list_ids_only:
-    region   = args.region or os.getenv("REGION", "eu")
+def _emit_list_ids_only(region: str) -> None:
+    """Print union of keys from local Lua + bracket leaderboards (if available)."""
+    keys: set[str] = set()
     lua_file = Path(f"region_{region}.lua")
-    keys = set()
     if lua_file.exists():
         text = lua_file.read_text(encoding="utf-8")
         char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
         alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
         for m in char_rx.finditer(text):
-            keys.add(m.group(1))
+            keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
             for alt in m.group(1).split(','):
-                keys.add(alt.strip().strip('"'))
-    # union with current bracket characters
+                keys.add(alt.strip().strip('"').lower())
+    # Try to add bracket keys too (useful on first run when Lua is empty)
     try:
-        season_id = get_current_pvp_season_id(region)
-        brackets  = get_available_brackets(region, season_id)
-        token     = get_access_token(region)
-        hdrs      = {"Authorization": f"Bearer {token}"}
-        api_chars = get_characters_from_leaderboards(region, hdrs, season_id, brackets)
-        keys |= { f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values() }
+        token   = get_access_token(region)
+        season  = get_current_pvp_season_id(region)
+        brs     = get_available_brackets(region, season)
+        headers = {"Authorization": f"Bearer {token}"}
+        for c in get_characters_from_leaderboards(region, headers, season, brs).values():
+            keys.add(f"{c['name'].lower()}-{c['realm'].lower()}")
     except Exception as e:
-        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}", file=sys.stderr)
+        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}")
     for k in sorted(keys):
         print(k)
     sys.exit(0)
@@ -318,6 +317,36 @@ def get_latest_static_namespace(region: str) -> str:
     except Exception:
         pass
     return fallback
+
+# ── list‑only short‑circuit (now placed after all needed defs) ──
+if args.list_ids_only:
+    region   = args.region or os.getenv("REGION", "eu")
+    keys     = set()
+    lua_file = Path(f"region_{region}.lua")
+    if lua_file.exists():
+        text    = lua_file.read_text(encoding="utf-8")
+        char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+        alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
+        for m in char_rx.finditer(text):
+            keys.add(m.group(1))
+        for m in alts_rx.finditer(text):
+            for alt in m.group(1).split(','):
+                keys.add(alt.strip().strip('"'))
+    # Optionally include current leaderboard keys (best effort).
+    try:
+        season_id = get_current_pvp_season_id(region)
+        brackets  = get_available_brackets(region, season_id)
+        token     = get_access_token(region)
+        headers   = {"Authorization": f"Bearer {token}"}
+        api_chars = get_characters_from_leaderboards(region, headers, season_id, brackets)
+        keys.update(
+            f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
+        )
+    except Exception as e:
+        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}", file=sys.stderr)
+    for k in sorted(keys):
+        print(k)
+    sys.exit(0)
 
 # Avoid external call when finalizing: we don't hit achievement APIs then.
 NAMESPACE_STATIC = (
