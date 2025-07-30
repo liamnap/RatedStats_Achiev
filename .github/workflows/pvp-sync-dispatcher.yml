@@ -64,9 +64,16 @@ jobs:
           script: |
             const matrix = JSON.parse(process.env.MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
-            const groupId = process.env.GROUP_ID;
-            const groupBase = process.env.GROUP_ID;
-            for (const job of matrix) {
+            const rootId = process.env.GROUP_ID;               // dispatcher run id
+            // Only dispatch the FIRST batch in each region.
+            const firstBatches = Object.values(
+              matrix.reduce((acc, j) => {
+                if (!acc[j.region] || j.batch_id < acc[j.region].batch_id) acc[j.region] = j;
+                return acc;
+              }, {})
+            );
+            for (const job of firstBatches) {
+              const groupKey = `${job.region}-${rootId}`;       // region‑scoped group
               await github.rest.actions.createWorkflowDispatch({
                 owner,
                 repo,
@@ -81,7 +88,7 @@ jobs:
                   'group-id':    String(groupId)
                 }
               });
-              console.log(`▶️ Dispatched ${job.region}@${job.offset}`);
+              console.log(`▶️ Dispatched ${job.region}@${job.offset} (group ${groupKey})`);
             }
         env:
           MATRIX: ${{ needs.prepare.outputs.matrix }}
