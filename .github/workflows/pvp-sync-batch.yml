@@ -1,6 +1,10 @@
 name: PvP Sync Batch
 run-name: PvP Sync for ${{ inputs.region }} ${{ inputs.batch_id }} / ${{ inputs.total_batches }} / (group ${{ inputs['group-id'] }})
 
+permissions:
+  actions: write
+  contents: read
+
 on:
   workflow_call:
     inputs:
@@ -54,7 +58,7 @@ jobs:
   batch:
     runs-on: ubuntu-latest
     concurrency:
-      group: pvp-batch-${{ inputs.region }}    # one active batch per region
+      group: pvp-batch-${{ inputs.region }}-${{ inputs['group-id'] }}    # one active batch per region
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
