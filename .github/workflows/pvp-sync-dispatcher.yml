@@ -48,17 +48,13 @@ jobs:
   dispatch:
     needs: prepare
     runs-on: ubuntu-latest
-    env:
-      # pull in what prepare emitted
-      PREPARE_MATRIX: ${{ needs.prepare.outputs.matrix }}
     steps:
-      - name: Dispatch PvP Sync Batch workflows
+      - name: Fire off each batch via REST
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // parse the matrix JSON that prepare wrote out
-            const matrix = JSON.parse(process.env.PREPARE_MATRIX);
+            const matrix = JSON.parse(process.env.MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             for (const job of matrix) {
               await github.rest.actions.createWorkflowDispatch({
@@ -72,8 +68,10 @@ jobs:
                   limit: String(process.env.BATCH_SIZE),
                 }
               });
-              console.log(`▶️ Triggered batch for ${job.region} @ offset ${job.offset}`);
+              console.log(`▶️ Dispatched ${job.region}@${job.offset}`);
             }
+        env:
+          MATRIX: ${{ needs.prepare.outputs.MATRIX }}
 
   # optionally: a final job that waits for all dispatches to finish
   finalize:
