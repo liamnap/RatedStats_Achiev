@@ -76,12 +76,22 @@ if args.list_ids_only:
     region   = args.region or os.getenv("REGION", "eu")
     lua_file = Path(f"region_{region}.lua")
     if not lua_file.exists():
-        # no file yet → zero lines
         sys.exit(0)
     text = lua_file.read_text(encoding="utf-8")
-    # grab any character="name-realm" entries
-    import re
-    keys = re.findall(r'character="([^"]+)"', text)
+    # match both character="name-realm" and optional alts={…}
+    # allow arbitrary spaces around '='
+    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+    alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
+
+    keys = set()
+    for m in char_rx.finditer(text):
+        keys.add(m.group(1))
+        
+    # if you also want to capture alts (for informational/debug), you can:
+    for m in alts_rx.finditer(text):
+        for alt in m.group(1).split(','):
+            keys.add(alt.strip().strip('"'))
+            
     # print one per line for `| wc -l`
     for k in sorted(set(keys)):
         print(k)
