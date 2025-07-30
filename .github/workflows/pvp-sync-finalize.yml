@@ -11,8 +11,8 @@ permissions:
   actions: read
 
 concurrency:
-  group: finalize-${{ github.ref }}
-  cancel-in-progress: true
+  group: finalize-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
 
 jobs:
   finalize:
@@ -103,7 +103,7 @@ jobs:
             exit 1
           fi
           # Our group id is "<dispatcher_run_id>-<region>", so grab the <region> suffix:
-          region="${group##*-}"
+          region="${group%%-*}"
           echo "Finalizing region: $region"
           echo "REGION=${region}" >> $GITHUB_ENV
 
