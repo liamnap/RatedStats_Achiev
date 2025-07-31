@@ -627,14 +627,21 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                 eta      = _fmt_duration(int((elapsed/CALLS_DONE)*rem_calls)) if CALLS_DONE and rem_calls else "–"
                                 delta_done = completed - hb_prev_completed
                                 delta_429  = HTTP_429_QUEUED - hb_prev_429
+                                # Color thresholds
+                                rate_window = per_sec.period
+                                rate_threshold = sec_rate * rate_window
+                                done_color = RED if delta_done < 0.8 * rate_threshold else GREEN
+                                err_color  = RED if delta_429 > 0.1 * rate_threshold else RESET
+                                delta_done_str = f"{done_color}(+{delta_done}){RESET}"
+                                delta_429_str  = f"{err_color}(+{delta_429}){RESET}"
                                 # True backlog view at this instant
                                 pending_total = total - completed
                                 retry_q_now   = len(retry_bucket)
                                 inflight      = sum(1 for tt in tasks if not tt.done())
                                 print(
-                                    f"[{ts}] [HEARTBEAT] {completed}/{total}(+{delta_done}) done ({completed/total*100:.1f}%), "
+                                    f"[{ts}] [HEARTBEAT] {completed}/{total}(+{delta_done_str}) done ({completed/total*100:.1f}%), "
                                     f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
-                                    f"429s={HTTP_429_QUEUED}(+{delta_429}), "
+                                    f"429s={HTTP_429_QUEUED}(+{delta_429_str}), "
                                     f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
                                     f"ETA={eta}, elapsed={_fmt_duration(elapsed)}s",
                                     flush=True
@@ -658,15 +665,22 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             avg60    = len(CALL_TIMES)/60
             delta_done = completed - hb_prev_completed
             delta_429  = HTTP_429_QUEUED - hb_prev_429
+            # Color thresholds
+            rate_window = per_sec.period
+            rate_threshold = sec_rate * rate_window
+            done_color = RED if delta_done < 0.8 * total else GREEN
+            err_color  = RED if delta_429 > 0.1 * total else RESET
+            delta_done_str = f"{done_color}(+{delta_done}){RESET}"
+            delta_429_str  = f"{err_color}(+{delta_429}){RESET}"
             pct = (completed/total*100) if total else 100.0
             elapsed    = time.time() - start_time
             pending_total = total - completed
             retry_q_now   = 0
             inflight      = 0
             print(
-                f"[{ts}] [HEARTBEAT] FINAL {completed}/{total}(+{delta_done}) done ({pct:.1f}%), "
+                f"[{ts}] [HEARTBEAT] FINAL {completed}/{total}(+{delta_done_str}) done ({pct:.1f}%), "
                 f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
-                f"429s={HTTP_429_QUEUED}(+{delta_429}), "
+                f"429s={HTTP_429_QUEUED}(+{delta_429_str}), "
                 f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
                 f"ETA=0s, elapsed={_fmt_duration(elapsed)}s",
                 flush=True
@@ -814,7 +828,7 @@ if __name__ == "__main__":
 
     # 4) behavior depends on MODE
     all_keys = sorted(chars)
-    batch_size = int(os.getenv("BATCH_SIZE", "2500"))
+    batch_size = int(os.getenv("BATCH_SIZE"))
     computed_total = (len(all_keys) + batch_size - 1) // batch_size
 
     if MODE == "batch":
