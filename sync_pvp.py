@@ -522,16 +522,24 @@ def db_iter_rows():
     for k, g, j in cur:
         yield k, g, json.loads(j)
 
-def merge_db_shards(dirpath: Path):
-    # upsert rows from all shards into the main DB
-    shards = sorted(dirpath.glob(f"achdb_{REGION}_*.sqlite"))
+def merge_db_shards(dirpath: Path) -> tuple[int, int]:
+    """Merge rows from all sqlite shards into the working DB.
+    Returns (merged_row_upserts, shard_count)."""
+    # Discover shards both in the flattened folder and any subdirs.
+    shards = sorted(set(
+        list(dirpath.glob(f"achdb_{REGION}_b*.sqlite")) +
+        list(dirpath.glob(f"**/achdb_{REGION}_b*.sqlite"))
+    ))
     if not shards:
-        return 0
+        print(f"[ERROR] No sqlite shards under {dirpath}/achdb_{REGION}_b*.sqlite")
+        return (0, 0)
     merged = 0
     for s in shards:
         try:
             with sqlite3.connect(s) as src:
-                for k,g,j in src.execute("SELECT key,guid,ach_json FROM char_data"):
+                cnt = src.execute("SELECT COUNT(*) FROM char_data").fetchone()[0]
+                print(f"[DEBUG] shard {s.name}: {cnt} rows")
+                for k, g, j in src.execute("SELECT key,guid,ach_json FROM char_data"):
                     db.execute(
                         "INSERT OR REPLACE INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
                         (k, g, j)
@@ -540,8 +548,8 @@ def merge_db_shards(dirpath: Path):
         except Exception as e:
             print(f"[WARN] failed to merge shard {s}: {e}")
     db.commit()
-    print(f"[DEBUG] merged {merged} rows from {len(shards)} shard(s)")
-    return merged
+    print(f"[DEBUG] merged {merged} row upserts from {len(shards)} shard(s)")
+    return (merged, len(shards))
 
 # --------------------------------------------------------------------------
 # Main processing
@@ -764,7 +772,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 f.write("    { " + ", ".join(parts) + " },\n")
             f.write("}\n\n")
             f.write(f"{REGION_VAR} = achievements\n")
-        print(f"[DEBUG] Wrote full {OUTFILE}")
+        print(f"[DEBUG] Wrote full {OUTFILE} with {len(groups)} entries/groups")
 
         # --- new: drop a marker so the GH loop knows finalize ran ---
         final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
@@ -853,8 +861,11 @@ if __name__ == "__main__":
         # only finalize (no re-fetch): merge all shards, then write full Lua
         print(f"[INFO] Finalizing region {REGION}")
         # make any downloaded shards visible
-        merge_db_shards(Path("partial_outputs"))
-        # run the writer path (characters dict can be empty)
+        merged_rows, shard_count = merge_db_shards(Path("partial_outputs"))
+        if shard_count == 0 or merged_rows == 0:
+            print("❌ Merge produced zero rows; refusing to write an empty achievements file.")
+            db.close()
+            sys.exit(1)        # run the writer path (characters dict can be empty)
         asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
         sys.exit(0)
