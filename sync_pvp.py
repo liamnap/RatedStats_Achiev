@@ -623,7 +623,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                 sec_rate = len(per_sec.calls)/per_sec.period
                                 avg60    = len(CALL_TIMES)/60
                                 rem_calls= (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
-                                elapsed  = time.time() - start_time
+                                elapsed  = int(time.time() - start_time)
                                 eta      = _fmt_duration(int((elapsed/CALLS_DONE)*rem_calls)) if CALLS_DONE and rem_calls else "–"
                                 delta_done = completed - hb_prev_completed
                                 delta_429  = HTTP_429_QUEUED - hb_prev_429
@@ -673,7 +673,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             delta_done_str = f"{done_color}(+{delta_done}){RESET}"
             delta_429_str  = f"{err_color}(+{delta_429}){RESET}"
             pct = (completed/total*100) if total else 100.0
-            elapsed    = time.time() - start_time
+            elapsed    = int(time.time() - start_time)
             pending_total = total - completed
             retry_q_now   = 0
             inflight      = 0
