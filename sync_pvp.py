@@ -565,6 +565,8 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             total = len(characters)
             completed = 0
             last_hb = time.monotonic()
+            hb_prev_completed = 0
+            hb_prev_429 = 0
 
             async def proc_one(c):
                 nonlocal inserted
@@ -620,10 +622,17 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                 rem_calls= (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
                                 elapsed  = time.time() - start_time
                                 eta      = _fmt_duration(int((elapsed/CALLS_DONE)*rem_calls)) if CALLS_DONE and rem_calls else "–"
-                                print(f"[{ts}] [HEARTBEAT] {completed}/{total} done ({completed/total*100:.1f}%), "
-                                      f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, 429s={HTTP_429_QUEUED}, ETA={eta}",
-                                      flush=True)
+                                delta_done = completed - hb_prev_completed
+                                delta_429  = HTTP_429_QUEUED - hb_prev_429
+                                print(
+                                    f"[{ts}] [HEARTBEAT] {completed}/{total}(+{delta_done}) done ({completed/total*100:.1f}%), "
+                                    f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
+                                    f"429s={HTTP_429_QUEUED}(+{delta_429}), ETA={eta}, elapsed={elapsed:.1f}s",
+                                    flush=True
+                                )
                                 last_hb = now
+                                hb_prev_completed = completed
+                                hb_prev_429 = HTTP_429_QUEUED
                 url_cache.clear()
                 if retry_bucket:
                     queued = len(retry_bucket)
@@ -634,13 +643,22 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     break
 
             db.commit()
-            # Final summary line (prints even if <100% due to non-429 drops)
+            # Final summary heartbeat (prints even if the last update was <10s ago)
             ts = time.strftime("%H:%M:%S", time.localtime())
             sec_rate = len(per_sec.calls)/per_sec.period
             avg60    = len(CALL_TIMES)/60
-            print(f"[{ts}] [HEARTBEAT] FINAL {completed}/{total} done ({(completed/total*100 if total else 100):.1f}%), "
-                  f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, 429s={HTTP_429_QUEUED}, ETA=0s",
-                  flush=True)
+            delta_done = completed - hb_prev_completed
+            delta_429  = HTTP_429_QUEUED - hb_prev_429
+            pct = (completed/total*100) if total else 100.0
+            elapsed    = time.time() - start_time
+            print(
+                f"[{ts}] [HEARTBEAT] FINAL {completed}/{total}(+{delta_done}) done ({pct:.1f}%), "
+                f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
+                f"429s={HTTP_429_QUEUED}(+{delta_429}), ETA=0s, elapsed={elapsed:.1f}s",
+                flush=True
+            )
+            hb_prev_completed = completed
+            hb_prev_429 = HTTP_429_QUEUED
             print(f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}")
 
     # build fingerprints & alt_map
