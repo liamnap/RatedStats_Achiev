@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BATCH_SIZE: 2500
+  BATCH_SIZE: 35000
   REGIONS: us eu kr tw
 
 jobs:
