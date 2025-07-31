@@ -1,0 +1,22 @@
+name: _trace workflow_run
+on:
+  workflow_run:
+    workflows: ["PvP Sync Batch"]
+    types: [completed]
+    # no branch filter on purpose
+
+permissions: { contents: read }
+
+jobs:
+  show:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump workflow_run context
+        run: |
+          echo "name=${{ github.event.workflow_run.name }}"
+          echo "display_title=${{ github.event.workflow_run.display_title }}"
+          echo "conclusion=${{ github.event.workflow_run.conclusion }}"
+          echo "status=${{ github.event.workflow_run.status }}"
+          echo "head_branch=${{ github.event.workflow_run.head_branch }}"
+          echo "head_sha=${{ github.event.workflow_run.head_sha }}"
+          echo "workflow_id=${{ github.event.workflow_run.workflow_id }}"
