@@ -5,42 +5,65 @@ on:
   workflow_run:
     workflows: ["PvP Sync Batch"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Region to finalize"
+        required: true
+        type: choice
+        options: [kr, tw, eu, us]
+      sha:
+        description: "Head SHA of the batch runs to finalize"
+        required: true
+        type: string
+      branch:
+        description: "Branch the batch runs executed on"
+        required: true
+        type: string
 
 permissions:
   contents: write
   actions: read
 
 concurrency:
-  group: finalize-${{ github.event.workflow_run.id }}
+  # Support both workflow_run and workflow_dispatch
+  group: finalize-${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   guard:
-    # only fire for our batch workflow, and only for tw/kr runs
-    if: ${{ github.event.workflow_run.name == 'PvP Sync Batch' &&
-            (endsWith(github.event.workflow_run.display_title, ' for kr') ||
-             endsWith(github.event.workflow_run.display_title, ' for tw')) }}
+    # fire on: (a) workflow_dispatch, or (b) kr/tw workflow_run completions
+    if: >
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.name == 'PvP Sync Batch' &&
+       (endsWith(github.event.workflow_run.display_title, ' for kr') ||
+        endsWith(github.event.workflow_run.display_title, ' for tw')))
     name: Check if this was the last batch
     runs-on: ubuntu-latest
     outputs:
       is_final: ${{ steps.parse.outputs.is_final }}
       region:   ${{ steps.parse.outputs.region }}
     steps:
-      - name: Parse batch number & region from run title
+      - name: Determine region + whether this is the final batch
         id: parse
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "region=${{ inputs.region }}" >>"$GITHUB_OUTPUT"
+            echo "is_final=true" >>"$GITHUB_OUTPUT"
+            echo "🟢 Finalize via dispatch: region='${{ inputs.region }}'"
+            exit 0
+          fi
+
           TITLE="${{ github.event.workflow_run.display_title }}"
           echo "Run title: $TITLE"
-          # Expect titles like: "PvP Sync Batch 3 / 10 for kr"
+          # Expect: "PvP Sync Batch 3 / 10 for kr"
           if [[ "$TITLE" =~ ^PvP[[:space:]]Sync[[:space:]]Batch[[:space:]]([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)[[:space:]]for[[:space:]]([a-z]{2})$ ]]; then
-            CUR="${BASH_REMATCH[1]}"
-            TOT="${BASH_REMATCH[2]}"
-            REGION="${BASH_REMATCH[3]}"
+            CUR="${BASH_REMATCH[1]}"; TOT="${BASH_REMATCH[2]}"; REGION="${BASH_REMATCH[3]}"
             echo "region=$REGION" >>"$GITHUB_OUTPUT"
             if [[ "$CUR" == "$TOT" ]]; then
-              echo "is_final=true" >>"$GITHUB_OUTPUT"
+              echo "is_final=true"  >>"$GITHUB_OUTPUT"
               echo "✅ Detected final batch ($CUR/$TOT) for $REGION"
             else
               echo "is_final=false" >>"$GITHUB_OUTPUT"
@@ -76,6 +99,9 @@ jobs:
           region="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha }}"
           branch="${{ github.event.workflow_run.head_branch }}"
+          # Fallbacks for workflow_dispatch
+          if [[ -z "$sha" ]]; then sha="${{ inputs.sha }}"; fi
+          if [[ -z "$branch" ]]; then branch="${{ inputs.branch }}"; fi
           echo "Waiting for all '$wf' runs for region=$region, sha=$sha..."
           while true; do
             # find any runs still pending/running for this sha+region
@@ -102,6 +128,9 @@ jobs:
           region="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha }}"
           branch="${{ github.event.workflow_run.head_branch }}"
+          # Fallbacks for workflow_dispatch
+          if [[ -z "$sha" ]]; then sha="${{ inputs.sha }}"; fi
+          if [[ -z "$branch" ]]; then branch="${{ inputs.branch }}"; fi
           mkdir -p partial_outputs
           # grab the list of run IDs for this sha+region
           ids=$(gh run list \
