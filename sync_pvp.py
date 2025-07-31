@@ -639,9 +639,9 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                 retry_q_now   = len(retry_bucket)
                                 inflight      = sum(1 for tt in tasks if not tt.done())
                                 print(
-                                    f"[{ts}] [HEARTBEAT] {completed}/{total}(+{delta_done_str}) done ({completed/total*100:.1f}%), "
+                                    f"[{ts}] [HEARTBEAT] {completed}/{total}{delta_done_str} done ({completed/total*100:.1f}%), "
                                     f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
-                                    f"429s={HTTP_429_QUEUED}(+{delta_429_str}), "
+                                    f"429s={HTTP_429_QUEUED}{delta_429_str}, "
                                     f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
                                     f"ETA={eta}, elapsed={_fmt_duration(elapsed)}s",
                                     flush=True
@@ -678,9 +678,9 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             retry_q_now   = 0
             inflight      = 0
             print(
-                f"[{ts}] [HEARTBEAT] FINAL {completed}/{total}(+{delta_done_str}) done ({pct:.1f}%), "
+                f"[{ts}] [HEARTBEAT] FINAL {completed}/{total}{delta_done_str} done ({pct:.1f}%), "
                 f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
-                f"429s={HTTP_429_QUEUED}(+{delta_429_str}), "
+                f"429s={HTTP_429_QUEUED}{delta_429_str}, "
                 f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
                 f"ETA=0s, elapsed={_fmt_duration(elapsed)}s",
                 flush=True
