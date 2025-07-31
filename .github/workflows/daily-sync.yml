@@ -2,7 +2,7 @@ name: Daily PvP Sync
 
 on:
   workflow_dispatch:
-  schedule:
+#  schedule:
 #    - cron: '0 1 * * *'  # Run daily at 01:00 UTC
 
 env:
