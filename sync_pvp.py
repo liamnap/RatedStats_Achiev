@@ -611,7 +611,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                         else:
                             completed += 1
                             now = time.monotonic()
-                            if now - last_hb > 10:
+                            if (now - last_hb > 10) or (completed == total):
                                 url_cache.clear()
                                 gc.collect()
                                 ts = time.strftime("%H:%M:%S", time.localtime())
@@ -634,6 +634,13 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     break
 
             db.commit()
+            # Final summary line (prints even if <100% due to non-429 drops)
+            ts = time.strftime("%H:%M:%S", time.localtime())
+            sec_rate = len(per_sec.calls)/per_sec.period
+            avg60    = len(CALL_TIMES)/60
+            print(f"[{ts}] [HEARTBEAT] FINAL {completed}/{total} done ({(completed/total*100 if total else 100):.1f}%), "
+                  f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, 429s={HTTP_429_QUEUED}, ETA=0s",
+                  flush=True)
             print(f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}")
 
     # build fingerprints & alt_map
