@@ -150,7 +150,7 @@ def _fmt_duration(sec: int) -> str:
 def _bump_calls():
     global CALLS_DONE
     CALLS_DONE += 1
-    now = time.time()
+    now = time.monotonic()
     CALL_TIMES.append(now)
     while CALL_TIMES and now - CALL_TIMES[0] > 60:
         CALL_TIMES.popleft()
@@ -564,7 +564,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             sem = asyncio.Semaphore(SEM_CAP)
             total = len(characters)
             completed = 0
-            last_hb = time.time()
+            last_hb = time.monotonic()
 
             async def proc_one(c):
                 nonlocal inserted
@@ -610,21 +610,24 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                             continue
                         else:
                             completed += 1
-                            now = time.time()
+                            now = time.monotonic()
                             if now - last_hb > 10:
                                 url_cache.clear()
                                 gc.collect()
-                                ts = time.strftime("%H:%M:%S", time.localtime(now))
+                                ts = time.strftime("%H:%M:%S", time.localtime())
                                 sec_rate = len(per_sec.calls)/per_sec.period
                                 avg60    = len(CALL_TIMES)/60
                                 rem_calls= (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
-                                eta      = _fmt_duration(int((now-start_time)/CALLS_DONE*rem_calls)) if CALLS_DONE and rem_calls else "–"
-                                print(f"[{ts}] [HEARTBEAT] {completed}/{total} done ({completed/total*100:.1f}%), sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, ETA={eta}")
+                                eta      = _fmt_duration(int((elapsed/CALLS_DONE)*rem_calls)) if CALLS_DONE and rem_calls else "–"
+                                print(f"[{ts}] [HEARTBEAT] {completed}/{total} done ({completed/total*100:.1f}%), "
+                                      f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, 429s={HTTP_429_QUEUED}, ETA={eta}",
+                                      flush=True)
                                 last_hb = now
                 url_cache.clear()
                 if retry_bucket:
-                    await asyncio.sleep(retry_interval)
-                    remaining = list(retry_bucket.values())
+                    queued = len(retry_bucket)
+                    print(f"[{time.strftime('%H:%M:%S')}] [RETRY] {queued} queued after 429s; waiting {retry_interval}s", flush=True)
+                    await asyncio.sleep(retry_interval)                    remaining = list(retry_bucket.values())
                 else:
                     break
 
