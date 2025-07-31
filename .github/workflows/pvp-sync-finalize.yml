@@ -164,6 +164,12 @@ jobs:
           done
           echo "Found shards:"
           ls -1 partial_outputs || true
+          # hard stop if we didn't actually get any shards for this region/SHA
+          cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
+          if (( cnt == 0 )); then
+            echo "❌ No shards found for region=$region sha=$sha branch=$branch"
+            exit 1
+          fi
 
       - name: Finalize region file
         env:
