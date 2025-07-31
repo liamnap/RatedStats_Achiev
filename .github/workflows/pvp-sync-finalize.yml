@@ -3,7 +3,6 @@ name: Finalize PvP Sync
 # Trigger whenever the "PvP Sync Batch" workflow finishes on dev
 on:
   workflow_run:
-    workflows: ["PvP Sync Batch"]   # must match your batch workflow’s name exactly
     types: [completed]
     branches: [dev]
 
@@ -22,6 +21,8 @@ jobs:
     outputs:
       is_final: ${{ steps.parse.outputs.is_final }}
       region:   ${{ steps.parse.outputs.region }}
+      # only run on PvP Sync Batch runs
+      if: ${{ github.event.workflow_run.name == 'PvP Sync Batch' }}
     steps:
       - name: Parse batch number & region from run title
         id: parse
