@@ -140,12 +140,21 @@ jobs:
                             | select(.headSha==\"$sha\")
                             | select(.displayTitle|endswith(\" for $region\"))
                             | .databaseId ] | unique | .[]")
+          # download only the DB artifacts for this region, into a temp dir
+          rm -rf _dl && mkdir -p _dl
           for id in $ids; do
-            echo "Downloading DB shard from run $id…"
+            echo "Downloading DB artifacts from run $id…"
             gh run download "$id" \
-               --pattern "achiev_${region}.db" \
-               -D partial_outputs || true
+              --pattern "pvp-db-${region}-batch-*" \
+              -D _dl || true
           done
+          # flatten the sqlite shards into ./partial_outputs
+          shopt -s nullglob
+          for f in _dl/pvp-db-${region}-batch-*/partial_outputs/achdb_${region}_b*.sqlite; do
+            mv "$f" partial_outputs/
+          done
+          echo "Found shards:"
+          ls -1 partial_outputs || true
 
       - name: Finalize region file
         env:
