@@ -627,7 +627,8 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 if retry_bucket:
                     queued = len(retry_bucket)
                     print(f"[{time.strftime('%H:%M:%S')}] [RETRY] {queued} queued after 429s; waiting {retry_interval}s", flush=True)
-                    await asyncio.sleep(retry_interval)                    remaining = list(retry_bucket.values())
+                    await asyncio.sleep(retry_interval)                    
+                    remaining = list(retry_bucket.values())
                 else:
                     break
 
