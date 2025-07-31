@@ -360,7 +360,7 @@ print(f"[INFO] Region: {REGION}, Locale: {LOCALE}, Static NS: {NAMESPACE_STATIC}
 # --------------------------------------------------------------------------
 # Rate limiters and in-memory cache
 # --------------------------------------------------------------------------
-REGION_CAP  = 9 if REGION in ("us","eu") else 100
+REGION_CAP  = 20 if REGION in ("us","eu") else 100
 per_sec     = RateLimiter(REGION_CAP, 1)
 per_hour    = RateLimiter(36000, 3600)
 SEM_CAP     = REGION_CAP
