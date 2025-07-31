@@ -624,10 +624,16 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                 eta      = _fmt_duration(int((elapsed/CALLS_DONE)*rem_calls)) if CALLS_DONE and rem_calls else "–"
                                 delta_done = completed - hb_prev_completed
                                 delta_429  = HTTP_429_QUEUED - hb_prev_429
+                                # True backlog view at this instant
+                                pending_total = total - completed
+                                retry_q_now   = len(retry_bucket)
+                                inflight      = sum(1 for tt in tasks if not tt.done())
                                 print(
                                     f"[{ts}] [HEARTBEAT] {completed}/{total}(+{delta_done}) done ({completed/total*100:.1f}%), "
                                     f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
-                                    f"429s={HTTP_429_QUEUED}(+{delta_429}), ETA={eta}, elapsed={elapsed:.1f}s",
+                                    f"429s={HTTP_429_QUEUED}(+{delta_429}), "
+                                    f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
+                                    f"ETA={eta}, elapsed={elapsed:.1f}s",
                                     flush=True
                                 )
                                 last_hb = now
@@ -651,10 +657,15 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             delta_429  = HTTP_429_QUEUED - hb_prev_429
             pct = (completed/total*100) if total else 100.0
             elapsed    = time.time() - start_time
+            pending_total = total - completed
+            retry_q_now   = 0
+            inflight      = 0
             print(
                 f"[{ts}] [HEARTBEAT] FINAL {completed}/{total}(+{delta_done}) done ({pct:.1f}%), "
                 f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
-                f"429s={HTTP_429_QUEUED}(+{delta_429}), ETA=0s, elapsed={elapsed:.1f}s",
+                f"429s={HTTP_429_QUEUED}(+{delta_429}), "
+                f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
+                f"ETA=0s, elapsed={elapsed:.1f}s",
                 flush=True
             )
             hb_prev_completed = completed
