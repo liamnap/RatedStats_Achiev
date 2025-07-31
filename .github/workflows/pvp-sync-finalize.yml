@@ -167,6 +167,11 @@ jobs:
             echo "❌ No shards found for region=$region sha=$sha branch=$branch"
             exit 1
           fi
+          # show a per-shard row count as a sanity check
+          for dbf in partial_outputs/achdb_${region}_b*.sqlite; do
+            echo -n "rows in $(basename "$dbf"): "
+            sqlite3 "$dbf" "SELECT COUNT(*) FROM char_data;" || true
+          done
 
       - name: Finalize region file
         env:
