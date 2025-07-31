@@ -155,3 +155,14 @@ jobs:
           CUR_ID:    ${{ inputs.batch_id }}
           TOTAL:     ${{ inputs.total_batches }}
           GROUP_KEY: ${{ inputs['group-id'] }}
+
+      - name: Trigger Finalize PvP Sync (only on last KR/TW batch)
+        if: ${{ inputs.batch_num == inputs.total_batches && (inputs.region == 'kr' || inputs.region == 'tw') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run "Finalize PvP Sync" \
+            --ref "${{ github.ref_name }}" \
+            -f region="${{ inputs.region }}" \
+            -f sha="${{ github.sha }}" \
+            -f branch="${{ github.ref_name }}"
