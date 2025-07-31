@@ -597,7 +597,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             remaining = list(characters.values())
             retry_interval = 10
             # allow overriding via env var for flexible sizing (safe default)
-            BATCH_SIZE = int(os.getenv("BATCH_SIZE", "2500"))
+            BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
 
             while remaining:
                 retry_bucket = {}
@@ -643,7 +643,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                     f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
                                     f"429s={HTTP_429_QUEUED}{delta_429_str}, "
                                     f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
-                                    f"ETA={eta}, elapsed={_fmt_duration(elapsed)}s",
+                                    f"ETA={eta}, elapsed={_fmt_duration(elapsed)}",
                                     flush=True
                                 )
                                 last_hb = now
@@ -682,7 +682,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
                 f"429s={HTTP_429_QUEUED}{delta_429_str}, "
                 f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
-                f"ETA=0s, elapsed={_fmt_duration(elapsed)}s",
+                f"ETA=0s, elapsed={_fmt_duration(elapsed)}",
                 flush=True
             )
             hb_prev_completed = completed
