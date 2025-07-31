@@ -25,25 +25,6 @@ permissions:
   contents: write
   actions: read
 
-concurrency:
-  # De-dupe per region+sha whether started by workflow_run or dispatch
-  group: ${{ github.event_name == 'workflow_dispatch'
-              && format('finalize-{0}-{1}', inputs.region, inputs.sha)
-            || (
-                 github.event_name == 'workflow_run'
-                 && format(
-                      'finalize-{0}-{1}',
-                      ( endsWith(github.event.workflow_run.display_title, ' for eu') && 'eu'
-                        || endsWith(github.event.workflow_run.display_title, ' for us') && 'us'
-                        || endsWith(github.event.workflow_run.display_title, ' for kr') && 'kr'
-                        || endsWith(github.event.workflow_run.display_title, ' for tw') && 'tw'
-                        || 'unknown'),
-                      github.event.workflow_run.head_sha
-                    )
-               )
-          }}
-  cancel-in-progress: false
-
 jobs:
   guard:
     # fire on: (a) workflow_dispatch, or (b) any "PvP Sync Batch" completion (all regions)
@@ -52,6 +33,10 @@ jobs:
       (github.event.workflow_run.name == 'PvP Sync Batch')
     name: Check if this was the last batch
     runs-on: ubuntu-latest
+    concurrency:
+      # one finalize per region+sha regardless of trigger type
+      group: finalize-${{ needs.guard.outputs.region }}-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+      cancel-in-progress: false
     outputs:
       is_final: ${{ steps.parse.outputs.is_final }}
       region:   ${{ steps.parse.outputs.region }}
