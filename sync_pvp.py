@@ -559,7 +559,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             print(f"[DEBUG] PvP keywords loaded: {len(pvp_achs)}")
 
             per_sec.tokens     = 0
-            per_sec.timestamp  = asyncio.get_event_loop().time()
+            per_sec.timestamp  = time.monotonic()
             per_sec.calls.clear()
             sem = asyncio.Semaphore(SEM_CAP)
             total = len(characters)
@@ -618,6 +618,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                 sec_rate = len(per_sec.calls)/per_sec.period
                                 avg60    = len(CALL_TIMES)/60
                                 rem_calls= (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
+                                elapsed  = time.time() - start_time
                                 eta      = _fmt_duration(int((elapsed/CALLS_DONE)*rem_calls)) if CALLS_DONE and rem_calls else "–"
                                 print(f"[{ts}] [HEARTBEAT] {completed}/{total} done ({completed/total*100:.1f}%), "
                                       f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, 429s={HTTP_429_QUEUED}, ETA={eta}",
