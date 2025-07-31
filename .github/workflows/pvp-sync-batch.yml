@@ -156,8 +156,8 @@ jobs:
           TOTAL:     ${{ inputs.total_batches }}
           GROUP_KEY: ${{ inputs['group-id'] }}
 
-      - name: Trigger Finalize PvP Sync (only on last KR/TW batch)
-        if: ${{ inputs.batch_num == inputs.total_batches && (inputs.region == 'kr' || inputs.region == 'tw') }}
+      - name: Trigger Finalize PvP Sync (only on last batch)
+        if: ${{ inputs.batch_num == inputs.total_batches }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
