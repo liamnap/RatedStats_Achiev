@@ -154,11 +154,19 @@ jobs:
               --pattern "pvp-db-${region}-batch-*" \
               -D _dl || true
           done
-          # flatten the sqlite shards into ./partial_outputs
-          shopt -s nullglob
-          for f in _dl/pvp-db-${region}-batch-*/partial_outputs/achdb_${region}_b*.sqlite; do
-            mv "$f" partial_outputs/
+          # flatten sqlite shards into ./partial_outputs (handle any nested layout)
+          shopt -s globstar nullglob
+          found_any=0
+          for f in _dl/**/achdb_${region}_b*.sqlite; do
+            echo "Copying shard: $f"
+            cp -f "$f" partial_outputs/
+            found_any=1
           done
+          if [[ $found_any -eq 0 ]]; then
+            echo "❌ No achdb_${region}_b*.sqlite found under _dl/"
+            echo "Directory tree for debugging:"
+            ls -laR _dl || true
+          fi
           echo "Found shards:"
           ls -1 partial_outputs || true
           # hard stop if we didn't actually get any shards for this region/SHA
