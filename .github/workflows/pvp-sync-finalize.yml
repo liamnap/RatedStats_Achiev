@@ -15,8 +15,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  decide:
+    name: Guard (only finalize on last batch)
+    runs-on: ubuntu-latest
+    outputs:
+      is_final: ${{ steps.guard.outputs.is_final }}
+      region:   ${{ steps.guard.outputs.region }}
+    steps:
+      - name: Parse triggering run title
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Use payload directly; no extra gh call needed
+          TITLE="${{ github.event.workflow_run.display_title }}"
+          echo "Title: $TITLE"
+          # Expect: "PvP Sync Batch X / Y for xx"
+          if [[ "$TITLE" =~ ^PvP[[:space:]]Sync[[:space:]]Batch[[:space:]]([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)[[:space:]]for[[:space:]]([a-z]{2})$ ]]; then
+            CUR="${BASH_REMATCH[1]}"; TOT="${BASH_REMATCH[2]}"; REGION="${BASH_REMATCH[3]}"
+            echo "region=$REGION" >>"$GITHUB_OUTPUT"
+            if [[ "$CUR" == "$TOT" ]]; then
+              echo "is_final=true" >>"$GITHUB_OUTPUT"
+              echo "Detected last batch: $CUR / $TOT"
+            else
+              echo "is_final=false" >>"$GITHUB_OUTPUT"
+              echo "Not last batch ($CUR / $TOT) – skipping finalize."
+            fi
+          else
+            echo "Could not parse batch counters/region from title; skipping finalize."
+            echo "is_final=false" >>"$GITHUB_OUTPUT"
+          fi
+
   finalize:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && needs.decide.outputs.is_final == 'true' }}
+    needs: [decide]
     runs-on: ubuntu-latest
 
     steps:
@@ -30,49 +62,41 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Wait until all batch runs in this group are finished
+      - name: Wait until all batch runs for this region+commit are finished
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           wf="PvP Sync Batch"
-          # Extract region and region-scoped group key: "... (group eu-123456789)"
-          title=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle')
-          region=$(echo "$title" | sed -n 's/^PvP Sync for \([a-z][a-z]\) .*$/\1/p')
-          group=$(echo "$title"  | sed -n 's/.*(group \([a-z][a-z]-[0-9]\+\)).*/\1/p')
-          echo "Region: $region"
+          region='${{ needs.decide.outputs.region }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
           branch='${{ github.event.workflow_run.head_branch }}'
-          if [ -z "$group" ]; then
-            echo "ERROR: region/group not found in run-name. Ensure run-name includes '(group <region>-<id>)'."
-            exit 1
-          fi
-          echo "Polling for unfinished batch runs for ${region} in group ${group} on branch ${branch}..."
+          echo "Polling for unfinished batch runs for region=${region}, sha=${sha} on branch ${branch}..."
           while true; do
-            # Count runs for this workflow that are not yet 'completed'
-            remaining=$(gh run list -w "$wf" -b "$branch" -L 500 --json status,displayTitle \
-              --jq "[ .[]                                                              \
-                     | select(.displayTitle | contains(\"PvP Sync for ${region} \"))   \
-                     | select(.displayTitle | contains(\"group ${group}\"))            \
-                     | select(.status != \"completed\") ]                              \
-                    | length")
+            # Count runs for this workflow+branch+region+commit that are not yet 'completed'
+            remaining=$(gh run list -w "$wf" -b "$branch" -L 500 --json status,displayTitle,headSha \
+              --jq "[ .[]                                                                                 \
+                     | select(.displayTitle | endswith(\" for ${region}\"))                               \
+                     | select(.headSha == \"${sha}\")                                                     \
+                     | select(.status != \"completed\") ]                                                 \
+                    | length" )
             echo "Remaining in-progress/queued: $remaining"
             [ "$remaining" -eq 0 ] && break
             sleep 10
           done
 
-      - name: Download DB shards for this group
+      - name: Download DB shards for this region+commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           wf="PvP Sync Batch"
           branch='${{ github.event.workflow_run.head_branch }}'
-          title=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle')
-          region=$(echo "$title" | sed -n 's/^PvP Sync for \([a-z][a-z]\) .*$/\1/p')
-          group=$(echo "$title"  | sed -n 's/.*(group \([a-z][a-z]-[0-9]\+\)).*/\1/p')
-          runs=$(gh run list -w "$wf" -b "$branch" -L 500 --json databaseId,displayTitle \
-                 --jq "[ .[]                                                                  \
-                        | select(.displayTitle | contains(\"PvP Sync for ${region} \"))       \
-                        | select(.displayTitle | contains(\"group ${group}\")) ]")
+          region='${{ needs.decide.outputs.region }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
+          runs=$(gh run list -w "$wf" -b "$branch" -L 500 --json databaseId,displayTitle,headSha \
+                 --jq "[ .[]                                                                       \
+                        | select(.displayTitle | endswith(\" for ${region}\"))                     \
+                        | select(.headSha == \"${sha}\") ]")
           mkdir -p partial_outputs
           for id in $(echo "$runs" | jq -r '.[].databaseId'); do
             # download only DB artifacts; extract under per‑artifact dirs
@@ -81,20 +105,19 @@ jobs:
           # flatten shards so sync_pvp.py can glob partial_outputs/achdb_*.sqlite
           find partial_outputs -type f -name "achdb_*.sqlite" -exec mv -t partial_outputs {} +
 
-      - name: Verify all group runs succeeded and set REGION
+      - name: Verify all region+commit runs succeeded and set REGION
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           wf="PvP Sync Batch"
           branch='${{ github.event.workflow_run.head_branch }}'
-          title=$(gh run view ${{ github.event.workflow_run.id }} --json displayTitle --jq '.displayTitle')
-          region=$(echo "$title" | sed -n 's/^PvP Sync for \([a-z][a-z]\) .*$/\1/p')
-          group=$(echo "$title"  | sed -n 's/.*(group \([a-z][a-z]-[0-9]\+\)).*/\1/p')
-          runs=$(gh run list -w "$wf" -b "$branch" -L 500 --json databaseId,displayTitle,status,conclusion \
-                 --jq "[ .[]                                                                  \
-                        | select(.displayTitle | contains(\"PvP Sync for ${region} \"))       \
-                        | select(.displayTitle | contains(\"group ${group}\")) ]")
+          region='${{ needs.decide.outputs.region }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
+          runs=$(gh run list -w "$wf" -b "$branch" -L 500 --json databaseId,displayTitle,status,conclusion,headSha \
+                 --jq "[ .[]                                                                                 \
+                        | select(.displayTitle | endswith(\" for ${region}\"))                               \
+                        | select(.headSha == \"${sha}\") ]")
           total=$(echo "$runs" | jq 'length')
           ok=$(echo "$runs" | jq '[ .[] | select(.conclusion == "success") ] | length')
           if [ "$ok" -ne "$total" ]; then
@@ -102,8 +125,7 @@ jobs:
             echo "$runs" | jq -r '.[] | "\(.databaseId)\t\(.status)\t\(.conclusion)\t\(.displayTitle)"'
             exit 1
           fi
-          # Our group id is "<dispatcher_run_id>-<region>", so grab the <region> suffix:
-          region="${group%%-*}"
+          # REGION is already parsed by the guard job
           echo "Finalizing region: $region"
           echo "REGION=${region}" >> $GITHUB_ENV
 
