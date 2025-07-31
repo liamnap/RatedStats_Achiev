@@ -200,9 +200,11 @@ def get_access_token(region: str) -> str:
     if region == "eu" and os.getenv("BLIZZARD_CLIENT_ID_EU"):
         cid = os.getenv("BLIZZARD_CLIENT_ID_EU")
         cs  = os.getenv("BLIZZARD_CLIENT_SECRET_EU")
+        print("[INFO] Using BLIZZARD_CLIENT_SECRET_EU")
     elif region == "us" and os.getenv("BLIZZARD_CLIENT_ID_US"):
         cid = os.getenv("BLIZZARD_CLIENT_ID_US")
         cs  = os.getenv("BLIZZARD_CLIENT_SECRET_US")
+        print("[INFO] Using BLIZZARD_CLIENT_SECRET_US")
     else:
         # Warn if a region-specific pair is missing and we fall back.
         if region in ("eu", "us") and not (
@@ -212,6 +214,7 @@ def get_access_token(region: str) -> str:
             print(f"[WARN] {region.upper()} credentials not set; using default BLIZZARD_CLIENT_ID/SECRET")
         cid = os.getenv("BLIZZARD_CLIENT_ID")
         cs  = os.getenv("BLIZZARD_CLIENT_SECRET")
+        print("[INFO] Using BLIZZARD_CLIENT_SECRET")
 
     resp = requests.post(
         "https://us.battle.net/oauth/token",
