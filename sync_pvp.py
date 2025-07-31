@@ -636,7 +636,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                     f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
                                     f"429s={HTTP_429_QUEUED}(+{delta_429}), "
                                     f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
-                                    f"ETA={eta}, elapsed={elapsed:.1f}s",
+                                    f"ETA={eta}, elapsed={_fmt_duration(elapsed)}s",
                                     flush=True
                                 )
                                 last_hb = now
@@ -668,7 +668,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
                 f"429s={HTTP_429_QUEUED}(+{delta_429}), "
                 f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
-                f"ETA=0s, elapsed={elapsed:.1f}s",
+                f"ETA=0s, elapsed={_fmt_duration(elapsed)}s",
                 flush=True
             )
             hb_prev_completed = completed
