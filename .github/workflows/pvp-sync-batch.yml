@@ -141,6 +141,7 @@ jobs:
               owner,
               repo,
               workflow_id: 'pvp-sync-batch.yml',
+              ref: context.ref,
               inputs: {
                 region:        region,
                 offset:        String(offset),
