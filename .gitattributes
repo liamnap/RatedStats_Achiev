@@ -1,0 +1,2 @@
+## .gitattributes
+region_*.lua filter=lfs diff=lfs merge=lfs -text
