@@ -83,16 +83,22 @@ jobs:
         env:
           REGION: ${{ inputs.region }}
           BATCH_SIZE: ${{ inputs.limit }}
-          BLIZZARD_CLIENT_ID:        ${{ secrets.BLIZZARD_CLIENT_ID }}
-          BLIZZARD_CLIENT_SECRET:    ${{ secrets.BLIZZARD_CLIENT_SECRET }}
           BLIZZARD_CLIENT_ID_EU_1:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_1 }}
           BLIZZARD_CLIENT_SECRET_EU_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_1 }}
           BLIZZARD_CLIENT_ID_US_1:     ${{ secrets.BLIZZARD_CLIENT_ID_US_1 }}
           BLIZZARD_CLIENT_SECRET_US_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_1 }}
+          BLIZZARD_CLIENT_ID_TW_1:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_1 }}
+          BLIZZARD_CLIENT_SECRET_TW_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_1 }}
+          BLIZZARD_CLIENT_ID_KR_1:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_1 }}
+          BLIZZARD_CLIENT_SECRET_KR_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_1 }}
           BLIZZARD_CLIENT_ID_EU_429:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_429 }}
           BLIZZARD_CLIENT_SECRET_EU_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_429 }}
           BLIZZARD_CLIENT_ID_US_429:     ${{ secrets.BLIZZARD_CLIENT_ID_US_429 }}
           BLIZZARD_CLIENT_SECRET_US_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_429 }}
+          BLIZZARD_CLIENT_ID_TW_429:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_429 }}
+          BLIZZARD_CLIENT_SECRET_TW_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_429 }}
+          BLIZZARD_CLIENT_ID_KR_429:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_429 }}
+          BLIZZARD_CLIENT_SECRET_KR_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_429 }}
         run: |
           python sync_pvp.py \
             --mode batch \
