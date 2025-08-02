@@ -135,7 +135,7 @@ API_HOST       = f"{REGION}.api.blizzard.com"
 API_BASE       = f"https://{API_HOST}"
 NAMESPACE_PROFILE = f"profile-{REGION}"
 CRED_SUFFIX_USED = "_1"
-REGION_HAS_FALLBACK = REGION in ("us", "eu")
+REGION_HAS_FALLBACK = REGION in ("us", "eu", "tw", "kr")
 SWITCHED_TO_429 = False
 
 # --------------------------------------------------------------------------
