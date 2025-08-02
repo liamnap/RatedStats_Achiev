@@ -1,0 +1,182 @@
+name: PvP Sync Batch
+run-name: PvP Sync Batch ${{ inputs.batch_num }} / ${{ inputs.total_batches }} for ${{ inputs.region }}
+
+permissions:
+  actions: write
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      batch_id:
+        required: true
+        type: string
+      batch_num:
+        required: true
+        type: string
+      total_batches:
+        required: true
+        type: string
+      region:
+        required: true
+        type: string
+      offset:
+        required: true
+        type: string
+      limit:
+        required: true
+        type: string
+      group-id:
+        required: false
+        type: string
+        
+  workflow_dispatch:                       # so we can `createWorkflowDispatch` via API
+    inputs:
+      region:
+        description: 'us, eu, kr, tw'
+        required: true
+        type: string
+      offset:
+        description: 'list offset'
+        required: true
+        type: string
+      limit:
+        description: 'batch size'
+        required: true
+        type: string
+      batch_id:
+        description: '0-based batch index'
+        required: true
+        type: string
+      batch_num:
+        required: true
+        type: string
+      total_batches:
+        description: 'Total number of batches'
+        required: true
+        type: string
+      group-id:
+        description: 'Dispatcher run id used to correlate this batch'
+        required: true
+        type: string
+        
+jobs:
+  batch:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pvp-batch-${{ inputs.region }}-${{ inputs['group-id'] }}    # one active batch per region
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - name: Enable Git LFS
+        run: |
+          git lfs install --local
+          git lfs env
+      - name: Install deps
+        run: |
+          pip install aiohttp requests psutil
+      - name: Run PvP Sync batch
+        env:
+          REGION: ${{ inputs.region }}
+          BATCH_SIZE: ${{ inputs.limit }}
+          BLIZZARD_CLIENT_ID_EU_1:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_1 }}
+          BLIZZARD_CLIENT_SECRET_EU_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_1 }}
+          BLIZZARD_CLIENT_ID_US_1:     ${{ secrets.BLIZZARD_CLIENT_ID_US_1 }}
+          BLIZZARD_CLIENT_SECRET_US_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_1 }}
+          BLIZZARD_CLIENT_ID_TW_1:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_1 }}
+          BLIZZARD_CLIENT_SECRET_TW_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_1 }}
+          BLIZZARD_CLIENT_ID_KR_1:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_1 }}
+          BLIZZARD_CLIENT_SECRET_KR_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_1 }}
+          BLIZZARD_CLIENT_ID_EU_429:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_429 }}
+          BLIZZARD_CLIENT_SECRET_EU_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_429 }}
+          BLIZZARD_CLIENT_ID_US_429:     ${{ secrets.BLIZZARD_CLIENT_ID_US_429 }}
+          BLIZZARD_CLIENT_SECRET_US_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_429 }}
+          BLIZZARD_CLIENT_ID_TW_429:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_429 }}
+          BLIZZARD_CLIENT_SECRET_TW_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_429 }}
+          BLIZZARD_CLIENT_ID_KR_429:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_429 }}
+          BLIZZARD_CLIENT_SECRET_KR_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_429 }}
+        run: |
+          python sync_pvp.py \
+            --mode batch \
+            --region "${{ inputs.region }}" \
+            --batch-id ${{ inputs.batch_id }} \
+            --total-batches ${{ inputs.total_batches }} \
+            --offset ${{ inputs.offset }} \
+            --limit ${{ inputs.limit }}
+
+      - name: Compute display id (1-based)
+        id: math
+        run: echo "display_id=$(( ${{ inputs.batch_id }} + 1 ))" >> "$GITHUB_OUTPUT"
+
+      - name: Upload partial Lua
+        uses: actions/upload-artifact@v4
+        with:
+          name: pvp-partial-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs['group-id'] }}
+          path: partial_outputs/${{ inputs.region }}_batch_${{ inputs.batch_id }}.lua
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload DB shard
+        uses: actions/upload-artifact@v4
+        with:
+          name: pvp-db-${{ inputs.region }}-batch-${{ inputs.batch_id }}-group-${{ inputs['group-id'] }}
+          path: partial_outputs/achdb_${{ inputs.region }}_b${{ inputs.batch_id }}.sqlite
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Dispatch next batch in this region (if any)
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            const region        = process.env.REGION;
+            const limit         = process.env.LIMIT;
+            const curId         = Number(process.env.CUR_ID);
+            const total         = Number(process.env.TOTAL);
+            const groupKey      = process.env.GROUP_KEY;  // already region-scoped
+            
+            const nextId = curId + 1;
+            if (nextId >= total) {
+              core.info(`Last batch ${curId + 1}/${total}; nothing to queue.`);
+              return;
+            }
+            const offset = nextId * limit;
+            
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: 'pvp-sync-batch.yml',
+              ref: context.ref,
+              inputs: {
+                region:        region,
+                offset:        String(offset),
+                limit:         String(limit),
+                batch_id:      String(nextId),
+                batch_num:     String(nextId + 1),
+                total_batches: String(total),
+                "group-id":    String(groupKey)
+              }
+            });
+            console.log(`➡️ Queued next batch ${region} ${nextId + 1}/${total} (group ${groupKey})`);
+        env:
+          REGION:    ${{ inputs.region }}
+          LIMIT:     ${{ inputs.limit }}
+          CUR_ID:    ${{ inputs.batch_id }}
+          TOTAL:     ${{ inputs.total_batches }}
+          GROUP_KEY: ${{ inputs['group-id'] }}
+
+      - name: Trigger Finalize PvP Sync (only on last batch)
+        if: ${{ inputs.batch_num == inputs.total_batches }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run "Finalize PvP Sync" \
+            --ref "${{ github.ref_name }}" \
+            -f region="${{ inputs.region }}" \
+            -f sha="${{ github.sha }}" \
+            -f branch="${{ github.ref_name }}"
