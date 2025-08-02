@@ -86,6 +86,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_branch || inputs.branch }}
           lfs: true   # make sure any LFS pointers are hydrated if present
 
       - name: Set up Python
@@ -216,31 +217,67 @@ jobs:
 
       - name: Commit & push finalized .lua
         run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
           git config user.name  "GitHub Action"
           git config user.email "action@github.com"
-          # Stage the file(s) we actually changed
           git add -A
           git commit -m "Finalize PvP sync for ${{ needs.guard.outputs.region }}" || true
-
-          # Rebase onto the latest remote and retry push on collision.
-          # Ensures both regions' commits land linearly without serialization.
-          tries=0
-          max=6
+          tries=0; max=6
           while :; do
-            # Fast path: try to push
-            if git push origin dev; then
-              echo "✅ Pushed to dev"
+            if git push origin "HEAD:${BRANCH}"; then
+              echo "✅ Pushed to ${BRANCH}"
               break
             fi
             tries=$((tries+1))
             if (( tries >= max )); then
-              echo "❌ Push failed after $max attempts"
+              echo "❌ Push failed after ${max} attempts"
               exit 1
             fi
-            echo "⚠️  Push rejected; rebasing onto remote and retrying ($tries/$max)…"
-            git fetch origin dev
-            # If rebase conflicts ever occur, abort and rebase again
+            echo "⚠️  Push rejected; rebasing onto origin/${BRANCH} and retrying (${tries}/${max})…"
+            git fetch origin "${BRANCH}"
             git rebase --abort || true
-            git rebase origin/dev || { git rebase --abort; git pull --rebase origin dev; }
+            git rebase "origin/${BRANCH}" || { git rebase --abort; git pull --rebase origin "${BRANCH}"; }
             sleep $((2 * tries))
           done
+
+      - name: Tag this commit (vA.BB [+ -beta] + date)
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
+
+          # Use London time for the date suffix
+          TZ="Europe/London" ; export TZ
+          DATE="$(date +%F)"  # YYYY-MM-DD
+
+          # Make sure we see *all* tags
+          git fetch --tags --force --prune
+
+          # Find the highest base like vA.BB, ignoring any suffixes (-beta/-DATE)
+          last_base="$(git tag -l 'v*' \
+                        | sed -E 's/^(v[0-9]+\.[0-9]+).*/\1/' \
+                        | sort -u -V | tail -n1)"
+
+          if [[ -z "${last_base:-}" ]]; then
+            major=1; minor=0
+          else
+            major="$(sed -E 's/^v([0-9]+)\..*/\1/' <<<"$last_base")"
+            minor="$(sed -E 's/^v[0-9]+\.([0-9]+).*/\1/' <<<"$last_base")"
+          fi
+          next_minor=$((10#$minor + 1))
+          base="v${major}.${next_minor}"
+
+          suffix=""
+          if [[ "$BRANCH" == "dev" ]]; then
+            suffix="-beta"
+          fi
+          tag="${base}${suffix}-${DATE}"
+
+          # Idempotency: skip if it already exists (e.g., another region finalized first)
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "ℹ️ Tag ${tag} already exists; nothing to do."
+            exit 0
+          fi
+
+          git tag -a "${tag}" -m "Automated tag for ${BRANCH} ${tag}"
+          git push origin "refs/tags/${tag}"
