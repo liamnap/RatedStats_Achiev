@@ -190,6 +190,38 @@ jobs:
             sqlite3 "$dbf" "SELECT COUNT(*) FROM char_data;" || true
           done
 
+          # Fallback: Retry artifact download without SHA filter if none were found
+          cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
+          if (( cnt == 0 )); then
+            echo "⚠️ No DB shards found — retrying download WITHOUT strict SHA filter…"
+
+            ids=$(gh run list \
+                    -w "$wf" -b "$branch" -L 500 \
+                    --json databaseId,displayTitle \
+                    --jq "[ .[]
+                              | select(.displayTitle|endswith(\" for $region\"))
+                              | .databaseId ] | unique | .[]")
+
+            for id in $ids; do
+              echo "🔄 Re-trying download from run $id (no SHA filter)…"
+              gh run download "$id" \
+                --pattern "pvp-db-${region}-batch-*" \
+                -D _dl || true
+            done
+
+            for f in _dl/**/achdb_${region}_b*.sqlite; do
+              echo "Copying shard: $f"
+              cp -f "$f" partial_outputs/
+            done
+
+            # Re-count
+            cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
+          if (( cnt == 0 )); then
+            echo "❌ Still no shards found after fallback — aborting."
+            exit 1
+          fi
+          fi
+
       - name: Finalize region file
         env:
           REGION: ${{ needs.guard.outputs.region }}
