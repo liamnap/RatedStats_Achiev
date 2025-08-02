@@ -134,6 +134,9 @@ LOCALE         = LOCALES.get(REGION, "en_US")
 API_HOST       = f"{REGION}.api.blizzard.com"
 API_BASE       = f"https://{API_HOST}"
 NAMESPACE_PROFILE = f"profile-{REGION}"
+CRED_SUFFIX_USED = "_1"
+REGION_HAS_FALLBACK = REGION in ("us", "eu")
+SWITCHED_TO_429 = False
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -200,25 +203,20 @@ class RateLimiter:
 # Authentication & Blizzard endpoints
 # --------------------------------------------------------------------------
 def get_access_token(region: str) -> str:
-    if region == "eu" and os.getenv("BLIZZARD_CLIENT_ID_EU"):
-        cid = os.getenv("BLIZZARD_CLIENT_ID_EU")
-        cs  = os.getenv("BLIZZARD_CLIENT_SECRET_EU")
-        print("[INFO] Using BLIZZARD_CLIENT_SECRET_EU")
-    elif region == "us" and os.getenv("BLIZZARD_CLIENT_ID_US"):
-        cid = os.getenv("BLIZZARD_CLIENT_ID_US")
-        cs  = os.getenv("BLIZZARD_CLIENT_SECRET_US")
-        print("[INFO] Using BLIZZARD_CLIENT_SECRET_US")
-    else:
-        # Warn if a region-specific pair is missing and we fall back.
-        if region in ("eu", "us") and not (
-            os.getenv(f"BLIZZARD_CLIENT_ID_{region.upper()}") and
-            os.getenv(f"BLIZZARD_CLIENT_SECRET_{region.upper()}")
-        ):
-            print(f"[WARN] {region.upper()} credentials not set; using default BLIZZARD_CLIENT_ID/SECRET")
-        cid = os.getenv("BLIZZARD_CLIENT_ID")
-        cs  = os.getenv("BLIZZARD_CLIENT_SECRET")
-        print("[INFO] Using BLIZZARD_CLIENT_SECRET")
+    global CRED_SUFFIX_USED
 
+    suffix = CRED_SUFFIX_USED
+    region_upper = region.upper()
+    cid_var = f"BLIZZARD_CLIENT_ID_{region_upper}{suffix}"
+    cs_var  = f"BLIZZARD_CLIENT_SECRET_{region_upper}{suffix}"
+
+    cid = os.getenv(cid_var)
+    cs  = os.getenv(cs_var)
+
+    if not cid or not cs:
+        raise RuntimeError(f"[FATAL] Missing credentials for {cid_var}/{cs_var}")
+
+    print(f"[AUTH] Using {cid_var}")
     resp = requests.post(
         "https://us.battle.net/oauth/token",
         data={"grant_type": "client_credentials"},
@@ -396,7 +394,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     _bump_calls()
                     return data
                 if resp.status == 429:
-                    global HTTP_429_QUEUED, RETRY_AFTER_HINT
+                    global HTTP_429_QUEUED, RETRY_AFTER_HINT, CRED_SUFFIX_USED, SWITCH_TO_429
                     HTTP_429_QUEUED += 1
                     # --- DEBUG: dump entire response ---
                     #body = await resp.text()
@@ -425,6 +423,15 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     # Keep the largest hint seen (if bursts yield multiple 429s)
                     if ra_secs > RETRY_AFTER_HINT:
                         RETRY_AFTER_HINT = ra_secs
+                    # Credential fallback logic
+                    if not SWITCHED_TO_429 and REGION_HAS_FALLBACK:
+                        print(f"[WARN] Switching to fallback credentials due to 429 (was {CRED_SUFFIX_USED})")
+                        CRED_SUFFIX_USED = "_429"
+                        SWITCHED_TO_429 = True
+                    else:
+                        if CRED_SUFFIX_USED == "_429":
+                            raise RuntimeError("[FATAL] Already using fallback (_429) credentials and still receiving 429s")
+
                     #print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
                     raise RateLimitExceeded()
                 if 500 <= resp.status < 600:
