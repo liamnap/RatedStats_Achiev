@@ -210,23 +210,31 @@ jobs:
           echo "Merging batches and writing final region_${REGION}.lua…"
           python sync_pvp.py --mode finalize --region "$REGION"
 
-      - name: Region file is LFS-tracked
-        run: |
-          git check-attr filter "region_${{ needs.guard.outputs.region }}.lua"
-          git lfs ls-files | grep "region_${{ needs.guard.outputs.region }}.lua" || { echo "Not tracked by LFS"; exit 1; }
-
-      - name: Commit & push finalized .lua
+      - name: Commit finalized .lua (must precede LFS verification)
         run: |
           set -euo pipefail
           BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
-          git config user.name  "GitHub Action"
+          git config user.name "GitHub Action"
           git config user.email "action@github.com"
-          git add -A
-          git commit -m "Finalize PvP sync for ${{ needs.guard.outputs.region }}" || true
+          git add region_${{ needs.guard.outputs.region }}.lua
+          git commit -m "Finalize PvP sync for region_${{ needs.guard.outputs.region }}" || true
+
+      - name: Verify that region file is a Git LFS pointer
+        run: |
+          GIT_LFS_SKIP_SMUDGE=1 git lfs ls-files --name-only HEAD \
+            | grep -F "region_${{ needs.guard.outputs.region }}.lua"
+          git cat-file -p HEAD:region_${{ needs.guard.outputs.region }}.lua \
+            | grep -q '^version https://git-lfs.github.com/spec/v1$' \
+            || { echo "File is not a valid LFS pointer"; exit 1; }
+
+      - name: Push finalized commit
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
           tries=0; max=6
           while :; do
             if git push origin "HEAD:${BRANCH}"; then
-              echo "✅ Pushed to ${BRANCH}"
+              echo "✅ Pushed ${BRANCH}"
               break
             fi
             tries=$((tries+1))
@@ -234,10 +242,9 @@ jobs:
               echo "❌ Push failed after ${max} attempts"
               exit 1
             fi
-            echo "⚠️  Push rejected; rebasing onto origin/${BRANCH} and retrying (${tries}/${max})…"
+            echo "⚠️ Push rejected; rebasing and retrying (${tries}/${max})"
             git fetch origin "${BRANCH}"
-            git rebase --abort || true
-            git rebase "origin/${BRANCH}" || { git rebase --abort; git pull --rebase origin "${BRANCH}"; }
+            git rebase "origin/${BRANCH}" || { git rebase --abort || git pull --rebase origin "${BRANCH}"; }
             sleep $((2 * tries))
           done
 
