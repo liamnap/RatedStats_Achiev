@@ -382,14 +382,14 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
             async with session.get(url, headers=headers) as resp:
                 if resp.status == 200:
                     # --- DEBUG: dump headers & body for status 200 ---
-                    raw_body = await resp.text()
-                    print(f"[DEBUG-200] URL: {url}")
-                    print("Response headers:")
-                    for hk, hv in resp.headers.items():
-                        print(f"  {hk}: {hv}")
-                    print("Response body (first 5000 chars):\n", raw_body[:5000])
+                    #raw_body = await resp.text()
+                    #print(f"[DEBUG-200] URL: {url}")
+                    #print("Response headers:")
+                    #for hk, hv in resp.headers.items():
+                    #    print(f"  {hk}: {hv}")
+                    #print("Response body (first 5000 chars):\n", raw_body[:5000])
                     # --- end debug ---
-                    # then parse as JSON
+                     then parse as JSON
                     data = await resp.json()
                     if cacheable:
                         url_cache[url] = data
@@ -399,12 +399,12 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     global HTTP_429_QUEUED, RETRY_AFTER_HINT
                     HTTP_429_QUEUED += 1
                     # --- DEBUG: dump entire response ---
-                    body = await resp.text()
-                    print(f"[DEBUG-429] URL: {url}")
-                    print("Response headers:")
-                    for hk, hv in resp.headers.items():
-                        print(f"  {hk}: {hv}")
-                    print("Response body:\n", body)
+                    #body = await resp.text()
+                    #print(f"[DEBUG-429] URL: {url}")
+                    #print("Response headers:")
+                    #for hk, hv in resp.headers.items():
+                    #    print(f"  {hk}: {hv}")
+                    #print("Response body:\n", body)
                     # --- end debug dump ---
                     # Read Retry-After (seconds or HTTP-date). Header name is case-insensitive.
                     ra_val = resp.headers.get('Retry-After', '')
@@ -425,7 +425,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     # Keep the largest hint seen (if bursts yield multiple 429s)
                     if ra_secs > RETRY_AFTER_HINT:
                         RETRY_AFTER_HINT = ra_secs
-                    print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
+                    #print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
                     raise RateLimitExceeded()
                 if 500 <= resp.status < 600:
                     raise RateLimitExceeded()
