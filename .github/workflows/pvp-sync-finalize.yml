@@ -242,9 +242,15 @@ jobs:
               echo "❌ Push failed after ${max} attempts"
               exit 1
             fi
-            echo "⚠️ Push rejected; rebasing and retrying (${tries}/${max})"
+            echo "⚠️ Push rejected; remote advanced—attempting to rebase on attempt ${tries}/${max}"
             git fetch origin "${BRANCH}"
-            git rebase "origin/${BRANCH}" || { git rebase --abort || git pull --rebase origin "${BRANCH}"; }
+
+            # 🔧 Safely rebase our local commit(s) (usually just region_*.lua)
+            # onto the updated remote, stashing any unstaged changes.
+            git rebase --autostash origin/"${BRANCH}"
+
+            # Git rebase --autostash handles unstaged files automatically.
+            # If rebase fails due to conflict, stop early—manual intervention may be needed.
             sleep $((2 * tries))
           done
 
