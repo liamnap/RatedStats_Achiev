@@ -394,7 +394,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     _bump_calls()
                     return data
                 if resp.status == 429:
-                    global HTTP_429_QUEUED, RETRY_AFTER_HINT, CRED_SUFFIX_USED, SWITCH_TO_429
+                    global HTTP_429_QUEUED, RETRY_AFTER_HINT, CRED_SUFFIX_USED, SWITCHED_TO_429
                     HTTP_429_QUEUED += 1
                     # --- DEBUG: dump entire response ---
                     #body = await resp.text()
