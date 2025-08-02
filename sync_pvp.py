@@ -389,7 +389,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     #    print(f"  {hk}: {hv}")
                     #print("Response body (first 5000 chars):\n", raw_body[:5000])
                     # --- end debug ---
-                     then parse as JSON
+                    #then parse as JSON
                     data = await resp.json()
                     if cacheable:
                         url_cache[url] = data
