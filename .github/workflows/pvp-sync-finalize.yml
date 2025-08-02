@@ -218,7 +218,7 @@ jobs:
           REGION="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
 
-          TRACKDIR=".finalize-tracker/main/$sha"
+          TRACKDIR=".workflows/.finalize-tracker/main/$sha"
           mkdir -p "$TRACKDIR"
           echo "$REGION" > "$TRACKDIR/$REGION.done"
 
@@ -233,7 +233,7 @@ jobs:
           echo "✅ All 4 regions finalized for sha=$sha — continuing to commit + tag"
 
           # Cleanup everything except README.txt
-          find ".workflows/.finalizer-tracker/main/$sha" -type f ! -name 'README.txt' -delete
+          find "$TRACKDIR" -type f ! -name 'README.txt' -delete
 
       - name: Commit finalized .lua (must precede LFS verification)
         run: |
