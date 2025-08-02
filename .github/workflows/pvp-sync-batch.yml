@@ -72,6 +72,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with: { python-version: '3.13' }
+      - name: Enable Git LFS
+        run: |
+          git lfs install --local
+          git lfs env
       - name: Install deps
         run: |
           pip install aiohttp requests psutil
