@@ -278,13 +278,15 @@ jobs:
             minor="$(sed -E 's/^v[0-9]+\.([0-9]+).*/\1/' <<<"$last_base")"
           fi
           next_minor=$((10#$minor + 1))
-          base="v${major}.${next_minor}"
+          width="${#minor}"
+          minor_fmt=$(printf "%0${width}d" "${next_minor}")
+          base="v${major}.${minor_fmt}"
 
           suffix=""
           if [[ "$BRANCH" == "dev" ]]; then
             suffix="-beta"
           fi
-          tag="${base}${suffix}-${DATE}"
+          tag="${base}-${DATE}${suffix}"
 
           # Idempotency: skip if it already exists (e.g., another region finalized first)
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
