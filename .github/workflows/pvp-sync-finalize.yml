@@ -85,12 +85,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: dev
+          lfs: true   # make sure any LFS pointers are hydrated if present
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+
+      - name: Enable Git LFS
+        run: |
+          git lfs install --local
+          git lfs env
 
       - name: Install runtime deps
         run: |
@@ -169,6 +174,8 @@ jobs:
           fi
           echo "Found shards:"
           ls -1 partial_outputs || true
+          # ensure no temp junk will ever be accidentally committed
+          git clean -fdx
           # hard stop if we didn't actually get any shards for this region/SHA
           cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
           if (( cnt == 0 )); then
@@ -200,6 +207,11 @@ jobs:
           set -euo pipefail
           echo "Merging batches and writing final region_${REGION}.lua…"
           python sync_pvp.py --mode finalize --region "$REGION"
+
+      - name: Region file is LFS-tracked
+        run: |
+          git check-attr filter "region_${{ needs.guard.outputs.region }}.lua"
+          git lfs ls-files | grep "region_${{ needs.guard.outputs.region }}.lua" || { echo "Not tracked by LFS"; exit 1; }
 
       - name: Commit & push finalized .lua
         run: |
