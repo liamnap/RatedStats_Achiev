@@ -176,19 +176,18 @@ jobs:
           fi
           echo "Found shards:"
           ls -1 partial_outputs || true
-          # ensure no temp junk will ever be accidentally committed
-          git clean -fdx
-          # hard stop if we didn't actually get any shards for this region/SHA
+          # show row counts BEFORE any cleanup
           cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
           if (( cnt == 0 )); then
-            echo "❌ No shards found for region=$region sha=$sha branch=$branch"
-            exit 1
+            echo "❌ No shards found — skipping region_${region}.lua write!"
+            touch region_${region}.lua
+          else
+            echo "✅ Found $cnt shard(s), continuing to finalize region_${region}.lua"
+            for dbf in partial_outputs/achdb_${region}_b*.sqlite; do
+              echo -n "rows in $(basename "$dbf"): "
+              sqlite3 "$dbf" "SELECT COUNT(*) FROM char_data;" || true
+            done
           fi
-          # show a per-shard row count as a sanity check
-          for dbf in partial_outputs/achdb_${region}_b*.sqlite; do
-            echo -n "rows in $(basename "$dbf"): "
-            sqlite3 "$dbf" "SELECT COUNT(*) FROM char_data;" || true
-          done
 
           # Fallback: Retry artifact download without SHA filter if none were found
           cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
@@ -251,6 +250,10 @@ jobs:
           set -euo pipefail
           echo "Merging batches and writing final region_${REGION}.lua…"
           python sync_pvp.py --mode finalize --region "$REGION"
+
+      - name: Clean up temp DB outputs
+        run: |
+          rm -rf _dl partial_outputs || true
 
       - name: Check if all 4 regions are finalized (main branch only)
         if: ${{ github.ref_name == 'main' }}
