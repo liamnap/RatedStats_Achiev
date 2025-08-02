@@ -13,6 +13,7 @@ import datetime
 import gc
 import re
 import argparse
+import email.utils as eut  # for HTTP-date parsing from Retry-After
 from pathlib import Path
 from collections import deque, Counter
 from urllib.parse import urlparse
@@ -122,6 +123,8 @@ CALLS_DONE     = 0
 TOTAL_CALLS    = None
 HTTP_429_QUEUED = 0
 CALL_TIMES     = deque()
+# Latest Retry-After hint (in seconds) observed from a 429 response
+RETRY_AFTER_HINT = 0
 
 GREEN, YELLOW, RED, RESET = "\033[92m", "\033[93m", "\033[91m", "\033[0m"
 OUTFILE        = Path(f"region_{REGION}.lua")
@@ -384,8 +387,28 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     _bump_calls()
                     return data
                 if resp.status == 429:
-                    global HTTP_429_QUEUED
+                    global HTTP_429_QUEUED, RETRY_AFTER_HINT
                     HTTP_429_QUEUED += 1
+                    # Read Retry-After (seconds or HTTP-date). Header name is case-insensitive.
+                    ra_val = resp.headers.get('Retry-After', '')
+                    ra_secs = 0
+                    if ra_val:
+                        # Try integer seconds first
+                        try:
+                            ra_secs = int(ra_val.strip())
+                        except ValueError:
+                            # Fallback: parse HTTP-date and convert to seconds from now
+                            try:
+                                dt = eut.parsedate_to_datetime(ra_val)
+                                if dt:
+                                    # dt may be naive UTC or tz-aware; normalize to UTC seconds
+                                    ra_secs = max(0, int((dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+                            except Exception:
+                                ra_secs = 0
+                    # Keep the largest hint seen (if bursts yield multiple 429s)
+                    if ra_secs > RETRY_AFTER_HINT:
+                        RETRY_AFTER_HINT = ra_secs
+                    print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
                     raise RateLimitExceeded()
                 if 500 <= resp.status < 600:
                     raise RateLimitExceeded()
@@ -660,8 +683,17 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 url_cache.clear()
                 if retry_bucket:
                     queued = len(retry_bucket)
-                    print(f"[{time.strftime('%H:%M:%S')}] [RETRY] {queued} queued after 429s; waiting {retry_interval}s", flush=True)
-                    await asyncio.sleep(retry_interval)                    
+                    # If we saw a Retry-After, prefer that (but never less than our base interval)
+                    global RETRY_AFTER_HINT
+                    wait_for = max(retry_interval, int(RETRY_AFTER_HINT or 0))
+                    print(
+                        f"[{time.strftime('%H:%M:%S')}] [RETRY] {queued} queued after 429s; "
+                        f"waiting {wait_for}s (Retry-After={RETRY_AFTER_HINT or 'n/a'})",
+                        flush=True
+                    )
+                    # Reset hint and sleep
+                    RETRY_AFTER_HINT = 0
+                    await asyncio.sleep(wait_for)           
                     remaining = list(retry_bucket.values())
                 else:
                     break
