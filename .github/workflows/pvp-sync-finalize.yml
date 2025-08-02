@@ -1,4 +1,5 @@
 name: Finalize PvP Sync
+run-name: Finalize PvP Sync for ${{ inputs.region }}
 
 # Trigger whenever the "PvP Sync Batch" workflow finishes on dev
 on:
