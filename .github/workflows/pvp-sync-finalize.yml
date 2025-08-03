@@ -263,7 +263,7 @@ jobs:
           REGION="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
 
-          TRACKDIR=".workflows/.finalize-tracker/main/$sha"
+          TRACKDIR=".github/workflows/finalize-tracker/main/$sha"
           mkdir -p "$TRACKDIR"
           echo "$REGION" > "$TRACKDIR/$REGION.done"
 
