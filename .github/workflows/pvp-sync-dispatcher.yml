@@ -14,7 +14,9 @@ concurrency:
 
 env:
   BATCH_SIZE: 2500
-  REGIONS: us eu kr tw
+  MAX_BATCHES_PER_CRED: 20    # ~50k characters = 20 * 2500
+  SUFFIX_LIST: '"_1","_429","_2","_3","_4","_5"'  # Customize per region
+  REGIONS: us eu tw kr
 
 jobs:
   prepare:
@@ -54,10 +56,23 @@ jobs:
           for region in $REGIONS; do
             TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
             COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
-            for ((i=0;i<COUNT;i++)); do
-              OFFSET=$(( i * BATCH_SIZE ))
-              ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"batch_id\":$i,\"total_batches\":$COUNT}")
-            done
+          # How many credential suffixes needed to stay under sliding-window cap (~36k/hour)
+          CREDS_NEEDED=$(( (TOTAL_CHAR + BATCH_SIZE*(MAX_BATCHES_PER_CRED-1)) / (BATCH_SIZE*MAX_BATCHES_PER_CRED) ))
+          # Cap to available suffixes
+          MAX_PREF=${#SUFFIX_LIST}
+          if (( CREDS_NEEDED > MAX_PREF )); then
+            CREDS_NEEDED=$MAX_PREF
+          fi
+          # Only keep that many suffixes for region
+          PREFIXES=($(echo $SUFFIX_LIST | tr -d '"' | tr ',' ' '))
+          SUFFIXES=("${PREFIXES[@]:0:$CREDS_NEEDED}")
+          for ((i=0;i<COUNT;i++)); do
+            OFFSET=$(( i * BATCH_SIZE ))
+            # Round-robin assignment: low usage
+            IDX=$(( i % CREDS_NEEDED ))
+            SUFFIX=${SUFFIXES[$IDX]}
+            ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"batch_id\":$i,\"total_batches\":$COUNT,\"cred_suffix\":\"$SUFFIX\"}")
+          done
           done
           # comma‑join
           m=$(printf ',%s' "${ITEMS[@]}")
@@ -98,6 +113,7 @@ jobs:
                   batch_id:      String(job.batch_id),
                   batch_num:     String(job.batch_id + 1),
                   total_batches: String(job.total_batches),
+                  "cred_suffix": String(job.cred_suffix),
                   "group-id":    String(groupKey)
                 }
               });
