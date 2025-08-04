@@ -820,27 +820,56 @@ async def process_characters(characters: dict, leaderboard_keys: set):
     # write out
     rows_map = {k: (g, ach) for k, g, ach in db_iter_rows()}
     if MODE == "finalize":
-        with open(OUTFILE, "w", encoding="utf-8") as f:
-            f.write(f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n")
-            for comp in groups:
-                # find any bracket‑seen leader, otherwise pick the seed‑only char
-                real_leaders = [m for m in comp if m in leaderboard_keys]
-                if real_leaders:
-                    root = real_leaders[0]
-                else:
-                    # no bracket hit → still include this character
-                    root = comp[0]
-                alts = [m for m in comp if m != root]
-                guid, ach_map = rows_map[root]
-                alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
-                parts = [f'character="{root}"', f'alts={alts_str}', f'guid={guid}']
-                for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
-                    esc = info["name"].replace('"', '\\"')
-                    parts += [f"id{i}={aid}", f'name{i}="{esc}"']
-                f.write("    { " + ", ".join(parts) + " },\n")
-            f.write("}\n\n")
-            f.write(f"{REGION_VAR} = achievements\n")
-        print(f"[DEBUG] Wrote full {OUTFILE} with {len(groups)} entries/groups")
+        # Prepare lines for each entry
+        entry_lines = []
+        for comp in groups:
+            real_leaders = [m for m in comp if m in leaderboard_keys]
+            root = real_leaders[0] if real_leaders else comp[0]
+            alts = [m for m in comp if m != root]
+            guid, ach_map = rows_map[root]
+            alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
+            parts = [f'character="{root}"', f'alts={alts_str}', f'guid={guid}']
+            for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
+                esc = info["name"].replace('"', '\\"')
+                parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+            entry_lines.append("    { " + ", ".join(parts) + " },\n")
+ 
+        # Chunk header/template
+        header = f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n"
+        footer = f"}}\n\n{REGION_VAR} = achievements\n"
+ 
+        # Write out in chunks so size <= MAX_BYTES
+        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(95 * 1024 * 1024)))
+        part_index = 1
+        current = header
+        out_files = []
+        for line in entry_lines:
+            if len(current.encode("utf-8")) + len(line.encode("utf-8")) + len(footer.encode("utf-8")) > MAX_BYTES:
+                fn = OUTFILE.with_suffix(f"_part{part_index}.lua")
+                with open(fn, "w", encoding="utf-8") as outf:
+                    outf.write(current + footer)
+                print(f"[DEBUG] Wrote chunk: {fn} with ~{len(current.encode())} bytes")
+                out_files.append(fn)
+                part_index += 1
+                current = header + line
+            else:
+                current += line
+        # write final part
+        fn = OUTFILE if part_index == 1 else OUTFILE.with_suffix(f"_part{part_index}.lua")
+        with open(fn, "w", encoding="utf-8") as outf:
+            outf.write(current + footer)
+        print(f"[DEBUG] Wrote final chunk: {fn}")
+        out_files.append(fn)
+ 
+        # Remove monolithic file if multi-part
+        if len(out_files) > 1 and OUTFILE.exists():
+            os.remove(OUTFILE)
+        print(f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}")
+ 
+        final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
+        final_marker.parent.mkdir(exist_ok=True)
+        final_marker.write_text("")
+        print(f"[DEBUG] Wrote finalize marker {final_marker}")
 
         # --- new: drop a marker so the GH loop knows finalize ran ---
         final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
