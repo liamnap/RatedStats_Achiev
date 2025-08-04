@@ -90,7 +90,7 @@ jobs:
           REGION: ${{ inputs.region }}
           BATCH_SIZE: ${{ inputs.limit }}
           CRED_SUFFIX: ${{ inputs.cred_suffix }}
-
+          
           BLIZZARD_CLIENT_ID_EU_1:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_1 }}
           BLIZZARD_CLIENT_SECRET_EU_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_1 }}
           BLIZZARD_CLIENT_ID_US_1:     ${{ secrets.BLIZZARD_CLIENT_ID_US_1 }}
@@ -184,7 +184,8 @@ jobs:
             const limit         = process.env.LIMIT;
             const curId         = Number(process.env.CUR_ID);
             const total         = Number(process.env.TOTAL);
-            const groupKey      = process.env.GROUP_KEY;  // already region-scoped
+            const groupKey      = process.env.GROUP_KEY;
+            const credSuffix    = process.env.CRED_SUFFIX;
             
             const nextId = curId + 1;
             if (nextId >= total) {
@@ -206,16 +207,18 @@ jobs:
                 batch_num:     String(nextId + 1),
                 total_batches: String(total),
                 "cred_suffix": String(job.cred_suffix),
+                cred_suffix:    credSuffix,
                 "group-id":    String(groupKey)
               }
             });
             console.log(`➡️ Queued next batch ${region} ${nextId + 1}/${total} (group ${groupKey})`);
         env:
-          REGION:    ${{ inputs.region }}
-          LIMIT:     ${{ inputs.limit }}
-          CUR_ID:    ${{ inputs.batch_id }}
-          TOTAL:     ${{ inputs.total_batches }}
-          GROUP_KEY: ${{ inputs['group-id'] }}
+          REGION:      ${{ inputs.region }}
+          LIMIT:       ${{ inputs.limit }}
+          CUR_ID:      ${{ inputs.batch_id }}
+          TOTAL:       ${{ inputs.total_batches }}
+          GROUP_KEY:   ${{ inputs['group-id'] }}
+          CRED_SUFFIX: ${{ inputs.cred_suffix }}
 
       - name: Trigger Finalize PvP Sync (only on last batch)
         if: ${{ inputs.batch_num == inputs.total_batches }}
