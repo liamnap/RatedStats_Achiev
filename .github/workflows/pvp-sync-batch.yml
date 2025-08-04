@@ -89,6 +89,7 @@ jobs:
         env:
           REGION: ${{ inputs.region }}
           BATCH_SIZE: ${{ inputs.limit }}
+          CRED_SUFFIX: ${{ inputs.cred_suffix }}
           BLIZZARD_CLIENT_ID_EU_1:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_1 }}
           BLIZZARD_CLIENT_SECRET_EU_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_1 }}
           BLIZZARD_CLIENT_ID_US_1:     ${{ secrets.BLIZZARD_CLIENT_ID_US_1 }}
@@ -109,6 +110,7 @@ jobs:
           python sync_pvp.py \
             --mode batch \
             --region "${{ inputs.region }}" \
+            --cred_suffix "$CRED_SUFFIX" \
             --batch-id ${{ inputs.batch_id }} \
             --total-batches ${{ inputs.total_batches }} \
             --offset ${{ inputs.offset }} \
@@ -165,6 +167,7 @@ jobs:
                 batch_id:      String(nextId),
                 batch_num:     String(nextId + 1),
                 total_batches: String(total),
+                "cred_suffix": String(job.cred_suffix),
                 "group-id":    String(groupKey)
               }
             });
