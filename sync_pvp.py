@@ -759,12 +759,12 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             print(f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}")
 
             # ─── SUMMARY: Total API calls & HTTP response code breakdown ───
-            print(f"API‑calls summary: total={METRICS['total']} | "
-                  f"200‑ok={METRICS.get('200',0)} | "
-                  f"429‑rate‑limit={METRICS.get('429',0)} | "
-                  f"4xx‑other={METRICS.get('4xx',0)} | "
-                  f"5xx‑server={METRICS.get('5xx',0)} | "
-                  f"exceptions={METRICS.get('exceptions',0)}",
+            print("API‑calls summary: "
+                  f"total={METRICS['total']} | "
+                  f"200={METRICS['200']} | "
+                  f"429={METRICS['429']} | "
+                  f"5xx={METRICS['5xx']} | "
+                  f"exceptions={METRICS['exceptions']}",
                   flush=True)
             hb_prev_completed = completed
             hb_prev_429 = HTTP_429_QUEUED
