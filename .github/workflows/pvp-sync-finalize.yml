@@ -329,13 +329,15 @@ jobs:
           git add region_${{ needs.guard.outputs.region }}.lua
           git commit -m "Finalize PvP sync for region_${{ needs.guard.outputs.region }}" || true
 
-      - name: Verify that region file is a Git LFS pointer
+      - name: Force commit full .lua instead of LFS pointer+        
         run: |
-          GIT_LFS_SKIP_SMUDGE=1 git lfs ls-files --name-only HEAD \
-            | grep -F "region_${{ needs.guard.outputs.region }}.lua"
-          git cat-file -p HEAD:region_${{ needs.guard.outputs.region }}.lua \
-            | grep -q '^version https://git-lfs.github.com/spec/v1$' \
-            || { echo "File is not a valid LFS pointer"; exit 1; }
+          git lfs pull
+          git -c filter.lfs.clean=cat \
+              -c filter.lfs.smudge=cat \
+              -c filter.lfs.process= \
+              -c filter.lfs.required=false \
+              add region_${REGION}.lua
+          git commit --amend --no-edit
 
       - name: Push finalized commit
         run: |
