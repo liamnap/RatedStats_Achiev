@@ -93,7 +93,7 @@ jobs:
           for region in $REGIONS; do
             TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
             COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
-            echo "=== Region=$region | TOTAL IDs=$TOTAL | COUNT batches=$COUNT ==="
+            echo "=== Region=$region | TOTAL Chars=$TOTAL | COUNT batches=$COUNT ==="
           # How many credential suffixes needed to stay under sliding-window cap (~36k/hour)
           PREFIXES=($(echo $SUFFIX_LIST | tr -d '"' | tr ',' ' '))
           MAX_PREF=${#PREFIXES[@]}
