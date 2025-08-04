@@ -14,7 +14,7 @@ import gc
 import re
 import argparse
 import email.utils as eut  # for HTTP-date parsing from Retry-After
-from pathlib import Pathfetch_with
+from pathlib import Path
 from collections import deque, Counter
 from urllib.parse import urlparse
 from asyncio import TimeoutError, CancelledError, create_task, as_completed, shield
