@@ -26,6 +26,9 @@ on:
       limit:
         required: true
         type: string
+      cred_suffix:
+        required: false
+        type: string
       group-id:
         required: false
         type: string
@@ -54,6 +57,9 @@ on:
       total_batches:
         description: 'Total number of batches'
         required: true
+        type: string
+      cred_suffix:
+        required: false
         type: string
       group-id:
         description: 'Dispatcher run id used to correlate this batch'
