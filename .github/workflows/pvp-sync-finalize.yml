@@ -291,35 +291,6 @@ jobs:
           echo "Merging batches and writing final region_${REGION}.lua…"
           python sync_pvp.py --mode finalize --region "$REGION"
 
-      - name: Clean up temp DB outputs
-        run: |
-          rm -rf _dl partial_outputs || true
-
-      - name: Check if all 4 regions are finalized (main branch only)
-        if: ${{ github.ref_name == 'main' }}
-        run: |
-          set -euo pipefail
-          BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
-          REGION="${{ needs.guard.outputs.region }}"
-          sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
-
-          TRACKDIR=".github/workflows/finalize-tracker/main/$sha"
-          mkdir -p "$TRACKDIR"
-          echo "$REGION" > "$TRACKDIR/$REGION.done"
-
-          count=$(ls "$TRACKDIR"/*.done 2>/dev/null | wc -l)
-          echo "Found $count of 4 regions done so far for sha=$sha"
-
-          if (( count < 4 )); then
-            echo "🟡 $REGION done, but waiting for all 4 regions on main branch → skipping commit/tag"
-            exit 0
-          fi
-
-          echo "✅ All 4 regions finalized for sha=$sha — continuing to commit + tag"
-
-          # Cleanup everything except README.txt
-          find "$TRACKDIR" -type f ! -name 'README.txt' -delete
-
       - name: Split oversized region Lua (if > 95 MB)
         id: split
         run: |
@@ -353,6 +324,31 @@ jobs:
               -c filter.lfs.required=false \
             add region_${REGION}*.lua
           git commit -m "Finalize PvP sync: region_${REGION} *.lua chunks" || true
+
+      - name: Check if all 4 regions are finalized (main branch only)
+        if: ${{ github.ref_name == 'main' }}
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
+          REGION="${{ needs.guard.outputs.region }}"
+          sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
+
+          TRACKDIR=".github/workflows/finalize-tracker/main/$sha"
+          mkdir -p "$TRACKDIR"
+          echo "$REGION" > "$TRACKDIR/$REGION.done"
+
+          count=$(ls "$TRACKDIR"/*.done 2>/dev/null | wc -l)
+          echo "Found $count of 4 regions done so far for sha=$sha"
+
+          if (( count < 4 )); then
+            echo "🟡 $REGION done, but waiting for all 4 regions on main branch → skipping commit/tag"
+            exit 0
+          fi
+
+          echo "✅ All 4 regions finalized for sha=$sha — continuing to commit + tag"
+
+          # Cleanup everything except README.txt
+          find "$TRACKDIR" -type f ! -name 'README.txt' -delete
 
       - name: Push finalized commit
         run: |
@@ -423,3 +419,7 @@ jobs:
 
           git tag -a "${tag}" -m "Automated tag for ${BRANCH} ${tag}"
           git push origin "refs/tags/${tag}"
+
+      - name: Clean up temp DB outputs
+        run: |
+          rm -rf _dl partial_outputs || true
