@@ -93,9 +93,8 @@ jobs:
           for region in $REGIONS; do
             TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
             COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
-            TOTAL_CHAR=$(( TOTAL * BATCH_SIZE ))
           # How many credential suffixes needed to stay under sliding-window cap (~36k/hour)
-          CREDS_NEEDED=$(( (TOTAL_CHAR + BATCH_SIZE*(MAX_BATCHES_PER_CRED-1)) / (BATCH_SIZE*MAX_BATCHES_PER_CRED) ))
+          CREDS_NEEDED=$(( (COUNT + BATCH_SIZE*(MAX_BATCHES_PER_CRED-1)) / (BATCH_SIZE*MAX_BATCHES_PER_CRED) ))
           # Cap to available suffixes
           PREFIXES=($(echo $SUFFIX_LIST | tr -d '"' | tr ',' ' '))
           MAX_PREF=${#PREFIXES[@]}
