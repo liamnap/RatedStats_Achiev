@@ -291,9 +291,39 @@ jobs:
           echo "Merging batches and writing final region_${REGION}.lua…"
           python sync_pvp.py --mode finalize --region "$REGION"
 
-      - name: Clean up temp DB outputs
+      - name: Split oversized region Lua (if > 95 MB)
+        id: split
         run: |
-          rm -rf _dl partial_outputs || true
+          REGION="${{ needs.guard.outputs.region }}"
+          MAIN="region_${REGION}.lua"
+          if [ -f "$MAIN" ]; then
+            SIZE=$(stat -c%s "$MAIN")
+            if [ "$SIZE" -gt 99000000 ]; then
+              echo "🔎 Splitting $MAIN ($SIZE bytes) into <95 MB parts..."
+              split --bytes=90M --numeric-suffixes=1 --suffix-length=2 \
+                    "$MAIN" "region_${REGION}-part-"
+              rm "$MAIN"
+              i=1
+              for chunk in region_${REGION}-part-*; do
+                mv "$chunk" "region_${REGION}-${i}.lua"
+                echo " ✅ Created region_${REGION}-${i}.lua ($(stat -c%s "region_${REGION}-${i}.lua") bytes)"
+                i=$((i+1))
+              done
+            fi
+          fi
+   
+      - name: Commit region Lua chunks (bypassing LFS)
+        run: |
+          REGION="${{ needs.guard.outputs.region }}"
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          # Override LFS filters so actual Lua content is committed, not pointer
+          git -c filter.lfs.clean=cat \
+              -c filter.lfs.smudge=cat \
+              -c filter.lfs.process= \
+              -c filter.lfs.required=false \
+            add region_${REGION}*.lua
+          git commit -m "Finalize PvP sync: region_${REGION} *.lua chunks" || true
 
       - name: Check if all 4 regions are finalized (main branch only)
         if: ${{ github.ref_name == 'main' }}
@@ -319,25 +349,6 @@ jobs:
 
           # Cleanup everything except README.txt
           find "$TRACKDIR" -type f ! -name 'README.txt' -delete
-
-      - name: Commit finalized .lua (must precede LFS verification)
-        run: |
-          set -euo pipefail
-          BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
-          git add region_${{ needs.guard.outputs.region }}.lua
-          git commit -m "Finalize PvP sync for region_${{ needs.guard.outputs.region }}" || true
-
-      - name: Force commit full .lua instead of LFS pointer+        
-        run: |
-          git lfs pull
-          git -c filter.lfs.clean=cat \
-              -c filter.lfs.smudge=cat \
-              -c filter.lfs.process= \
-              -c filter.lfs.required=false \
-              add region_${REGION}.lua
-          git commit --amend --no-edit
 
       - name: Push finalized commit
         run: |
@@ -408,3 +419,7 @@ jobs:
 
           git tag -a "${tag}" -m "Automated tag for ${BRANCH} ${tag}"
           git push origin "refs/tags/${tag}"
+
+      - name: Clean up temp DB outputs
+        run: |
+          rm -rf _dl partial_outputs || true
