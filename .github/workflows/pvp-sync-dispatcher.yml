@@ -112,7 +112,7 @@ jobs:
             # Round-robin assignment: low usage
             IDX=$(( i % CREDS_NEEDED ))
             SUFFIX=${SUFFIXES[$IDX]}
-            ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"batch_id\":$i,\"total_batches\":$COUNT,\"cred_suffix\":\"$SUFFIX\"}")
+            ITEMS+=("{\"region\":\"$region\",\"offset\":$OFFSET,\"batch_id\":$i,\"total_batches\":$COUNT,\"cred_suffix\":\"$SUFFIX\",\"cred_spacing\":$CREDS_NEEDED}")
           done
           done
           # comma‑join
@@ -157,6 +157,7 @@ jobs:
                   batch_num:     String(job.batch_id + 1),
                   total_batches: String(job.total_batches),
                   "cred_suffix": String(job.cred_suffix),
+                  "cred_spacing": String(job.cred_spacing),
                   "group-id":    String(groupKey)
                 }
               });
