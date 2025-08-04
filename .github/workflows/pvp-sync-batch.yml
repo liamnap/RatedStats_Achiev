@@ -32,6 +32,10 @@ on:
       group-id:
         required: false
         type: string
+      cred_spacing:
+        description: "Number of parallel credential streams"
+        required: true
+        type: number
         
   workflow_dispatch:                       # so we can `createWorkflowDispatch` via API
     inputs:
@@ -65,6 +69,10 @@ on:
         description: 'Dispatcher run id used to correlate this batch'
         required: true
         type: string
+      cred_spacing:
+        description: "Number of parallel credential streams"
+        required: true
+        type: number
         
 jobs:
   batch:
@@ -187,7 +195,8 @@ jobs:
             const groupKey      = process.env.GROUP_KEY;
             const credSuffix    = process.env.CRED_SUFFIX;
             
-            const nextId = curId + 1;
+            const spacing = parseInt(process.env.CRED_SPACING || process.env.INPUT_CRED_SPACING, 10) || 1;
+            const nextId = curId + spacing;
             if (nextId >= total) {
               core.info(`Last batch ${curId + 1}/${total}; nothing to queue.`);
               return;
