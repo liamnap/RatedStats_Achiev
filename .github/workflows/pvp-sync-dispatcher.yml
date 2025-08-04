@@ -59,7 +59,8 @@ jobs:
           # How many credential suffixes needed to stay under sliding-window cap (~36k/hour)
           CREDS_NEEDED=$(( (TOTAL_CHAR + BATCH_SIZE*(MAX_BATCHES_PER_CRED-1)) / (BATCH_SIZE*MAX_BATCHES_PER_CRED) ))
           # Cap to available suffixes
-          MAX_PREF=${#SUFFIX_LIST}
+          PREFIXES=($(echo $SUFFIX_LIST | tr -d '"' | tr ',' ' '))
+          MAX_PREF=${#PREFIXES[@]}
           if (( CREDS_NEEDED > MAX_PREF )); then
             CREDS_NEEDED=$MAX_PREF
           fi
