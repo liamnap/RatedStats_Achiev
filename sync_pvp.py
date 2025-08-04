@@ -428,10 +428,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                         print(f"[WARN] Switching to fallback credentials due to 429 (was {CRED_SUFFIX_USED})")
                         CRED_SUFFIX_USED = "_429"
                         SWITCHED_TO_429 = True
-                    else:
-                        if CRED_SUFFIX_USED == "_429":
-                            raise RuntimeError("[FATAL] Already using fallback (_429) credentials and still receiving 429s")
-
+                    # Always treat as retryable, even after switching keys
                     #print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
                     raise RateLimitExceeded()
                 if 500 <= resp.status < 600:
@@ -607,6 +604,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
     if characters:
         token   = get_access_token(REGION)
         headers = {"Authorization": f"Bearer {token}"}
+    headers_seen_suffix = CRED_SUFFIX_USED
     inserted    = 0
     TOTAL_CALLS = len(characters) + 1
 
@@ -655,6 +653,11 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
 
             while remaining:
+                # If we've just switched credentials, re-acquire token
+                if SWITCHED_TO_429 and headers_seen_suffix != CRED_SUFFIX_USED:
+                    token   = get_access_token(REGION)
+                    headers = {"Authorization": f"Bearer {token}"}
+                    headers_seen_suffix = CRED_SUFFIX_USED
                 retry_bucket = {}
                 batches = (len(remaining) + BATCH_SIZE - 1) // BATCH_SIZE
                 for i in range(batches):
@@ -718,6 +721,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     # Reset hint and sleep
                     RETRY_AFTER_HINT = 0
                     await asyncio.sleep(wait_for)           
+                    # loop will regenerate tasks using the refreshed headers
                     remaining = list(retry_bucket.values())
                 else:
                     break
