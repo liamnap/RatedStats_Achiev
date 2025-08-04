@@ -157,7 +157,7 @@ jobs:
                   batch_num:     String(job.batch_id + 1),
                   total_batches: String(job.total_batches),
                   "cred_suffix": String(job.cred_suffix),
-                  "cred_spacing": job.cred_spacing,
+                  "cred_spacing": String(job.cred_spacing),
                   "group-id":    String(groupKey)
                 }
               });
