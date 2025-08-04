@@ -89,6 +89,9 @@ jobs:
           ref: ${{ github.event.workflow_run.head_branch || inputs.branch }}
           lfs: true   # make sure any LFS pointers are hydrated if present
 
+      - name: Pull LFS content
+        run: git lfs pull
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
