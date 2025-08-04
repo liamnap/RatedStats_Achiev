@@ -378,6 +378,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
     if cacheable and url in url_cache:
         return url_cache[url]
 
+    METRICS["total"] += 1
     await per_sec.acquire()
     await per_hour.acquire()
 
@@ -385,6 +386,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
         try:
             async with session.get(url, headers=headers) as resp:
                 if resp.status == 200:
+                    METRICS["200"] += 1
                     # --- DEBUG: dump headers & body for status 200 ---
                     #raw_body = await resp.text()
                     #print(f"[DEBUG-200] URL: {url}")
@@ -400,6 +402,7 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     _bump_calls()
                     return data
                 if resp.status == 429:
+                    METRICS["429"] += 1
                     global HTTP_429_QUEUED, RETRY_AFTER_HINT, CRED_SUFFIX_USED, SWITCHED_TO_429
                     HTTP_429_QUEUED += 1
                     # --- DEBUG: dump entire response ---
@@ -438,9 +441,11 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     #print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
                     raise RateLimitExceeded()
                 if 500 <= resp.status < 600:
+                    METRICS["5xx"] += 1
                     raise RateLimitExceeded()
                 resp.raise_for_status()
         except asyncio.TimeoutError:
+            METRICS["exceptions"] += 1
             await asyncio.sleep(2 ** attempt)
     raise RuntimeError(f"fetch failed for {url} after {max_retries} retries")
 
