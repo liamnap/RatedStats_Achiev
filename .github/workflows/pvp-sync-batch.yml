@@ -188,21 +188,25 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
-            const region        = process.env.REGION;
-            const limit         = process.env.LIMIT;
-            const curId         = Number(process.env.CUR_ID);
-            const total         = Number(process.env.TOTAL);
-            const groupKey      = process.env.GROUP_KEY;
-            const credSuffix    = process.env.CRED_SUFFIX;
-            
-            const spacing = parseInt(process.env.CRED_SPACING || process.env.INPUT_CRED_SPACING, 10) || 1;
-            const nextId = curId + spacing;
-            if (nextId >= total) {
-              core.info(`Last batch ${curId + 1}/${total}; nothing to queue.`);
+            const region   = process.env.REGION;
+            const limit    = Number(process.env.LIMIT);
+            const curId    = Number(process.env.CUR_ID);
+            const total    = Number(process.env.TOTAL);
+            const spacing  = Number(process.env.CRED_SPACING);
+
+            if (!Number.isInteger(spacing) || spacing <= 0) {
+              core.setFailed(`cred_spacing must be a positive integer (got: '${process.env.CRED_SPACING}')`);
               return;
             }
+
+            const nextId = curId + spacing;
+            if (nextId >= total) {
+              core.info(`curId ${curId} + spacing ${spacing} = ${nextId} ≥ total ${total}; no batches to queue`);
+              return;
+            }
+
             const offset = nextId * limit;
-            
+
             await github.rest.actions.createWorkflowDispatch({
               owner,
               repo,
@@ -213,21 +217,23 @@ jobs:
                 offset:        String(offset),
                 limit:         String(limit),
                 batch_id:      String(nextId),
-                cred_spacing:  String(spacing),  // ← pass the spacing count here
-                batch_num:     String(nextId + cred_spacing),
+                batch_num:     String(nextId + spacing),
                 total_batches: String(total),
-                cred_suffix:   credSuffix,
-                "group-id":    String(groupKey),
+                cred_suffix:   process.env.CRED_SUFFIX,
+                "group-id":    process.env.GROUP_KEY,
+                cred_spacing:  String(spacing)
               }
             });
-            console.log(`➡️ Queued next batch ${region} ${nextId + 1}/${total} (group ${groupKey})`);
-        env:
-          REGION:      ${{ inputs.region }}
-          LIMIT:       ${{ inputs.limit }}
-          CUR_ID:      ${{ inputs.batch_id }}
-          TOTAL:       ${{ inputs.total_batches }}
-          GROUP_KEY:   ${{ inputs['group-id'] }}
-          CRED_SUFFIX: ${{ inputs.cred_suffix }}
+
+            core.info(`➡️ Queued region=${region} batch_id=${nextId}, batch_num=${nextId + spacing}/${total}`);
+          env:
+            REGION:        ${{ inputs.region }}
+            LIMIT:         ${{ inputs.limit }}
+            CUR_ID:        ${{ inputs.batch_id }}
+            TOTAL:         ${{ inputs.total_batches }}
+            GROUP_KEY:     ${{ inputs['group-id'] }}
+            CRED_SUFFIX:   ${{ inputs.cred_suffix }}
+            CRED_SPACING:  ${{ inputs.cred_spacing }}
 
       - name: Trigger Finalize PvP Sync (only on last batch)
         if: ${{ inputs.batch_num == inputs.total_batches }}
