@@ -371,6 +371,7 @@ per_sec     = RateLimiter(REGION_CAP, 1)
 per_hour    = RateLimiter(36000, 3600)
 SEM_CAP     = REGION_CAP
 url_cache   = {}
+METRICS = {'total':0,'200':0,'429':0,'4xx':0,'5xx':0,'exceptions':0}
 
 async def fetch_with_rate_limit(session, url, headers, max_retries=5):
     cacheable = ("profile/wow/character" not in url and "oauth" not in url)
