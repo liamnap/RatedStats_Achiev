@@ -1,0 +1,12 @@
+## .pkgmeta
+ignore:
+  - "*.js"
+  - "*.py"
+  - "*.log"
+  - ".vscode/"
+  - ".github/"
+  - "_dl/"
+  - "partial_outputs/"
+  - ".gitignore"
+  - ".gitattributes"
+  - ".pkgmeta"
