@@ -221,7 +221,7 @@ jobs:
                 total_batches: String(total),
                 cred_suffix:   process.env.CRED_SUFFIX,
                 "group-id":    process.env.GROUP_KEY,
-                cred_spacing:  spacing
+                cred_spacing:  String(spacing)
               }
             });
 
