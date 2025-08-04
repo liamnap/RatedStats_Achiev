@@ -79,8 +79,12 @@ parser.add_argument("--offset",       type=int, default=0,
                     help="Skip this many characters at start")
 parser.add_argument("--limit",        type=int, default=None,
                     help="Process at most this many characters")
+    parser.add_argument("--cred_suffix", default=None,
+                        help="(dispatcher) Force use of this Blizzard client suffix")
 
 args = parser.parse_args()
+
+CRED_SUFFIX_FORCE = args.cred_suffix
 
 def _emit_list_ids_only(region: str) -> None:
     """Print union of keys from local Lua + bracket leaderboards (if available)."""
@@ -205,7 +209,8 @@ class RateLimiter:
 def get_access_token(region: str) -> str:
     global CRED_SUFFIX_USED
 
-    suffix = CRED_SUFFIX_USED
+    # If dispatcher passed a suffix, honor it and skip internal fallback
+    suffix = CRED_SUFFIX_FORCE or CRED_SUFFIX_USED
     region_upper = region.upper()
     cid_var = f"BLIZZARD_CLIENT_ID_{region_upper}{suffix}"
     cs_var  = f"BLIZZARD_CLIENT_SECRET_{region_upper}{suffix}"
