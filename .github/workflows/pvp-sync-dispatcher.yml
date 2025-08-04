@@ -15,7 +15,7 @@ concurrency:
 env:
   BATCH_SIZE: 2500
   MAX_BATCHES_PER_CRED: 20    # ~50k characters = 20 * 2500
-  SUFFIX_LIST: '"_1","_429","_2","_3","_4","_5"'  # Customize per region
+  SUFFIX_LIST: '"_1","_2","_3","_4","_5","_429"'  # Customize per region
   REGIONS: us eu tw kr
 
 jobs:
