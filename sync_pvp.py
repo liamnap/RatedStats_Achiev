@@ -79,8 +79,8 @@ parser.add_argument("--offset",       type=int, default=0,
                     help="Skip this many characters at start")
 parser.add_argument("--limit",        type=int, default=None,
                     help="Process at most this many characters")
-    parser.add_argument("--cred_suffix", default=None,
-                        help="(dispatcher) Force use of this Blizzard client suffix")
+parser.add_argument("--cred_suffix", default=None,
+                    help="(dispatcher) Force use of this Blizzard client suffix")
 
 args = parser.parse_args()
 
