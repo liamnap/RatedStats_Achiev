@@ -822,66 +822,76 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     stack.append(v)
         groups.append(sorted(comp))
 
-    # write out
-    rows_map = {k: (g, ach) for k, g, ach in db_iter_rows()}
-    if MODE == "finalize":
-        # Prepare lines for each entry
-        entry_lines = []
-        for comp in groups:
-            real_leaders = [m for m in comp if m in leaderboard_keys]
-            root = real_leaders[0] if real_leaders else comp[0]
-            alts = [m for m in comp if m != root]
-            guid, ach_map = rows_map[root]
-            alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
-            parts = [f'character="{root}"', f'alts={alts_str}', f'guid={guid}']
-            for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
-                esc = info["name"].replace('"', '\\"')
-                parts += [f"id{i}={aid}", f'name{i}="{esc}"']
-            entry_lines.append("    { " + ", ".join(parts) + " },\n")
+	# Prepare rows to write
+	rows_map = {k: (g, ach) for k, g, ach in db_iter_rows()}
+	
+	if MODE == "finalize":
+		entry_lines = []
+		for comp in groups:
+			real_leaders = [m for m in comp if m in leaderboard_keys]
+			root = real_leaders[0] if real_leaders else comp[0]
+			alts = [m for m in comp if m != root]
+			guid, ach_map = rows_map[root]
+			alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
+			parts = [f'character="{root}"', f'alts={alts_str}', f'guid={guid}']
+			for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
+				esc = info["name"].replace('"', '\\"')
+				parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+			entry_lines.append("    { " + ", ".join(parts) + " },\n")
+	
+		MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(95 * 1024 * 1024)))
+		part_index = 1
+		current_lines = []
+		out_files = []
+	
+		def write_chunk(part_idx, lines, is_single_file):
+			if is_single_file:
+				varname = f"ACHIEVEMENTS_{REGION.upper()}"
+				header  = f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n"
+				footer  = f"}}\n\n{varname} = achievements\n"
+				fname   = OUTFILE
+			else:
+				varname = f"ACHIEVEMENTS_{REGION.upper()}_PART{part_idx}"
+				header  = f"-- File: RatedStats_Achiev/region_{REGION}_part{part_idx}.lua\nlocal achievements={{\n"
+				footer  = f"}}\n\n{varname} = achievements\n"
+				fname   = OUTFILE.with_name(f"{OUTFILE.stem}_part{part_idx}.lua")
+			
+			content = header + "".join(lines) + footer
+			with open(fname, "w", encoding="utf-8") as outf:
+				outf.write(content)
+			out_files.append(fname)
+			print(f"[DEBUG] Wrote chunk: {fname.name} with ~{len(content.encode('utf-8'))} bytes")
+	
+		# Try to chunk the data
+		for line in entry_lines:
+			candidate = "".join(current_lines + [line])
+			header_len = len(f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n".encode("utf-8"))
+			footer_len = len(f"}}\n\nACHIEVEMENTS_{REGION.upper()} = achievements\n".encode("utf-8"))
+			if len(candidate.encode("utf-8")) + header_len + footer_len > MAX_BYTES:
+				write_chunk(part_index, current_lines, is_single_file=False)
+				part_index += 1
+				current_lines = [line]
+			else:
+				current_lines.append(line)
+	
+		# Final write
+		if part_index == 1:
+			# One chunk = use monolithic file
+			write_chunk(1, current_lines, is_single_file=True)
+		else:
+			write_chunk(part_index, current_lines, is_single_file=False)
+			# Clean up stale monolithic file
+			if OUTFILE.exists():
+				os.remove(OUTFILE)
+				print(f"[DEBUG] Removed stale {OUTFILE.name}")
+	
+		print(f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}")
+	
+		final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
+		final_marker.parent.mkdir(exist_ok=True)
+		final_marker.write_text("")
+		print(f"[DEBUG] Wrote finalize marker {final_marker}")
  
-        # Chunk header/template
-        header = f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n"
-        footer = f"}}\n\n{REGION_VAR} = achievements\n"
- 
-        # Write out in chunks so size <= MAX_BYTES
-        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(95 * 1024 * 1024)))
-        part_index = 1
-        current = header
-        out_files = []
-        for line in entry_lines:
-            if len(current.encode("utf-8")) + len(line.encode("utf-8")) + len(footer.encode("utf-8")) > MAX_BYTES:
-                fn = OUTFILE.with_name(f"{OUTFILE.stem}_part{part_index}.lua")
-                with open(fn, "w", encoding="utf-8") as outf:
-                    outf.write(current + footer)
-                print(f"[DEBUG] Wrote chunk: {fn} with ~{len(current.encode())} bytes")
-                out_files.append(fn)
-                part_index += 1
-                current = header + line
-            else:
-                current += line
-        # write final part
-        fn = OUTFILE if part_index == 1 else OUTFILE.with_name(f"{OUTFILE.stem}_part{part_index}.lua")
-        with open(fn, "w", encoding="utf-8") as outf:
-            outf.write(current + footer)
-        print(f"[DEBUG] Wrote final chunk: {fn}")
-        out_files.append(fn)
- 
-        # Remove monolithic file if multi-part
-        if len(out_files) > 1 and OUTFILE.exists():
-            os.remove(OUTFILE)
-        print(f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}")
- 
-        final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
-        final_marker.parent.mkdir(exist_ok=True)
-        final_marker.write_text("")
-        print(f"[DEBUG] Wrote finalize marker {final_marker}")
-
-        # --- new: drop a marker so the GH loop knows finalize ran ---
-        final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
-        final_marker.parent.mkdir(exist_ok=True)
-        final_marker.write_text("")  # zero‐length file is fine
-        print(f"[DEBUG] Wrote finalize marker {final_marker}")
-        # -----------------------------------------------------------)
     else:
         PARTIAL_DIR = Path("partial_outputs")
         PARTIAL_DIR.mkdir(exist_ok=True)
