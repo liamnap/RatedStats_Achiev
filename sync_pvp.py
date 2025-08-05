@@ -860,7 +860,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             else:
                 current += line
         # write final part
-        fn = OUTFILE if part_index == 1 else OUTFILE.with_suffix(f"_part{part_index}.lua")
+        fn = OUTFILE if part_index == 1 else OUTFILE.with_name(f"{OUTFILE.stem}_part{part_index}.lua")
         with open(fn, "w", encoding="utf-8") as outf:
             outf.write(current + footer)
         print(f"[DEBUG] Wrote final chunk: {fn}")
