@@ -27,7 +27,32 @@ local regionMap = {
 
 local regionID = GetCurrentRegion()
 local regionCode = regionMap[regionID] or "US"
-local regionData = _G["ACHIEVEMENTS_" .. regionCode] or {}
+
+-- Merge monolithic or chunked achievement files into one table
+local function mergeRegionParts(region)
+    local merged = {}
+    local baseName = "ACHIEVEMENTS_" .. region
+    local base = _G[baseName]
+    if type(base) == "table" then
+        for _, v in ipairs(base) do
+            table.insert(merged, v)
+        end
+    end
+
+    local partIndex = 1
+    while true do
+        local part = _G[baseName .. "_PART" .. partIndex]
+        if type(part) ~= "table" then break end
+        for _, v in ipairs(part) do
+            table.insert(merged, v)
+        end
+        partIndex = partIndex + 1
+    end
+
+    return merged
+end
+
+local regionData = mergeRegionParts(regionCode)
 
 -- Cache table to avoid repeat lookups
 local achievementCache = {}
