@@ -850,7 +850,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         out_files = []
         for line in entry_lines:
             if len(current.encode("utf-8")) + len(line.encode("utf-8")) + len(footer.encode("utf-8")) > MAX_BYTES:
-                fn = OUTFILE.with_suffix(f"_part{part_index}.lua")
+                fn = OUTFILE.with_name(f"{OUTFILE.stem}_part{part_index}.lua")
                 with open(fn, "w", encoding="utf-8") as outf:
                     outf.write(current + footer)
                 print(f"[DEBUG] Wrote chunk: {fn} with ~{len(current.encode())} bytes")
