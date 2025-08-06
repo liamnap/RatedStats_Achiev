@@ -387,24 +387,33 @@ jobs:
           set -euo pipefail
           BRANCH="${{ github.event.workflow_run.head_branch || inputs.branch }}"
 
-          # Use London time for the date suffix
+          # Use London time for date suffix
           TZ="Europe/London" ; export TZ
           DATE="$(date +%F)"  # YYYY-MM-DD
 
           # Make sure we see *all* tags
           git fetch --tags --force --prune
 
-          # Find the highest base like vA.BB, ignoring any suffixes (-beta/-DATE)
-          last_base="$(git tag -l 'v*' \
-                        | sed -E 's/^(v[0-9]+\.[0-9]+).*/\1/' \
-                        | sort -u -V | tail -n1)"
+          if [[ "$BRANCH" == "dev" ]]; then
+            # dev: only look at tags ending in -beta
+            TAGS=$(git tag -l 'v*-beta')
+          else
+            # main: only look at tags NOT ending in -beta
+            TAGS=$(git tag -l 'v*' | grep -Ev -- '-beta$' || true)
+          fi
+
+          # Extract vA.BB from matching tags
+          BASES=$(sed -E 's/^(v[0-9]+\.[0-9]+).*/\1/' <<< "$TAGS" | sort -u -V)
+          last_base=$(tail -n1 <<< "$BASES")
 
           if [[ -z "${last_base:-}" ]]; then
-            major=1; minor=0
+            major=1
+            minor=0
           else
-            major="$(sed -E 's/^v([0-9]+)\..*/\1/' <<<"$last_base")"
-            minor="$(sed -E 's/^v[0-9]+\.([0-9]+).*/\1/' <<<"$last_base")"
+            major="$(sed -E 's/^v([0-9]+)\..*/\1/' <<< "$last_base")"
+            minor="$(sed -E 's/^v[0-9]+\.([0-9]+).*/\1/' <<< "$last_base")"
           fi
+
           next_minor=$((10#$minor + 1))
           width="${#minor}"
           minor_fmt=$(printf "%0${width}d" "${next_minor}")
@@ -416,7 +425,7 @@ jobs:
           fi
           tag="${base}-${DATE}${suffix}"
 
-          # Idempotency: skip if it already exists (e.g., another region finalized first)
+          # Idempotency check: skip if this tag already exists
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
             echo "ℹ️ Tag ${tag} already exists; nothing to do."
             exit 0
