@@ -1,5 +1,5 @@
 ## Title: RatedStats – Achievements
-## Interface: 110107
+## Interface: 110200
 ## DefaultState: enabled
 ## LoadOnDemand: 1
 ## RequiredDeps: RatedStats
@@ -16,3 +16,4 @@ region_tw.lua
 region_kr.lua
 
 achievements.lua
+
