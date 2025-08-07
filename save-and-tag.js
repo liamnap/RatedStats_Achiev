@@ -71,14 +71,14 @@ function commitAndTag(version, message, file) {
 
     try {
         const ignoredPattern = /^region_.*\.lua$/;
-        const allFiles = execSync('git ls-files -o --exclude-standard', { encoding: 'utf8' }).split('\n');
-        const filteredFiles = allFiles.filter(f => f && !ignoredPattern.test(path.basename(f)));
 
-        filteredFiles.forEach(f => {
-            const stat = fs.statSync(f);
-            if (stat.size < 50000000) { // Ignore files larger than 50MB
-                execSync(`git add "${f}"`);
-            }
+        const changedFiles = execSync('git status --porcelain', { encoding: 'utf8' })
+            .split('\n')
+            .map(line => line.trim().split(/\s+/).pop())
+            .filter(f => f && !ignoredPattern.test(path.basename(f)));
+
+        changedFiles.forEach(f => {
+            execSync(`git add "${f}"`);
         });
 
         execSync(`git commit -m "${message}"`);
