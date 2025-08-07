@@ -1,22 +1,12 @@
-// save-and-tag.js
 const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
 const fileChanged = process.argv[2];
 if (!fileChanged) {
     console.error("No file specified.");
     process.exit(1);
 }
-
-<<<<<<< HEAD
-// fs.appendFileSync('debug.log', `[${new Date().toISOString()}] save-and-tag.js triggered with file: ${fileChanged}\n`);
-
-function getLatestTag() {
-    try {
-        const tag = execSync('git describe --tags --abbrev=0').toString().trim();
-        return tag;
-=======
-// fs.appendFileSync('debug.log', `[${new Date().toISOString()}] save-and-tag.js triggered with file: ${fileChanged}\n`);
 
 function getLatestTag() {
     try {
@@ -30,7 +20,6 @@ function getLatestTag() {
             });
 
         return tags[tags.length - 1] || 'v1.00-beta';
->>>>>>> dev
     } catch (e) {
         return 'v1.00-beta';
     }
@@ -58,13 +47,8 @@ function promptForMessage() {
     try {
         const message = execFileSync('powershell', [
             '-Command',
-<<<<<<< HEAD
-            `[System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null;` +
-            `[Microsoft.VisualBasic.Interaction]::InputBox('Enter commit message:', 'Commit Message')`
-=======
             `[System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic') | Out-Null; ` +
-            `[Microsoft.VisualBasic.Interaction]::InputBox('Enter commit message:', 'Commit Message'); exit` // Force exit PowerShell after prompt
->>>>>>> dev
+            `[Microsoft.VisualBasic.Interaction]::InputBox('Enter commit message:', 'Commit Message');`
         ], { encoding: 'utf8' }).trim();
 
         return message;
@@ -86,8 +70,17 @@ function commitAndTag(version, message, file) {
     }
 
     try {
-        console.log("Adding file to Git:", file.replace(/\\/g, "/"));
-        execSync(`git add .`);
+        const ignoredPattern = /^region_.*\.lua$/;
+        const allFiles = execSync('git ls-files -o --exclude-standard', { encoding: 'utf8' }).split('\n');
+        const filteredFiles = allFiles.filter(f => f && !ignoredPattern.test(path.basename(f)));
+
+        filteredFiles.forEach(f => {
+            const stat = fs.statSync(f);
+            if (stat.size < 50000000) { // Ignore files larger than 50MB
+                execSync(`git add "${f}"`);
+            }
+        });
+
         execSync(`git commit -m "${message}"`);
         execSync(`git tag ${version}`);
         execSync(`git push origin dev --tags`);
@@ -95,11 +88,8 @@ function commitAndTag(version, message, file) {
     } catch (e) {
         console.error("Git operation failed:", e.message);
     }
-<<<<<<< HEAD
-=======
 
-    process.exit(0); // Clean exit to close the terminal window
->>>>>>> dev
+    process.exit(0);
 }
 
 const latest = getLatestTag();
