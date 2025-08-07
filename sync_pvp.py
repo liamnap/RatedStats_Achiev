@@ -24,19 +24,20 @@ try:
 except ImportError:
     psutil = None
 
+
 def seed_db_from_lua(lua_path: Path) -> dict:
     rows = {}
     if not lua_path.exists():
         return rows
     txt = lua_path.read_text(encoding="utf-8")
-    row_rx  = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
-    ach_rx  = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
-    guid_rx = re.compile(r'guid\s*=\s*(\d+)')
-    alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
+    row_rx = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
+    ach_rx = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
+    guid_rx = re.compile(r"guid\s*=\s*(\d+)")
+    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
     for m in row_rx.finditer(txt):
         block = m.group(0)
-        key   = m.group(1)
-        gm    = guid_rx.search(block)
+        key = m.group(1)
+        gm = guid_rx.search(block)
         if not gm:
             continue
         guid = int(gm.group(1))
@@ -46,45 +47,68 @@ def seed_db_from_lua(lua_path: Path) -> dict:
             for _, aid, name in ach_rx.findall(block)
         }
         db_upsert(key, guid, ach)
-        n, r = key.split('-', 1)
+        n, r = key.split("-", 1)
         rows[key] = {"id": guid, "name": n, "realm": r}
         # also seed alt *keys* into the to‑fetch list (id will be filled on fetch)
         am = alts_rx.search(block)
         if am:
-            for alt in am.group(1).split(','):
+            for alt in am.group(1).split(","):
                 altk = alt.strip().strip('"')
                 if altk and altk not in rows:
-                    an, ar = altk.split('-', 1)
+                    an, ar = altk.split("-", 1)
                     rows[altk] = {"id": 0, "name": an, "realm": ar}
     db.commit()
     return rows
+
 
 # --------------------------------------------------------------------------
 # CLI + MODE + REGION + BATCH SETTINGS
 # --------------------------------------------------------------------------
 parser = argparse.ArgumentParser(description="PvP sync runner")
-parser.add_argument("--mode", choices=["batch", "finalize"], default=None,
-                    help="Mode: 'batch' to emit partials, 'finalize' to write full Lua")
-parser.add_argument("--region", default=os.getenv("REGION", "eu"),
-                    help="Region code: us, eu, kr, tw")
-parser.add_argument("--batch-id",      type=int, default=int(os.getenv("BATCH_ID", "0")),
-                    help="0-based batch index for batch mode")
-parser.add_argument("--total-batches", type=int, default=int(os.getenv("TOTAL_BATCHES", "1")),
-                    help="Total number of batches for batch mode")
+parser.add_argument(
+    "--mode",
+    choices=["batch", "finalize"],
+    default=None,
+    help="Mode: 'batch' to emit partials, 'finalize' to write full Lua",
+)
+parser.add_argument(
+    "--region", default=os.getenv("REGION", "eu"), help="Region code: us, eu, kr, tw"
+)
+parser.add_argument(
+    "--batch-id",
+    type=int,
+    default=int(os.getenv("BATCH_ID", "0")),
+    help="0-based batch index for batch mode",
+)
+parser.add_argument(
+    "--total-batches",
+    type=int,
+    default=int(os.getenv("TOTAL_BATCHES", "1")),
+    help="Total number of batches for batch mode",
+)
 
 # ── Flags for matrix‐driven batching ──
-parser.add_argument("--list-ids-only", action="store_true",
-                    help="Print the total number of characters and exit")
-parser.add_argument("--offset",       type=int, default=0,
-                    help="Skip this many characters at start")
-parser.add_argument("--limit",        type=int, default=None,
-                    help="Process at most this many characters")
-parser.add_argument("--cred_suffix", default=None,
-                    help="(dispatcher) Force use of this Blizzard client suffix")
+parser.add_argument(
+    "--list-ids-only",
+    action="store_true",
+    help="Print the total number of characters and exit",
+)
+parser.add_argument(
+    "--offset", type=int, default=0, help="Skip this many characters at start"
+)
+parser.add_argument(
+    "--limit", type=int, default=None, help="Process at most this many characters"
+)
+parser.add_argument(
+    "--cred_suffix",
+    default=None,
+    help="(dispatcher) Force use of this Blizzard client suffix",
+)
 
 args = parser.parse_args()
 
 CRED_SUFFIX_FORCE = args.cred_suffix
+
 
 def _emit_list_ids_only(region: str) -> None:
     """Print union of keys from local Lua + bracket leaderboards (if available)."""
@@ -93,19 +117,21 @@ def _emit_list_ids_only(region: str) -> None:
     if lua_file.exists():
         text = lua_file.read_text(encoding="utf-8")
         char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-        alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
+        alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
         for m in char_rx.finditer(text):
             keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
-            for alt in m.group(1).split(','):
+            for alt in m.group(1).split(","):
                 keys.add(alt.strip().strip('"').lower())
     # Try to add bracket keys too (useful on first run when Lua is empty)
     try:
-        token   = get_access_token(region)
-        season  = get_current_pvp_season_id(region)
-        brs     = get_available_brackets(region, season)
+        token = get_access_token(region)
+        season = get_current_pvp_season_id(region)
+        brs = get_available_brackets(region, season)
         headers = {"Authorization": f"Bearer {token}"}
-        for c in get_characters_from_leaderboards(region, headers, season, brs).values():
+        for c in get_characters_from_leaderboards(
+            region, headers, season, brs
+        ).values():
             keys.add(f"{c['name'].lower()}-{c['realm'].lower()}")
     except Exception as e:
         print(f"[WARN] list-ids-only: failed to include bracket keys: {e}")
@@ -113,34 +139,36 @@ def _emit_list_ids_only(region: str) -> None:
         print(k)
     sys.exit(0)
 
-REGION        = args.region
-BATCH_ID      = args.batch_id
+
+REGION = args.region
+BATCH_ID = args.batch_id
 TOTAL_BATCHES = args.total_batches
-MODE          = args.mode or "batch"
+MODE = args.mode or "batch"
 
 # --------------------------------------------------------------------------
 # Globals & Constants
 # --------------------------------------------------------------------------
-UTC            = datetime.timezone.utc
-start_time     = time.time()
-CALLS_DONE     = 0
-TOTAL_CALLS    = None
+UTC = datetime.timezone.utc
+start_time = time.time()
+CALLS_DONE = 0
+TOTAL_CALLS = None
 HTTP_429_QUEUED = 0
-CALL_TIMES     = deque()
+CALL_TIMES = deque()
 # Latest Retry-After hint (in seconds) observed from a 429 response
 RETRY_AFTER_HINT = 0
 
 GREEN, YELLOW, RED, RESET = "\033[92m", "\033[93m", "\033[91m", "\033[0m"
-OUTFILE        = Path(f"region_{REGION}.lua")
-REGION_VAR     = f"ACHIEVEMENTS_{REGION.upper()}"
-LOCALES        = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
-LOCALE         = LOCALES.get(REGION, "en_US")
-API_HOST       = f"{REGION}.api.blizzard.com"
-API_BASE       = f"https://{API_HOST}"
+OUTFILE = Path(f"region_{REGION}.lua")
+REGION_VAR = f"ACHIEVEMENTS_{REGION.upper()}"
+LOCALES = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
+LOCALE = LOCALES.get(REGION, "en_US")
+API_HOST = f"{REGION}.api.blizzard.com"
+API_BASE = f"https://{API_HOST}"
 NAMESPACE_PROFILE = f"profile-{REGION}"
 CRED_SUFFIX_USED = "_1"
 REGION_HAS_FALLBACK = REGION in ("us", "eu", "tw", "kr")
 SWITCHED_TO_429 = False
+
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -149,13 +177,20 @@ def _fmt_duration(sec: int) -> str:
     if sec <= 0:
         return "0s"
     parts = []
-    for name, length in [("y", 31_557_600), ("w", 604_800), ("d", 86_400), ("h", 3_600), ("m", 60)]:
+    for name, length in [
+        ("y", 31_557_600),
+        ("w", 604_800),
+        ("d", 86_400),
+        ("h", 3_600),
+        ("m", 60),
+    ]:
         qty, sec = divmod(sec, length)
         if qty:
             parts.append(f"{qty}{name}")
     if sec:
         parts.append(f"{sec}s")
     return " ".join(parts)
+
 
 def _bump_calls():
     global CALLS_DONE
@@ -165,31 +200,34 @@ def _bump_calls():
     while CALL_TIMES and now - CALL_TIMES[0] > 60:
         CALL_TIMES.popleft()
 
+
 class RetryCharacter(Exception):
     def __init__(self, char):
         super().__init__(f"Retry {char['name']}-{char['realm']}")
         self.char = char
 
+
 class RateLimitExceeded(Exception):
     pass
+
 
 # --------------------------------------------------------------------------
 # RateLimiter
 # --------------------------------------------------------------------------
 class RateLimiter:
     def __init__(self, max_calls: int, period: float):
-        self.capacity   = max_calls
-        self.tokens     = 0
-        self.fill_rate  = max_calls / period
-        self.timestamp  = time.monotonic()
-        self._lock      = asyncio.Lock()
-        self.max_calls  = max_calls
-        self.period     = period
-        self.calls      = []
+        self.capacity = max_calls
+        self.tokens = 0
+        self.fill_rate = max_calls / period
+        self.timestamp = time.monotonic()
+        self._lock = asyncio.Lock()
+        self.max_calls = max_calls
+        self.period = period
+        self.calls = []
 
     async def acquire(self):
         async with self._lock:
-            now     = time.monotonic()
+            now = time.monotonic()
             elapsed = now - self.timestamp
             self.timestamp = now
             self.tokens = min(self.capacity, self.tokens + elapsed * self.fill_rate)
@@ -203,6 +241,7 @@ class RateLimiter:
             self.calls = [t for t in self.calls if now - t < self.period]
             self.calls.append(now)
 
+
 # --------------------------------------------------------------------------
 # Authentication & Blizzard endpoints
 # --------------------------------------------------------------------------
@@ -213,10 +252,10 @@ def get_access_token(region: str) -> str:
     suffix = CRED_SUFFIX_FORCE or CRED_SUFFIX_USED
     region_upper = region.upper()
     cid_var = f"BLIZZARD_CLIENT_ID_{region_upper}{suffix}"
-    cs_var  = f"BLIZZARD_CLIENT_SECRET_{region_upper}{suffix}"
+    cs_var = f"BLIZZARD_CLIENT_SECRET_{region_upper}{suffix}"
 
     cid = os.getenv(cid_var)
-    cs  = os.getenv(cs_var)
+    cs = os.getenv(cs_var)
 
     if not cid or not cs:
         raise RuntimeError(f"[FATAL] Missing credentials for {cid_var}/{cs_var}")
@@ -230,60 +269,69 @@ def get_access_token(region: str) -> str:
     resp.raise_for_status()
     return resp.json()["access_token"]
 
+
 def get_current_pvp_season_id(region: str) -> int:
-    url    = f"{API_BASE}/data/wow/pvp-season/index?namespace=dynamic-{region}&locale=en_US"
-    token  = get_access_token(region)
-    resp   = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    url = (
+        f"{API_BASE}/data/wow/pvp-season/index?namespace=dynamic-{region}&locale=en_US"
+    )
+    token = get_access_token(region)
+    resp = requests.get(url, headers={"Authorization": f"Bearer {token}"})
     resp.raise_for_status()
     return resp.json()["seasons"][-1]["id"]
 
+
 def get_available_brackets(region: str, season_id: int) -> list[str]:
-    url    = f"{API_BASE}/data/wow/pvp-season/{season_id}/pvp-leaderboard/index?namespace=dynamic-{region}&locale={LOCALE}"
-    token  = get_access_token(region)
-    resp   = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    url = f"{API_BASE}/data/wow/pvp-season/{season_id}/pvp-leaderboard/index?namespace=dynamic-{region}&locale={LOCALE}"
+    token = get_access_token(region)
+    resp = requests.get(url, headers={"Authorization": f"Bearer {token}"})
     if not resp.ok:
-        raise RuntimeError(f"[FAIL] Unable to fetch PvP leaderboard index for season {season_id}: {resp.status_code}")
-    lbs    = resp.json().get("leaderboards", [])
-    prefixes = ("2v2","3v3","rbg","shuffle-","blitz-")
+        raise RuntimeError(
+            f"[FAIL] Unable to fetch PvP leaderboard index for season {season_id}: {resp.status_code}"
+        )
+    lbs = resp.json().get("leaderboards", [])
+    prefixes = ("2v2", "3v3", "rbg", "shuffle-", "blitz-")
     brackets = []
     for entry in lbs:
         href = entry.get("key", {}).get("href", "")
-        b    = urlparse(href).path.rstrip("/").split("/")[-1]
+        b = urlparse(href).path.rstrip("/").split("/")[-1]
         if b.startswith(prefixes):
             brackets.append(b)
     print(f"[INFO] Valid brackets for season {season_id}: {', '.join(brackets)}")
     return brackets
 
+
 # --------------------------------------------------------------------------
 # Season & Bracket initialization (skip all network in finalize)
 # --------------------------------------------------------------------------
-CACHE_DIR     = Path("partial_outputs")
+CACHE_DIR = Path("partial_outputs")
 CACHE_DIR.mkdir(exist_ok=True)
 BRACKET_CACHE = CACHE_DIR / f"{REGION}_brackets.json"
 
 if MODE == "finalize":
     PVP_SEASON_ID = None
-    BRACKETS      = []
+    BRACKETS = []
 else:
     if BRACKET_CACHE.exists():
         cached = json.loads(BRACKET_CACHE.read_text())
         PVP_SEASON_ID = cached["season_id"]
-        BRACKETS      = cached["brackets"]
+        BRACKETS = cached["brackets"]
     else:
         PVP_SEASON_ID = get_current_pvp_season_id(REGION)
-        BRACKETS      = get_available_brackets(REGION, PVP_SEASON_ID)
+        BRACKETS = get_available_brackets(REGION, PVP_SEASON_ID)
         try:
-            BRACKET_CACHE.write_text(json.dumps({
-                "season_id": PVP_SEASON_ID,
-                "brackets":  BRACKETS
-            }))
+            BRACKET_CACHE.write_text(
+                json.dumps({"season_id": PVP_SEASON_ID, "brackets": BRACKETS})
+            )
         except Exception:
             pass
+
 
 # --------------------------------------------------------------------------
 # Fetch PvP leaderboard characters
 # --------------------------------------------------------------------------
-def get_characters_from_leaderboards(region: str, headers: dict, season_id: int, brackets: list[str]) -> dict[int,dict]:
+def get_characters_from_leaderboards(
+    region: str, headers: dict, season_id: int, brackets: list[str]
+) -> dict[int, dict]:
     seen: dict[int, dict] = {}
     for bracket in brackets:
         url = (
@@ -306,6 +354,7 @@ def get_characters_from_leaderboards(region: str, headers: dict, season_id: int,
             }
     return seen
 
+
 # --------------------------------------------------------------------------
 # Static namespace discovery
 # --------------------------------------------------------------------------
@@ -313,7 +362,7 @@ def get_latest_static_namespace(region: str) -> str:
     fallback = f"static-{region}"
     try:
         token = get_access_token("us")
-        resp  = requests.get(
+        resp = requests.get(
             f"https://{region}.api.blizzard.com/data/wow/achievement-category/index"
             f"?namespace={fallback}&locale=en_US",
             headers={"Authorization": f"Bearer {token}"},
@@ -327,32 +376,38 @@ def get_latest_static_namespace(region: str) -> str:
         pass
     return fallback
 
+
 # ── list‑only short‑circuit (now placed after all needed defs) ──
 if args.list_ids_only:
-    region   = args.region or os.getenv("REGION", "eu")
-    keys     = set()
+    region = args.region or os.getenv("REGION", "eu")
+    keys = set()
     lua_file = Path(f"region_{region}.lua")
     if lua_file.exists():
-        text    = lua_file.read_text(encoding="utf-8")
+        text = lua_file.read_text(encoding="utf-8")
         char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-        alts_rx = re.compile(r'alts\s*=\s*\{\s*([^}]*)\s*\}')
+        alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
         for m in char_rx.finditer(text):
             keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
-            for alt in m.group(1).split(','):
+            for alt in m.group(1).split(","):
                 keys.add(alt.strip().strip('"').lower())
     # Optionally include current leaderboard keys (best effort).
     try:
         season_id = get_current_pvp_season_id(region)
-        brackets  = get_available_brackets(region, season_id)
-        token     = get_access_token(region)
-        headers   = {"Authorization": f"Bearer {token}"}
-        api_chars = get_characters_from_leaderboards(region, headers, season_id, brackets)
+        brackets = get_available_brackets(region, season_id)
+        token = get_access_token(region)
+        headers = {"Authorization": f"Bearer {token}"}
+        api_chars = get_characters_from_leaderboards(
+            region, headers, season_id, brackets
+        )
         keys.update(
             f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
         )
     except Exception as e:
-        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}", file=sys.stderr)
+        print(
+            f"[WARN] list-ids-only: failed to include bracket keys: {e}",
+            file=sys.stderr,
+        )
     for k in sorted(keys):
         print(k)
     sys.exit(0)
@@ -366,15 +421,16 @@ print(f"[INFO] Region: {REGION}, Locale: {LOCALE}, Static NS: {NAMESPACE_STATIC}
 # --------------------------------------------------------------------------
 # Rate limiters and in-memory cache
 # --------------------------------------------------------------------------
-REGION_CAP  = 20 if REGION in ("us","eu") else 100
-per_sec     = RateLimiter(REGION_CAP, 1)
-per_hour    = RateLimiter(36000, 3600)
-SEM_CAP     = REGION_CAP
-url_cache   = {}
-METRICS = {'total':0,'200':0,'429':0,'4xx':0,'5xx':0,'exceptions':0}
+REGION_CAP = 20 if REGION in ("us", "eu") else 100
+per_sec = RateLimiter(REGION_CAP, 1)
+per_hour = RateLimiter(36000, 3600)
+SEM_CAP = REGION_CAP
+url_cache = {}
+METRICS = {"total": 0, "200": 0, "429": 0, "4xx": 0, "5xx": 0, "exceptions": 0}
+
 
 async def fetch_with_rate_limit(session, url, headers, max_retries=5):
-    cacheable = ("profile/wow/character" not in url and "oauth" not in url)
+    cacheable = "profile/wow/character" not in url and "oauth" not in url
     if cacheable and url in url_cache:
         return url_cache[url]
 
@@ -388,14 +444,14 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                 if resp.status == 200:
                     METRICS["200"] += 1
                     # --- DEBUG: dump headers & body for status 200 ---
-                    #raw_body = await resp.text()
-                    #print(f"[DEBUG-200] URL: {url}")
-                    #print("Response headers:")
-                    #for hk, hv in resp.headers.items():
+                    # raw_body = await resp.text()
+                    # print(f"[DEBUG-200] URL: {url}")
+                    # print("Response headers:")
+                    # for hk, hv in resp.headers.items():
                     #    print(f"  {hk}: {hv}")
-                    #print("Response body (first 5000 chars):\n", raw_body[:5000])
+                    # print("Response body (first 5000 chars):\n", raw_body[:5000])
                     # --- end debug ---
-                    #then parse as JSON
+                    # then parse as JSON
                     data = await resp.json()
                     if cacheable:
                         url_cache[url] = data
@@ -406,15 +462,15 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                     global HTTP_429_QUEUED, RETRY_AFTER_HINT, CRED_SUFFIX_USED, SWITCHED_TO_429
                     HTTP_429_QUEUED += 1
                     # --- DEBUG: dump entire response ---
-                    #body = await resp.text()
-                    #print(f"[DEBUG-429] URL: {url}")
-                    #print("Response headers:")
-                    #for hk, hv in resp.headers.items():
+                    # body = await resp.text()
+                    # print(f"[DEBUG-429] URL: {url}")
+                    # print("Response headers:")
+                    # for hk, hv in resp.headers.items():
                     #    print(f"  {hk}: {hv}")
-                    #print("Response body:\n", body)
+                    # print("Response body:\n", body)
                     # --- end debug dump ---
                     # Read Retry-After (seconds or HTTP-date). Header name is case-insensitive.
-                    ra_val = resp.headers.get('Retry-After', '')
+                    ra_val = resp.headers.get("Retry-After", "")
                     ra_secs = 0
                     if ra_val:
                         # Try integer seconds first
@@ -426,7 +482,17 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                                 dt = eut.parsedate_to_datetime(ra_val)
                                 if dt:
                                     # dt may be naive UTC or tz-aware; normalize to UTC seconds
-                                    ra_secs = max(0, int((dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+                                    ra_secs = max(
+                                        0,
+                                        int(
+                                            (
+                                                dt
+                                                - datetime.datetime.now(
+                                                    datetime.timezone.utc
+                                                )
+                                            ).total_seconds()
+                                        ),
+                                    )
                             except Exception:
                                 ra_secs = 0
                     # Keep the largest hint seen (if bursts yield multiple 429s)
@@ -434,11 +500,13 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                         RETRY_AFTER_HINT = ra_secs
                     # Credential fallback logic
                     if not SWITCHED_TO_429 and REGION_HAS_FALLBACK:
-                        print(f"[WARN] Switching to fallback credentials due to 429 (was {CRED_SUFFIX_USED})")
+                        print(
+                            f"[WARN] Switching to fallback credentials due to 429 (was {CRED_SUFFIX_USED})"
+                        )
                         CRED_SUFFIX_USED = "_429"
                         SWITCHED_TO_429 = True
                     # Always treat as retryable, even after switching keys
-                    #print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
+                    # print(f"[RATE-LIMIT] 429 for {url} Retry-After='{ra_val or 'n/a'}' → hint={RETRY_AFTER_HINT}s", flush=True)
                     raise RateLimitExceeded()
                 if 500 <= resp.status < 600:
                     METRICS["5xx"] += 1
@@ -446,8 +514,9 @@ async def fetch_with_rate_limit(session, url, headers, max_retries=5):
                 resp.raise_for_status()
         except asyncio.TimeoutError:
             METRICS["exceptions"] += 1
-            await asyncio.sleep(2 ** attempt)
+            await asyncio.sleep(2**attempt)
     raise RuntimeError(f"fetch failed for {url} after {max_retries} retries")
+
 
 # --------------------------------------------------------------------------
 # Achievement keywords list (unchanged)
@@ -456,85 +525,82 @@ async def get_pvp_achievements(session, headers):
     idx = await fetch_with_rate_limit(
         session,
         f"{API_BASE}/data/wow/achievement/index?namespace={NAMESPACE_STATIC}&locale=en_US",
-        headers
+        headers,
     )
     KEYWORDS = [
         # Main Achievements
-        {"type":"exact","value":"Scout"},
-        {"type":"exact","value":"Private"},
-        {"type":"exact","value":"Grunt"},
-        {"type":"exact","value":"Corporal"},
-        {"type":"exact","value":"Sergeant"},
-        {"type":"exact","value":"Senior Sergeant"},
-        {"type":"exact","value":"Master Sergeant"},
-        {"type":"exact","value":"First Sergeant"},
-        {"type":"exact","value":"Sergeant Major"},
-        {"type":"exact","value":"Stone Guard"},
-        {"type":"exact","value":"Knight"},
-        {"type":"exact","value":"Blood Guard"},
-        {"type":"exact","value":"Knight-Lieutenant"},
-        {"type":"exact","value":"Legionnaire"},
-        {"type":"exact","value":"Knight-Captain"},
-        {"type":"exact","value":"Centurion"},
-        {"type":"exact","value":"Knight-Champion"},
-        {"type":"exact","value":"Champion"},
-        {"type":"exact","value":"Lieutenant Commander"},
-        {"type":"exact","value":"Lieutenant General"},
-        {"type":"exact","value":"Commander"},
-        {"type":"exact","value":"General"},
-        {"type":"exact","value":"Marshal"},
-        {"type":"exact","value":"Warlord"},
-        {"type":"exact","value":"Field Marshal"},
-        {"type":"exact","value":"High Warlord"},
-        {"type":"exact","value":"Grand Marshal"},
-
+        {"type": "exact", "value": "Scout"},
+        {"type": "exact", "value": "Private"},
+        {"type": "exact", "value": "Grunt"},
+        {"type": "exact", "value": "Corporal"},
+        {"type": "exact", "value": "Sergeant"},
+        {"type": "exact", "value": "Senior Sergeant"},
+        {"type": "exact", "value": "Master Sergeant"},
+        {"type": "exact", "value": "First Sergeant"},
+        {"type": "exact", "value": "Sergeant Major"},
+        {"type": "exact", "value": "Stone Guard"},
+        {"type": "exact", "value": "Knight"},
+        {"type": "exact", "value": "Blood Guard"},
+        {"type": "exact", "value": "Knight-Lieutenant"},
+        {"type": "exact", "value": "Legionnaire"},
+        {"type": "exact", "value": "Knight-Captain"},
+        {"type": "exact", "value": "Centurion"},
+        {"type": "exact", "value": "Knight-Champion"},
+        {"type": "exact", "value": "Champion"},
+        {"type": "exact", "value": "Lieutenant Commander"},
+        {"type": "exact", "value": "Lieutenant General"},
+        {"type": "exact", "value": "Commander"},
+        {"type": "exact", "value": "General"},
+        {"type": "exact", "value": "Marshal"},
+        {"type": "exact", "value": "Warlord"},
+        {"type": "exact", "value": "Field Marshal"},
+        {"type": "exact", "value": "High Warlord"},
+        {"type": "exact", "value": "Grand Marshal"},
         # Rated PvP Season Tiers
-        {"type":"prefix","value":"Combatant I"},
-        {"type":"prefix","value":"Combatant II"},
-        {"type":"prefix","value":"Challenger I"},
-        {"type":"prefix","value":"Challenger II"},
-        {"type":"prefix","value":"Rival I"},
-        {"type":"prefix","value":"Rival II"},
-        {"type":"prefix","value":"Duelist"},
-        {"type":"prefix","value":"Elite:"},
-        {"type":"prefix","value":"Gladiator:"},
-        {"type":"prefix","value":"Legend:"},
-
+        {"type": "prefix", "value": "Combatant I"},
+        {"type": "prefix", "value": "Combatant II"},
+        {"type": "prefix", "value": "Challenger I"},
+        {"type": "prefix", "value": "Challenger II"},
+        {"type": "prefix", "value": "Rival I"},
+        {"type": "prefix", "value": "Rival II"},
+        {"type": "prefix", "value": "Duelist"},
+        {"type": "prefix", "value": "Elite:"},
+        {"type": "prefix", "value": "Gladiator:"},
+        {"type": "prefix", "value": "Legend:"},
         # Special Achievements
-        {"type":"prefix","value":"Three's Company: 2700"},
-
+        {"type": "prefix", "value": "Three's Company: 2700"},
         # R1 Titles
-        {"type":"prefix","value":"Hero of the Horde"},
-        {"type":"prefix","value":"Hero of the Alliance"},
-        {"type":"prefix","value":"Primal Gladiator"},
-        {"type":"prefix","value":"Wild Gladiator"},
-        {"type":"prefix","value":"Warmongering Gladiator"},
-        {"type":"prefix","value":"Vindictive Gladiator"},
-        {"type":"prefix","value":"Fearless Gladiator"},
-        {"type":"prefix","value":"Cruel Gladiator"},
-        {"type":"prefix","value":"Ferocious Gladiator"},
-        {"type":"prefix","value":"Fierce Gladiator"},
-        {"type":"prefix","value":"Demonic Gladiator"},
-        {"type":"prefix","value":"Dread Gladiator"},
-        {"type":"prefix","value":"Sinister Gladiator"},
-        {"type":"prefix","value":"Notorious Gladiator"},
-        {"type":"prefix","value":"Corrupted Gladiator"},
-        {"type":"prefix","value":"Sinful Gladiator"},
-        {"type":"prefix","value":"Unchained Gladiator"},
-        {"type":"prefix","value":"Cosmic Gladiator"},
-        {"type":"prefix","value":"Eternal Gladiator"},
-        {"type":"prefix","value":"Crimson Gladiator"},
-        {"type":"prefix","value":"Obsidian Gladiator"},
-        {"type":"prefix","value":"Draconic Gladiator"},
-        {"type":"prefix","value":"Seasoned Gladiator"},
-        {"type":"prefix","value":"Forged Warlord:"},
-        {"type":"prefix","value":"Forged Marshal:"},
-        {"type":"prefix","value":"Forged Legend:"},
-        {"type":"prefix","value":"Forged Gladiator:"},
-        {"type":"prefix","value":"Prized Warlord:"},
-        {"type":"prefix","value":"Prized Marshal:"},
-        {"type":"prefix","value":"Prized Legend:"},
-        {"type":"prefix","value":"Prized Gladiator:"},
+        {"type": "prefix", "value": "Hero of the Horde"},
+        {"type": "prefix", "value": "Hero of the Alliance"},
+        {"type": "prefix", "value": "Primal Gladiator"},
+        {"type": "prefix", "value": "Wild Gladiator"},
+        {"type": "prefix", "value": "Warmongering Gladiator"},
+        {"type": "prefix", "value": "Vindictive Gladiator"},
+        {"type": "prefix", "value": "Fearless Gladiator"},
+        {"type": "prefix", "value": "Cruel Gladiator"},
+        {"type": "prefix", "value": "Ferocious Gladiator"},
+        {"type": "prefix", "value": "Fierce Gladiator"},
+        {"type": "prefix", "value": "Demonic Gladiator"},
+        {"type": "prefix", "value": "Dread Gladiator"},
+        {"type": "prefix", "value": "Sinister Gladiator"},
+        {"type": "prefix", "value": "Notorious Gladiator"},
+        {"type": "prefix", "value": "Corrupted Gladiator"},
+        {"type": "prefix", "value": "Sinful Gladiator"},
+        {"type": "prefix", "value": "Unchained Gladiator"},
+        {"type": "prefix", "value": "Cosmic Gladiator"},
+        {"type": "prefix", "value": "Eternal Gladiator"},
+        {"type": "prefix", "value": "Crimson Gladiator"},
+        {"type": "prefix", "value": "Obsidian Gladiator"},
+        {"type": "prefix", "value": "Draconic Gladiator"},
+        {"type": "prefix", "value": "Seasoned Gladiator"},
+        {"type": "prefix", "value": "Forged Warlord:"},
+        {"type": "prefix", "value": "Forged Marshal:"},
+        {"type": "prefix", "value": "Forged Legend:"},
+        {"type": "prefix", "value": "Forged Gladiator:"},
+        {"type": "prefix", "value": "Prized Warlord:"},
+        {"type": "prefix", "value": "Prized Marshal:"},
+        {"type": "prefix", "value": "Prized Legend:"},
+        {"type": "prefix", "value": "Prized Gladiator:"},
     ]
 
     matches = {}
@@ -551,40 +617,51 @@ async def get_pvp_achievements(session, headers):
     print(f"[DEBUG] Total PvP keyword matches: {len(matches)}")
     return matches
 
+
 async def get_character_achievements(session, headers, realm, name):
     url = f"{API_BASE}/profile/wow/character/{realm}/{name.lower()}/achievements?namespace={NAMESPACE_PROFILE}&locale={LOCALE}"
     return await fetch_with_rate_limit(session, url, headers) or None
+
 
 # --------------------------------------------------------------------------
 # SQLite cache + seed-from-Lua
 # --------------------------------------------------------------------------
 DB_PATH = Path(tempfile.gettempdir()) / f"achiev_{REGION}.db"
-db      = sqlite3.connect(DB_PATH)
-db.execute("""
+db = sqlite3.connect(DB_PATH)
+db.execute(
+    """
     CREATE TABLE IF NOT EXISTS char_data (
         key TEXT PRIMARY KEY,
         guid INTEGER,
         ach_json TEXT
     )
-""")
+"""
+)
+
+
 def db_upsert(key: str, guid: int, ach: dict):
     db.execute(
         "INSERT OR REPLACE INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
-        (key, guid, json.dumps(ach, separators=(',',':')))
+        (key, guid, json.dumps(ach, separators=(",", ":"))),
     )
+
+
 def db_iter_rows():
     cur = db.execute("SELECT key,guid,ach_json FROM char_data ORDER BY key")
     for k, g, j in cur:
         yield k, g, json.loads(j)
 
+
 def merge_db_shards(dirpath: Path) -> tuple[int, int]:
     """Merge rows from all sqlite shards into the working DB.
     Returns (merged_row_upserts, shard_count)."""
     # Discover shards both in the flattened folder and any subdirs.
-    shards = sorted(set(
-        list(dirpath.glob(f"achdb_{REGION}_b*.sqlite")) +
-        list(dirpath.glob(f"**/achdb_{REGION}_b*.sqlite"))
-    ))
+    shards = sorted(
+        set(
+            list(dirpath.glob(f"achdb_{REGION}_b*.sqlite"))
+            + list(dirpath.glob(f"**/achdb_{REGION}_b*.sqlite"))
+        )
+    )
     if not shards:
         print(f"[ERROR] No sqlite shards under {dirpath}/achdb_{REGION}_b*.sqlite")
         return (0, 0)
@@ -597,7 +674,7 @@ def merge_db_shards(dirpath: Path) -> tuple[int, int]:
                 for k, g, j in src.execute("SELECT key,guid,ach_json FROM char_data"):
                     db.execute(
                         "INSERT OR REPLACE INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
-                        (k, g, j)
+                        (k, g, j),
                     )
                     merged += 1
         except Exception as e:
@@ -606,6 +683,7 @@ def merge_db_shards(dirpath: Path) -> tuple[int, int]:
     print(f"[DEBUG] merged {merged} row upserts from {len(shards)} shard(s)")
     return (merged, len(shards))
 
+
 # --------------------------------------------------------------------------
 # Main processing
 # --------------------------------------------------------------------------
@@ -613,10 +691,10 @@ async def process_characters(characters: dict, leaderboard_keys: set):
     global HTTP_429_QUEUED, TOTAL_CALLS
     # Only need auth/HTTP if we're actually fetching characters
     if characters:
-        token   = get_access_token(REGION)
+        token = get_access_token(REGION)
         headers = {"Authorization": f"Bearer {token}"}
     headers_seen_suffix = CRED_SUFFIX_USED
-    inserted    = 0
+    inserted = 0
     TOTAL_CALLS = len(characters) + 1
 
     if characters:
@@ -625,8 +703,8 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             pvp_achs = await get_pvp_achievements(session, headers)
             print(f"[DEBUG] PvP keywords loaded: {len(pvp_achs)}")
 
-            per_sec.tokens     = 0
-            per_sec.timestamp  = time.monotonic()
+            per_sec.tokens = 0
+            per_sec.timestamp = time.monotonic()
             per_sec.calls.clear()
             sem = asyncio.Semaphore(SEM_CAP)
             total = len(characters)
@@ -641,7 +719,9 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     name, realm, cid = c["name"].lower(), c["realm"].lower(), c["id"]
                     key = f"{name}-{realm}"
                     try:
-                        data = await get_character_achievements(session, headers, realm, name)
+                        data = await get_character_achievements(
+                            session, headers, realm, name
+                        )
                     except RateLimitExceeded:
                         raise RetryCharacter(c)
                     if not data:
@@ -666,13 +746,13 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             while remaining:
                 # If we've just switched credentials, re-acquire token
                 if SWITCHED_TO_429 and headers_seen_suffix != CRED_SUFFIX_USED:
-                    token   = get_access_token(REGION)
+                    token = get_access_token(REGION)
                     headers = {"Authorization": f"Bearer {token}"}
                     headers_seen_suffix = CRED_SUFFIX_USED
                 retry_bucket = {}
                 batches = (len(remaining) + BATCH_SIZE - 1) // BATCH_SIZE
                 for i in range(batches):
-                    batch = remaining[i*BATCH_SIZE : (i+1)*BATCH_SIZE]
+                    batch = remaining[i * BATCH_SIZE : (i + 1) * BATCH_SIZE]
                     tasks = [create_task(proc_one(c)) for c in batch]
                     for t in as_completed(tasks):
                         try:
@@ -689,31 +769,43 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                                 url_cache.clear()
                                 gc.collect()
                                 ts = time.strftime("%H:%M:%S", time.localtime())
-                                sec_rate = len(per_sec.calls)/per_sec.period
-                                avg60    = len(CALL_TIMES)/60
-                                rem_calls= (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
-                                elapsed  = int(time.time() - start_time)
-                                eta      = _fmt_duration(int((elapsed/CALLS_DONE)*rem_calls)) if CALLS_DONE and rem_calls else "–"
+                                sec_rate = len(per_sec.calls) / per_sec.period
+                                avg60 = len(CALL_TIMES) / 60
+                                rem_calls = (
+                                    (TOTAL_CALLS - CALLS_DONE) if TOTAL_CALLS else None
+                                )
+                                elapsed = int(time.time() - start_time)
+                                eta = (
+                                    _fmt_duration(
+                                        int((elapsed / CALLS_DONE) * rem_calls)
+                                    )
+                                    if CALLS_DONE and rem_calls
+                                    else "–"
+                                )
                                 delta_done = completed - hb_prev_completed
-                                delta_429  = HTTP_429_QUEUED - hb_prev_429
+                                delta_429 = HTTP_429_QUEUED - hb_prev_429
                                 # Color thresholds
                                 rate_window = per_sec.period
                                 rate_threshold = sec_rate * rate_window
-                                done_color = RED if delta_done < 0.8 * rate_threshold else GREEN
-                                err_color  = RED if delta_429 > 0.1 * rate_threshold else RESET
+                                done_color = (
+                                    RED if delta_done < 0.8 * rate_threshold else GREEN
+                                )
+                                err_color = (
+                                    RED if delta_429 > 0.1 * rate_threshold else RESET
+                                )
                                 delta_done_str = f"{done_color}(+{delta_done}){RESET}"
-                                delta_429_str  = f"{err_color}(+{delta_429}){RESET}"
+                                delta_429_str = f"{err_color}(+{delta_429}){RESET}"
                                 # True backlog view at this instant
                                 pending_total = total - completed
-                                retry_q_now   = len(retry_bucket)
-                                inflight      = sum(1 for tt in tasks if not tt.done())
+                                retry_q_now = len(retry_bucket)
+                                inflight = sum(1 for tt in tasks if not tt.done())
                                 print(
                                     f"[{ts}] [HEARTBEAT] {completed}/{total}{delta_done_str} done ({completed/total*100:.1f}%), "
                                     f"sec_rate={sec_rate:.1f}/s, avg60={avg60:.1f}/s, "
                                     f"429s={HTTP_429_QUEUED}{delta_429_str}, "
                                     f"pending={pending_total}, retry_q={retry_q_now}, inflight={inflight}, "
                                     f"ETA={eta}, elapsed={_fmt_duration(elapsed)}",
-                                    flush=True
+                                    flush=True,
                                 )
                                 last_hb = now
                                 hb_prev_completed = completed
@@ -727,11 +819,11 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     print(
                         f"[{time.strftime('%H:%M:%S')}] [RETRY] {queued} queued after 429s; "
                         f"waiting {wait_for}s (Retry-After={RETRY_AFTER_HINT or 'n/a'})",
-                        flush=True
+                        flush=True,
                     )
                     # Reset hint and sleep
                     RETRY_AFTER_HINT = 0
-                    await asyncio.sleep(wait_for)           
+                    await asyncio.sleep(wait_for)
                     # loop will regenerate tasks using the refreshed headers
                     remaining = list(retry_bucket.values())
                 else:
@@ -740,44 +832,53 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             db.commit()
             # Final summary heartbeat (prints even if the last update was <10s ago)
             ts = time.strftime("%H:%M:%S", time.localtime())
-            sec_rate = len(per_sec.calls)/per_sec.period
-            avg60    = len(CALL_TIMES)/60
+            sec_rate = len(per_sec.calls) / per_sec.period
+            avg60 = len(CALL_TIMES) / 60
             delta_done = completed - hb_prev_completed
-            delta_429  = HTTP_429_QUEUED - hb_prev_429
+            delta_429 = HTTP_429_QUEUED - hb_prev_429
             # Color thresholds
             rate_window = per_sec.period
             rate_threshold = sec_rate * rate_window
             done_color = RED if delta_done < 0.8 * total else GREEN
-            err_color  = RED if delta_429 > 0.1 * total else RESET
+            err_color = RED if delta_429 > 0.1 * total else RESET
             delta_done_str = f"{done_color}(+{delta_done}){RESET}"
-            delta_429_str  = f"{err_color}(+{delta_429}){RESET}"
-            pct = (completed/total*100) if total else 100.0
-            elapsed    = int(time.time() - start_time)
+            delta_429_str = f"{err_color}(+{delta_429}){RESET}"
+            pct = (completed / total * 100) if total else 100.0
+            elapsed = int(time.time() - start_time)
             pending_total = total - completed
-            retry_q_now   = 0
-            inflight      = 0
-            print(f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}")
+            retry_q_now = 0
+            inflight = 0
+            print(
+                f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}"
+            )
 
             # ─── SUMMARY: Total API calls & HTTP response code breakdown ───
-            print("API‑calls summary: "
-                  f"total={METRICS['total']} | "
-                  f"200={METRICS['200']} | "
-                  f"429={METRICS['429']} | "
-                  f"5xx={METRICS['5xx']} | "
-                  f"exceptions={METRICS['exceptions']}",
-                  flush=True)
+            print(
+                "API‑calls summary: "
+                f"total={METRICS['total']} | "
+                f"200={METRICS['200']} | "
+                f"429={METRICS['429']} | "
+                f"5xx={METRICS['5xx']} | "
+                f"exceptions={METRICS['exceptions']}",
+                flush=True,
+            )
             hb_prev_completed = completed
             hb_prev_429 = HTTP_429_QUEUED
-            print(f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}")
+            print(
+                f"[DEBUG] inserted={inserted}, SQLite rows={sum(1 for _ in db_iter_rows())}"
+            )
 
     # build fingerprints & alt_map
     fingerprints = {
-        k: {(aid, info["ts"]) for aid, info in ach.items() if info.get("ts") is not None}
+        k: {
+            (aid, info["ts"]) for aid, info in ach.items() if info.get("ts") is not None
+        }
         for k, _, ach in db_iter_rows()
     }
     alt_map = {k: [] for k in fingerprints}
     # scalable pair generation via inverted index over tokens (aid, ts)
     from collections import defaultdict
+
     bucket = defaultdict(list)  # token -> [char keys]
     for k, toks in fingerprints.items():
         for t in toks:
@@ -789,9 +890,9 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         n = len(members)
         if n < 2 or n > MAX_BUCKET:
             continue
-        for i in range(n-1):
+        for i in range(n - 1):
             ai = members[i]
-            for j in range(i+1, n):
+            for j in range(i + 1, n):
                 bj = members[j]
                 if ai < bj:
                     pair_counts[(ai, bj)] += 1
@@ -805,7 +906,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 
     # connected components
     visited = set()
-    groups  = []
+    groups = []
     for k in sorted(alt_map):
         if k in visited:
             continue
@@ -824,80 +925,92 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 
     # Prepare rows to write
     rows_map = {k: (g, ach) for k, g, ach in db_iter_rows()}
-    
+
     if MODE == "finalize":
-    	entry_lines = []
-    	for comp in groups:
-    		real_leaders = [m for m in comp if m in leaderboard_keys]
-    		root = real_leaders[0] if real_leaders else comp[0]
-    		alts = [m for m in comp if m != root]
-    		guid, ach_map = rows_map[root]
-    		alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
-    		parts = [f'character="{root}"', f'alts={alts_str}', f'guid={guid}']
-    		for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
-    			esc = info["name"].replace('"', '\\"')
-    			parts += [f"id{i}={aid}", f'name{i}="{esc}"']
-    		entry_lines.append("    { " + ", ".join(parts) + " },\n")
-    
-    	MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(95 * 1024 * 1024)))
-    	part_index = 1
-    	current_lines = []
-    	out_files = []
-    
-    	def write_chunk(part_idx, lines, is_single_file):
-    		if is_single_file:
-    			varname = f"ACHIEVEMENTS_{REGION.upper()}"
-    			header  = f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n"
-    			footer  = f"}}\n\n{varname} = achievements\n"
-    			fname   = OUTFILE
-    		else:
-    			varname = f"ACHIEVEMENTS_{REGION.upper()}_PART{part_idx}"
-    			header  = f"-- File: RatedStats_Achiev/region_{REGION}_part{part_idx}.lua\nlocal achievements={{\n"
-    			footer  = f"}}\n\n{varname} = achievements\n"
-    			fname   = OUTFILE.with_name(f"{OUTFILE.stem}_part{part_idx}.lua")
-    		
-    		content = header + "".join(lines) + footer
-    		with open(fname, "w", encoding="utf-8") as outf:
-    			outf.write(content)
-    		out_files.append(fname)
-    		print(f"[DEBUG] Wrote chunk: {fname.name} with ~{len(content.encode('utf-8'))} bytes")
-    
-    	# Try to chunk the data
-    	for line in entry_lines:
-    		candidate = "".join(current_lines + [line])
-    		header_len = len(f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n".encode("utf-8"))
-    		footer_len = len(f"}}\n\nACHIEVEMENTS_{REGION.upper()} = achievements\n".encode("utf-8"))
-    		if len(candidate.encode("utf-8")) + header_len + footer_len > MAX_BYTES:
-    			write_chunk(part_index, current_lines, is_single_file=False)
-    			part_index += 1
-    			current_lines = [line]
-    		else:
-    			current_lines.append(line)
-    
-    	# Final write
-    	if part_index == 1:
-    		# One chunk = use monolithic file
-    		write_chunk(1, current_lines, is_single_file=True)
-    	else:
-    		write_chunk(part_index, current_lines, is_single_file=False)
-    		# Clean up stale monolithic file
-    		if OUTFILE.exists():
-    			os.remove(OUTFILE)
-    			print(f"[DEBUG] Removed stale {OUTFILE.name}")
-    
-    	print(f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}")
-    
-    	final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
-    	final_marker.parent.mkdir(exist_ok=True)
-    	final_marker.write_text("")
-    	print(f"[DEBUG] Wrote finalize marker {final_marker}")
- 
+        entry_lines = []
+        for comp in groups:
+            real_leaders = [m for m in comp if m in leaderboard_keys]
+            root = real_leaders[0] if real_leaders else comp[0]
+            alts = [m for m in comp if m != root]
+            guid, ach_map = rows_map[root]
+            alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
+            parts = [f'character="{root}"', f"alts={alts_str}", f"guid={guid}"]
+            for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
+                esc = info["name"].replace('"', '\\"')
+                parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+            entry_lines.append("    { " + ", ".join(parts) + " },\n")
+
+        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(95 * 1024 * 1024)))
+        part_index = 1
+        current_lines = []
+        out_files = []
+
+        def write_chunk(part_idx, lines, is_single_file):
+            if is_single_file:
+                varname = f"ACHIEVEMENTS_{REGION.upper()}"
+                header = f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n"
+                footer = f"}}\n\n{varname} = achievements\n"
+                fname = OUTFILE
+            else:
+                varname = f"ACHIEVEMENTS_{REGION.upper()}_PART{part_idx}"
+                header = f"-- File: RatedStats_Achiev/region_{REGION}_part{part_idx}.lua\nlocal achievements={{\n"
+                footer = f"}}\n\n{varname} = achievements\n"
+                fname = OUTFILE.with_name(f"{OUTFILE.stem}_part{part_idx}.lua")
+
+            content = header + "".join(lines) + footer
+            with open(fname, "w", encoding="utf-8") as outf:
+                outf.write(content)
+            out_files.append(fname)
+            print(
+                f"[DEBUG] Wrote chunk: {fname.name} with ~{len(content.encode('utf-8'))} bytes"
+            )
+
+        # Try to chunk the data
+        for line in entry_lines:
+            candidate = "".join(current_lines + [line])
+            header_len = len(
+                f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n".encode(
+                    "utf-8"
+                )
+            )
+            footer_len = len(
+                f"}}\n\nACHIEVEMENTS_{REGION.upper()} = achievements\n".encode("utf-8")
+            )
+            if len(candidate.encode("utf-8")) + header_len + footer_len > MAX_BYTES:
+                write_chunk(part_index, current_lines, is_single_file=False)
+                part_index += 1
+                current_lines = [line]
+            else:
+                current_lines.append(line)
+
+        # Final write
+        if part_index == 1:
+            # One chunk = use monolithic file
+            write_chunk(1, current_lines, is_single_file=True)
+        else:
+            write_chunk(part_index, current_lines, is_single_file=False)
+            # Clean up stale monolithic file
+            if OUTFILE.exists():
+                os.remove(OUTFILE)
+                print(f"[DEBUG] Removed stale {OUTFILE.name}")
+
+        print(
+            f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}"
+        )
+
+        final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
+        final_marker.parent.mkdir(exist_ok=True)
+        final_marker.write_text("")
+        print(f"[DEBUG] Wrote finalize marker {final_marker}")
+
     else:
         PARTIAL_DIR = Path("partial_outputs")
         PARTIAL_DIR.mkdir(exist_ok=True)
         out_file = PARTIAL_DIR / f"{REGION}_batch_{BATCH_ID}.lua"
         with open(out_file, "w", encoding="utf-8") as f:
-            f.write(f"-- Partial batch {BATCH_ID}/{TOTAL_BATCHES} for {REGION}\nlocal entries={{\n")
+            f.write(
+                f"-- Partial batch {BATCH_ID}/{TOTAL_BATCHES} for {REGION}\nlocal entries={{\n"
+            )
             for k, guid, ach_map in db_iter_rows():
                 if k not in characters:
                     continue
@@ -919,8 +1032,9 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             except Exception as e:
                 print(f"[WARN] failed to export DB shard: {e}")
             return
-            
-#─────────────────────────────────────────────────────────────────────────────
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -936,7 +1050,9 @@ if __name__ == "__main__":
         # 2) fetch bracket‐API chars
         token = get_access_token(REGION)
         headers = {"Authorization": f"Bearer {token}"}
-        api_chars_intkey = get_characters_from_leaderboards(REGION, headers, PVP_SEASON_ID, BRACKETS)
+        api_chars_intkey = get_characters_from_leaderboards(
+            REGION, headers, PVP_SEASON_ID, BRACKETS
+        )
         api_chars = {
             f"{c['name'].lower()}-{c['realm'].lower()}": c
             for c in api_chars_intkey.values()
@@ -954,13 +1070,17 @@ if __name__ == "__main__":
     if MODE == "batch":
         # process exactly one batch, then exit
         batch_id = int(BATCH_ID) if "BATCH_ID" in globals() else 0
-        total_batches = int(TOTAL_BATCHES) if "TOTAL_BATCHES" in globals() else computed_total
+        total_batches = (
+            int(TOTAL_BATCHES) if "TOTAL_BATCHES" in globals() else computed_total
+        )
         # Prefer explicit CLI window when provided; otherwise use batch math
         start = args.offset if args.offset else batch_id * batch_size
         cur_limit = args.limit if args.limit else batch_size
         slice_keys = all_keys[start : start + cur_limit]
         characters = {k: chars[k] for k in slice_keys}
-        print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars")
+        print(
+            f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars"
+        )
         try:
             asyncio.run(process_characters(characters, leaderboard_keys))
         except CancelledError:
@@ -975,9 +1095,11 @@ if __name__ == "__main__":
         # make any downloaded shards visible
         merged_rows, shard_count = merge_db_shards(Path("partial_outputs"))
         if shard_count == 0 or merged_rows == 0:
-            print("❌ Merge produced zero rows; refusing to write an empty achievements file.")
+            print(
+                "❌ Merge produced zero rows; refusing to write an empty achievements file."
+            )
             db.close()
-            sys.exit(1)        # run the writer path (characters dict can be empty)
+            sys.exit(1)  # run the writer path (characters dict can be empty)
         asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
         sys.exit(0)
