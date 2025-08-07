@@ -946,16 +946,26 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         out_files = []
 
         def write_chunk(part_idx, lines, is_single_file):
+            region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
+
             if is_single_file:
                 varname = f"ACHIEVEMENTS_{REGION.upper()}"
-                header = f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n"
+                header = (
+                    f"-- File: RatedStats_Achiev/region_{REGION}.lua\n"
+                    f"{region_check}"
+                    f"local achievements={{\n"
+                )
                 footer = f"}}\n\n{varname} = achievements\n"
                 fname = OUTFILE
             else:
                 varname = f"ACHIEVEMENTS_{REGION.upper()}_PART{part_idx}"
-                header = f"-- File: RatedStats_Achiev/region_{REGION}_part{part_idx}.lua\nlocal achievements={{\n"
+                header = (
+                    f"-- File: RatedStats_Achiev/region_{REGION}_part{part_idx}.lua\n"
+                    f"{region_check}"
+                    f"local achievements={{\n"
+                )
                 footer = f"}}\n\n{varname} = achievements\n"
-                fname = OUTFILE.with_name(f"{OUTFILE.stem}_part{part_idx}.lua")
+                fname = f"{OUTFILE.rsplit('.',1)[0]}_part{part_idx}.lua"
 
             content = header + "".join(lines) + footer
             with open(fname, "w", encoding="utf-8") as outf:
@@ -966,6 +976,9 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             )
 
         # Try to chunk the data
+        region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
+        region_check_len = len(region_check.encode("utf-8"))
+
         for line in entry_lines:
             candidate = "".join(current_lines + [line])
             header_len = len(
@@ -976,7 +989,15 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             footer_len = len(
                 f"}}\n\nACHIEVEMENTS_{REGION.upper()} = achievements\n".encode("utf-8")
             )
-            if len(candidate.encode("utf-8")) + header_len + footer_len > MAX_BYTES:
+
+            total_size = (
+                len(candidate.encode("utf-8"))
+                + header_len
+                + footer_len
+                + region_check_len
+            )
+
+            if total_size > MAX_BYTES:
                 write_chunk(part_index, current_lines, is_single_file=False)
                 part_index += 1
                 current_lines = [line]
