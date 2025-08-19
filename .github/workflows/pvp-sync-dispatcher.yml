@@ -86,6 +86,12 @@ jobs:
         with: { python-version: '3.13' }
       - name: Install deps
         run: pip install aiohttp requests psutil
+      - name: Hydrate Git LFS (if available)
+        run: |
+          git lfs install --local
+          git lfs fetch --all
+          git lfs checkout || true
+          echo "✅ LFS hydration (prepare) attempted — proceeding regardless"
       - name: Build batch matrix
         id: matrix
         shell: bash
