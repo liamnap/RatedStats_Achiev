@@ -1116,11 +1116,9 @@ if __name__ == "__main__":
         # make any downloaded shards visible
         merged_rows, shard_count = merge_db_shards(Path("partial_outputs"))
         if shard_count == 0 or merged_rows == 0:
-            print(
-                "❌ Merge produced zero rows; refusing to write an empty achievements file."
-            )
-            db.close()
-            sys.exit(1)  # run the writer path (characters dict can be empty)
+            # No shards? That's okay — we already seeded from any region_*.lua
+            # above. Proceed to write out final files from the seeded DB.
+            print("⚠️ No shards merged; finalizing from existing region_*.lua seed.")
         asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
         sys.exit(0)
