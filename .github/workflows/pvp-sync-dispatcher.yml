@@ -164,6 +164,6 @@ jobs:
               core.info(`▶️ Dispatched ${job.region}@${job.offset} (group ${groupKey})`);
             }
         env:
-          MATRIX:     ${{ needs.prepare.outputs.MATRIX }}
+          MATRIX:     ${{ needs.prepare.outputs.matrix }}
           GROUP_ID:   ${{ github.run_id }}
           BATCH_SIZE: ${{ env.BATCH_SIZE }}
