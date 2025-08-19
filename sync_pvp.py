@@ -24,6 +24,14 @@ try:
 except ImportError:
     psutil = None
 
+def region_seed_candidates(region: str) -> list[Path]:
+    """
+    Return all on-disk files we should use to seed characters for a region.
+    We prefer the main file, but if LFS content was cleaned up we may still
+    have duplicates committed in the repo root, e.g. region_eu.lua or
+    region_eu_party.lua.
+    """
+    return [Path(f"region_{region}.lua"), Path(f"region_{region}_party.lua")]
 
 def seed_db_from_lua(lua_path: Path) -> dict:
     rows = {}
@@ -113,11 +121,13 @@ CRED_SUFFIX_FORCE = args.cred_suffix
 def _emit_list_ids_only(region: str) -> None:
     """Print union of keys from local Lua + bracket leaderboards (if available)."""
     keys: set[str] = set()
-    lua_file = Path(f"region_{region}.lua")
-    if lua_file.exists():
-        text = lua_file.read_text(encoding="utf-8")
-        char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-        alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+    # Consider both the main and _party variant
+    for lua_file in region_seed_candidates(region):
+        if not lua_file.exists():
+            continue
+        text = lua_file.read_text(encoding="utf-8", errors="ignore")
         for m in char_rx.finditer(text):
             keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
@@ -138,7 +148,6 @@ def _emit_list_ids_only(region: str) -> None:
     for k in sorted(keys):
         print(k)
     sys.exit(0)
-
 
 REGION = args.region
 BATCH_ID = args.batch_id
@@ -381,12 +390,14 @@ def get_latest_static_namespace(region: str) -> str:
 # ── list‑only short‑circuit (now placed after all needed defs) ──
 if args.list_ids_only:
     region = args.region or os.getenv("REGION", "eu")
-    keys = set()
-    lua_file = Path(f"region_{region}.lua")
-    if lua_file.exists():
-        text = lua_file.read_text(encoding="utf-8")
-        char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-        alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+    keys: set[str] = set()
+    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+    # read from both seed files if present
+    for lua_file in region_seed_candidates(region):
+        if not lua_file.exists():
+            continue
+        text = lua_file.read_text(encoding="utf-8", errors="ignore")
         for m in char_rx.finditer(text):
             keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
@@ -1060,8 +1071,13 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 # Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # 1) seed from existing full Lua
-    old_chars = seed_db_from_lua(OUTFILE)
+    # 1) seed from any local Lua copies (main + party variant)
+    old_chars: dict[str, dict] = {}
+    for seed_path in region_seed_candidates(REGION):
+        seeded = seed_db_from_lua(seed_path)
+        if seeded:
+            # Later seeds (if any) just extend/override by key
+            old_chars.update(seeded)
 
     if MODE == "finalize":
         # offline finalize: do not hit any APIs
