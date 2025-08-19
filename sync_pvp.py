@@ -24,6 +24,31 @@ try:
 except ImportError:
     psutil = None
 
+def find_region_lua_paths(region: str) -> list[Path]:
+    """
+    Return a list of existing Lua files for the region, covering:
+      - monolithic: region_{r}.lua
+      - split (current workflow step naming): region_{r}-*.lua
+      - split (older writer naming):        region_{r}_part*.lua
+    """
+    r = region.lower()
+    paths: list[Path] = []
+    mono = Path(f"region_{r}.lua")
+    if mono.exists():
+        paths.append(mono)
+    # current splitter in workflow creates region_{r}-{i}.lua
+    paths.extend(sorted(Path(".").glob(f"region_{r}-*.lua")))
+    # older writer created region_{r}_part{i}.lua
+    paths.extend(sorted(Path(".").glob(f"region_{r}_part*.lua")))
+    # de-dup while preserving order
+    seen = set()
+    uniq = []
+    for p in paths:
+        if p not in seen and p.exists():
+            uniq.append(p)
+            seen.add(p)
+    return uniq
+
 def region_seed_candidates(region: str) -> list[Path]:
     """
     Return all on-disk files we should use to seed characters for a region.
@@ -33,41 +58,43 @@ def region_seed_candidates(region: str) -> list[Path]:
     """
     return [Path(f"region_{region}.lua"), Path(f"region_{region}_party.lua")]
 
-def seed_db_from_lua(lua_path: Path) -> dict:
-    rows = {}
-    if not lua_path.exists():
+def seed_db_from_lua_paths(paths: list[Path]) -> dict:
+    """Seed the DB from any/all region Lua files provided."""
+    rows: dict[str, dict] = {}
+    if not paths:
         return rows
-    txt = lua_path.read_text(encoding="utf-8")
-    row_rx = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
-    ach_rx = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
+    row_rx  = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
+    ach_rx  = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
     guid_rx = re.compile(r"guid\s*=\s*(\d+)")
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
-    for m in row_rx.finditer(txt):
-        block = m.group(0)
-        key = m.group(1)
-        gm = guid_rx.search(block)
-        if not gm:
+    for lua_path in paths:
+        try:
+            txt = lua_path.read_text(encoding="utf-8")
+        except Exception:
             continue
-        guid = int(gm.group(1))
-        # preserve the same structure as live‐fetched entries
-        ach = {
-            int(aid): {"name": name, "ts": None}
-            for _, aid, name in ach_rx.findall(block)
-        }
-        db_upsert(key, guid, ach)
-        n, r = key.split("-", 1)
-        rows[key] = {"id": guid, "name": n, "realm": r}
-        # also seed alt *keys* into the to‑fetch list (id will be filled on fetch)
-        am = alts_rx.search(block)
-        if am:
-            for alt in am.group(1).split(","):
-                altk = alt.strip().strip('"')
-                if altk and altk not in rows:
-                    an, ar = altk.split("-", 1)
-                    rows[altk] = {"id": 0, "name": an, "realm": ar}
+        for m in row_rx.finditer(txt):
+            block = m.group(0)
+            key = m.group(1)
+            gm = guid_rx.search(block)
+            if not gm:
+                continue
+            guid = int(gm.group(1))
+            ach = {int(aid): {"name": name, "ts": None}
+                   for _, aid, name in ach_rx.findall(block)}
+            db_upsert(key, guid, ach)
+            if "-" in key:
+                n, r = key.split("-", 1)
+                rows[key] = {"id": guid, "name": n, "realm": r}
+            # seed alt keys (id 0 → will be filled on fetch)
+            am = alts_rx.search(block)
+            if am:
+                for alt in am.group(1).split(","):
+                    altk = alt.strip().strip('"')
+                    if altk and altk not in rows and "-" in altk:
+                        an, ar = altk.split("-", 1)
+                        rows[altk] = {"id": 0, "name": an, "realm": ar}
     db.commit()
     return rows
-
 
 # --------------------------------------------------------------------------
 # CLI + MODE + REGION + BATCH SETTINGS
@@ -124,10 +151,14 @@ def _emit_list_ids_only(region: str) -> None:
     char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
     # Consider both the main and _party variant
-    for lua_file in region_seed_candidates(region):
-        if not lua_file.exists():
+    keys: set[str] = set()
+    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+    for p in find_region_lua_paths(region):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
             continue
-        text = lua_file.read_text(encoding="utf-8", errors="ignore")
         for m in char_rx.finditer(text):
             keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
@@ -1071,13 +1102,8 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 # Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # 1) seed from any local Lua copies (main + party variant)
-    old_chars: dict[str, dict] = {}
-    for seed_path in region_seed_candidates(REGION):
-        seeded = seed_db_from_lua(seed_path)
-        if seeded:
-            # Later seeds (if any) just extend/override by key
-            old_chars.update(seeded)
+    # 1) seed from any existing region Lua files (mono or split)
+    old_chars = seed_db_from_lua_paths(find_region_lua_paths(REGION))
 
     if MODE == "finalize":
         # offline finalize: do not hit any APIs
@@ -1133,9 +1159,8 @@ if __name__ == "__main__":
         # make any downloaded shards visible
         merged_rows, shard_count = merge_db_shards(Path("partial_outputs"))
         if shard_count == 0 or merged_rows == 0:
-            # No shards? That's okay — we already seeded from any region_*.lua
-            # above. Proceed to write out final files from the seeded DB.
-            print("⚠️ No shards merged; finalizing from existing region_*.lua seed.")
+            # No shards? That's okay — we already seeded from any region_*.lua above.
+            print("⚠️ No DB shards merged; finalizing from existing region_*.lua seed.")
         asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
         sys.exit(0)
