@@ -168,7 +168,8 @@ NAMESPACE_PROFILE = f"profile-{REGION}"
 CRED_SUFFIX_USED = "_1"
 REGION_HAS_FALLBACK = REGION in ("us", "eu", "tw", "kr")
 SWITCHED_TO_429 = False
-
+REGION_IDS = {"us": 1, "kr": 2, "eu": 3, "tw": 4}
+REGION_ID = REGION_IDS[REGION.lower()]
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -946,7 +947,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         out_files = []
 
         def write_chunk(part_idx, lines, is_single_file):
-            region_check = f"if GetCurrentRegion() ~= {REGION} then return end\n"
+            region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
 
             if is_single_file:
                 varname = f"ACHIEVEMENTS_{REGION.upper()}"
@@ -976,7 +977,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             )
 
         # Try to chunk the data
-        region_check = f"if GetCurrentRegion() ~= {REGION} then return end\n"
+        region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
         region_check_len = len(region_check.encode("utf-8"))
 
         for line in entry_lines:
