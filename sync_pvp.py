@@ -946,7 +946,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
         out_files = []
 
         def write_chunk(part_idx, lines, is_single_file):
-            region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
+            region_check = f"if GetCurrentRegion() ~= {REGION} then return end\n"
 
             if is_single_file:
                 varname = f"ACHIEVEMENTS_{REGION.upper()}"
