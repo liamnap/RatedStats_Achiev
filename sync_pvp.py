@@ -976,7 +976,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             )
 
         # Try to chunk the data
-        region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
+        region_check = f"if GetCurrentRegion() ~= {REGION} then return end\n"
         region_check_len = len(region_check.encode("utf-8"))
 
         for line in entry_lines:
