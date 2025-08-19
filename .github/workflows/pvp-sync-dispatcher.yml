@@ -86,12 +86,18 @@ jobs:
         with: { python-version: '3.13' }
       - name: Install deps
         run: pip install aiohttp requests psutil
-      - name: Hydrate Git LFS (if available)
+      - name: Attempt LFS hydration (non-fatal)
+        id: hydrate
         run: |
           git lfs install --local
-          git lfs fetch --all
-          git lfs checkout || true
-          echo "✅ LFS hydration (prepare) attempted — proceeding regardless"
+          echo "Attempting to fetch and checkout LFS files..."
+          if git lfs fetch --all && git lfs checkout; then
+            echo "::notice::LFS hydration succeeded."
+            echo "lfs_hydrated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::LFS hydration failed or blobs missing. Proceeding without LFS."
+            echo "lfs_hydrated=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build batch matrix
         id: matrix
         shell: bash
