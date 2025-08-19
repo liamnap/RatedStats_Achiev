@@ -24,6 +24,23 @@ try:
 except ImportError:
     psutil = None
 
+def is_lfs_pointer(path: Path) -> bool:
+    """
+    Return True if the file looks like a Git LFS pointer (not the real content).
+    Detects the standard pointer header + oid line and keeps a small-size guard.
+    """
+    try:
+        if not path.exists():
+            return False
+        # pointer stubs are tiny (usually <200 bytes)
+        if path.stat().st_size > 1024:
+            return False
+        head = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return False
+    return ("version https://git-lfs.github.com/spec" in head) and ("oid sha256:" in head)
+
+
 def find_region_lua_paths(region: str) -> list[Path]:
     """
     Return a list of existing Lua files for the region, covering:
@@ -34,12 +51,22 @@ def find_region_lua_paths(region: str) -> list[Path]:
     r = region.lower()
     paths: list[Path] = []
     mono = Path(f"region_{r}.lua")
-    if mono.exists():
+    if mono.exists() and not is_lfs_pointer(mono):
         paths.append(mono)
+    elif mono.exists():
+        print(f"[WARN] Skipping LFS pointer {mono.name}; will try split files")
     # current splitter in workflow creates region_{r}-{i}.lua
-    paths.extend(sorted(Path(".").glob(f"region_{r}-*.lua")))
+    for p in sorted(Path(".").glob(f"region_{r}-*.lua")):
+        if not is_lfs_pointer(p):
+            paths.append(p)
+        else:
+            print(f"[WARN] Skipping LFS pointer {p.name}")
     # older writer created region_{r}_part{i}.lua
-    paths.extend(sorted(Path(".").glob(f"region_{r}_part*.lua")))
+    for p in sorted(Path(".").glob(f"region_{r}_part*.lua")):
+        if not is_lfs_pointer(p):
+            paths.append(p)
+        else:
+            print(f"[WARN] Skipping LFS pointer {p.name}")
     # de-dup while preserving order
     seen = set()
     uniq = []
@@ -52,11 +79,12 @@ def find_region_lua_paths(region: str) -> list[Path]:
 def region_seed_candidates(region: str) -> list[Path]:
     """
     Return all on-disk files we should use to seed characters for a region.
-    We prefer the main file, but if LFS content was cleaned up we may still
-    have duplicates committed in the repo root, e.g. region_eu.lua or
-    region_eu_party.lua.
+    This includes:
+      - monolithic:       region_{r}.lua
+      - split (current):  region_{r}-*.lua
+      - split (legacy):   region_{r}_part*.lua
     """
-    return [Path(f"region_{region}.lua"), Path(f"region_{region}_party.lua")]
+    return find_region_lua_paths(region)
 
 def seed_db_from_lua_paths(paths: list[Path]) -> dict:
     """Seed the DB from any/all region Lua files provided."""
@@ -69,7 +97,7 @@ def seed_db_from_lua_paths(paths: list[Path]) -> dict:
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
     for lua_path in paths:
         try:
-            txt = lua_path.read_text(encoding="utf-8")
+            txt = lua_path.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
         for m in row_rx.finditer(txt):
@@ -145,40 +173,40 @@ args = parser.parse_args()
 CRED_SUFFIX_FORCE = args.cred_suffix
 
 
-def _emit_list_ids_only(region: str) -> None:
-    """Print union of keys from local Lua + bracket leaderboards (if available)."""
-    keys: set[str] = set()
-    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
-    # Consider both the main and _party variant
-    keys: set[str] = set()
-    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
-    for p in find_region_lua_paths(region):
-        try:
-            text = p.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        for m in char_rx.finditer(text):
-            keys.add(m.group(1).lower())
-        for m in alts_rx.finditer(text):
-            for alt in m.group(1).split(","):
-                keys.add(alt.strip().strip('"').lower())
-    # Try to add bracket keys too (useful on first run when Lua is empty)
-    try:
-        token = get_access_token(region)
-        season = get_current_pvp_season_id(region)
-        brs = get_available_brackets(region, season)
-        headers = {"Authorization": f"Bearer {token}"}
-        for c in get_characters_from_leaderboards(
-            region, headers, season, brs
-        ).values():
-            keys.add(f"{c['name'].lower()}-{c['realm'].lower()}")
-    except Exception as e:
-        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}")
-    for k in sorted(keys):
-        print(k)
-    sys.exit(0)
+#def _emit_list_ids_only(region: str) -> None:
+#    """Print union of keys from local Lua + bracket leaderboards (if available)."""
+#    keys: set[str] = set()
+#    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+#    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+#    # Consider both the main and _party variant
+#    keys: set[str] = set()
+#    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+#    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+#    for p in find_region_lua_paths(region):
+#        try:
+#            text = p.read_text(encoding="utf-8")
+#        except Exception:
+#            continue
+#        for m in char_rx.finditer(text):
+#            keys.add(m.group(1).lower())
+#        for m in alts_rx.finditer(text):
+#            for alt in m.group(1).split(","):
+#                keys.add(alt.strip().strip('"').lower())
+#    # Try to add bracket keys too (useful on first run when Lua is empty)
+#    try:
+#        token = get_access_token(region)
+#        season = get_current_pvp_season_id(region)
+#        brs = get_available_brackets(region, season)
+#        headers = {"Authorization": f"Bearer {token}"}
+#        for c in get_characters_from_leaderboards(
+#            region, headers, season, brs
+#        ).values():
+#            keys.add(f"{c['name'].lower()}-{c['realm'].lower()}")
+#    except Exception as e:
+#        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}")
+#    for k in sorted(keys):
+#        print(k)
+#    sys.exit(0)
 
 REGION = args.region
 BATCH_ID = args.batch_id
@@ -424,11 +452,12 @@ if args.list_ids_only:
     keys: set[str] = set()
     char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
-    # read from both seed files if present
-    for lua_file in region_seed_candidates(region):
-        if not lua_file.exists():
+    # Include monolithic and all split variants found on disk
+    for p in find_region_lua_paths(region):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
             continue
-        text = lua_file.read_text(encoding="utf-8", errors="ignore")
         for m in char_rx.finditer(text):
             keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
