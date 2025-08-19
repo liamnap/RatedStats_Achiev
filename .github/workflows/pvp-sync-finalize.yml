@@ -87,7 +87,15 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_branch || inputs.branch }}
-          lfs: true   # make sure any LFS pointers are hydrated if present
+          lfs: false   # don't fail if LFS objects were cleaned up
+
+      - name: Try to hydrate LFS (best-effort)
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"   # never fail the checkout if blobs are gone
+        run: |
+          git lfs install --local
+          git lfs fetch || true
+          git lfs checkout || true
 
       - name: Pull LFS content
         run: git lfs pull
@@ -219,8 +227,8 @@ jobs:
             # Re-count
             cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
             if (( cnt == 0 )); then
-              echo "❌ Still no shards found after fallback — aborting."
-              exit 1
+              echo "⚠️ Still no shards found after fallback — will rely on repo root region_*.lua files."
+              touch partial_outputs/.no_shards
             fi
           fi
 
