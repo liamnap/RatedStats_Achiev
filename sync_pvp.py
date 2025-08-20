@@ -97,7 +97,7 @@ def seed_db_from_lua_paths(paths: list[Path]) -> dict:
             continue
         for m in row_rx.finditer(txt):
             block = m.group(0)
-            key = m.group(1)
+            key = m.group(1).lower()  # normalize: name-realm
             gm = guid_rx.search(block)
             if not gm:
                 continue
@@ -112,7 +112,7 @@ def seed_db_from_lua_paths(paths: list[Path]) -> dict:
             am = alts_rx.search(block)
             if am:
                 for alt in am.group(1).split(","):
-                    altk = alt.strip().strip('"')
+                    altk = alt.strip().strip('"').lower()
                     if altk and altk not in rows and "-" in altk:
                         an, ar = altk.split("-", 1)
                         rows[altk] = {"id": 0, "name": an, "realm": ar}
@@ -1170,8 +1170,26 @@ if __name__ == "__main__":
         # Prefer explicit CLI window when provided; otherwise use batch math
         start = args.offset if args.offset else batch_id * batch_size
         cur_limit = args.limit if args.limit else batch_size
-        slice_keys = all_keys[start : start + cur_limit]
-        characters = {k: chars[k] for k in slice_keys}
+        # Overshoot guard: still emit empty partial + shard so uploads don't fail
+        if start >= len(all_keys):
+            print(f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: 0 chars "
+                  f"(offset {start} ≥ keycount {len(all_keys)}). "
+                  f"Likely missing seeded region Lua in this runner.")
+            PARTIAL_DIR = Path("partial_outputs")
+            PARTIAL_DIR.mkdir(exist_ok=True)
+            empty_partial = PARTIAL_DIR / f"{REGION}_batch_{BATCH_ID}.lua"
+            with open(empty_partial, "w", encoding="utf-8") as f:
+                f.write(f"-- Partial batch {BATCH_ID}/{TOTAL_BATCHES} for {REGION}\nlocal entries={{{}}}\n")
+            shard = PARTIAL_DIR / f"achdb_{REGION}_b{BATCH_ID}.sqlite"
+            try:
+                # Always export a shard (even if empty DB) so artifact upload succeeds
+                db.commit()
+                shutil.copy2(DB_PATH, shard)
+            except Exception as e:
+                print(f"[WARN] failed to export empty DB shard: {e}")
+            db.close()
+            sys.exit(0)
+        slice_keys = all_keys[start : start + cur_limit]        characters = {k: chars[k] for k in slice_keys}
         print(
             f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars"
         )
