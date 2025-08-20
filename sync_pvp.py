@@ -43,33 +43,29 @@ def is_lfs_pointer(path: Path) -> bool:
 
 def find_region_lua_paths(region: str) -> list[Path]:
     """
-    Recursively discover Lua files for the region anywhere in the repo, covering:
-      - monolithic: region_{r}.lua
-      - split (current workflow naming): region_{r}-*.lua
-      - split (legacy naming):           region_{r}_part*.lua
+    Repo-root only:
+      - region_{r}.lua
+      - region_{r}-*.lua
+      - region_{r}_part*.lua
     Skips Git LFS pointer stubs.
     """
     r = region.lower()
-    patterns = [
-        f"**/region_{r}.lua",
-        f"**/region_{r}-*.lua",
-        f"**/region_{r}_part*.lua",
+    candidates = [
+        Path(f"region_{r}.lua"),
+        *sorted(Path(".").glob(f"region_{r}-*.lua")),
+        *sorted(Path(".").glob(f"region_{r}_part*.lua")),
     ]
-    paths: list[Path] = []
-    for pat in patterns:
-        for p in sorted(Path(".").rglob(pat)):
-            try:
-                if p.is_file() and p.stat().st_size > 0 and not is_lfs_pointer(p):
-                    paths.append(p)
-                elif p.is_file() and is_lfs_pointer(p):
-                    print(f"[WARN] Skipping LFS pointer {p}")
-            except FileNotFoundError:
-                # Race with checkout/cleanup—ignore
-                continue
+    out: list[Path] = []
+    for p in candidates:
+        if p.exists():
+            if is_lfs_pointer(p):
+                print(f"[WARN] Skipping LFS pointer {p.name}")
+            elif p.stat().st_size > 0:
+                out.append(p)
     # de-dup while preserving order
     seen = set()
     uniq = []
-    for p in paths:
+    for p in out:
         if p not in seen and p.exists():
             uniq.append(p)
             seen.add(p)
@@ -456,10 +452,11 @@ if args.list_ids_only:
     keys: set[str] = set()
     char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
-    # Include monolithic and all split variants found on disk
+
+    # 1) repo-root region files first
     for p in find_region_lua_paths(region):
         try:
-            text = p.read_text(encoding="utf-8")
+            text = p.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
         for m in char_rx.finditer(text):
@@ -467,24 +464,23 @@ if args.list_ids_only:
         for m in alts_rx.finditer(text):
             for alt in m.group(1).split(","):
                 keys.add(alt.strip().strip('"').lower())
-    # Optionally include current leaderboard keys (best effort), but only if requested.
-    if args.with_brackets:
-        try:
-            season_id = get_current_pvp_season_id(region)
-            brackets = get_available_brackets(region, season_id)
-            token = get_access_token(region)
-            headers = {"Authorization": f"Bearer {token}"}
-            api_chars = get_characters_from_leaderboards(
-                region, headers, season_id, brackets
-            )
-            keys.update(
-                f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
-            )
-        except Exception as e:
-            print(
-                f"[WARN] list-ids-only: failed to include bracket keys: {e}",
-                file=sys.stderr,
-            )
+
+    # 2) union with bracket “seen” (best-effort)
+    try:
+        season_id = get_current_pvp_season_id(region)
+        brackets = get_available_brackets(region, season_id)
+        token = get_access_token(region)
+        headers = {"Authorization": f"Bearer {token}"}
+        api_chars = get_characters_from_leaderboards(
+            region, headers, season_id, brackets
+        )
+        keys.update(
+            f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
+        )
+    except Exception as e:
+        print(f"[WARN] list-ids-only: bracket union skipped: {e}", file=sys.stderr)
+
+    # 3) print merged + deduped keys
     for k in sorted(keys):
         print(k)
     sys.exit(0)
