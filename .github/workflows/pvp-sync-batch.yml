@@ -90,6 +90,49 @@ jobs:
         run: |
           git lfs install --local
           git lfs env
+      - name: Ensure usable region Lua files are present (dev/main aware, no LFS)
+        id: seed_luas
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REF="${{ github.ref_name }}"
+          FALLBACK_REF="$REF"
+          if [[ "$FALLBACK_REF" != "main" && "$FALLBACK_REF" != "dev" ]]; then
+            FALLBACK_REF="main"
+          fi
+          echo "Current ref: $REF ; fallback ref: $FALLBACK_REF"
+
+          is_real () { [[ -s "$1" ]] && ! head -n2 "$1" | grep -qi 'git-lfs.github.com/spec'; }
+
+          have_real=0
+          for f in ./region_*.lua; do
+            [[ -e "$f" ]] || continue
+            if is_real "$f"; then have_real=$((have_real+1)); fi
+          done
+          if (( have_real > 0 )); then
+            echo "Found $have_real usable region Lua file(s) in workspace."
+            exit 0
+          fi
+
+          echo "::warning::No usable region Lua files in workspace. Pulling from $FALLBACK_REF…"
+          git fetch --no-tags --depth=1 origin "$FALLBACK_REF"
+          mapfile -t CANDIDATES < <(git ls-tree --name-only "origin/$FALLBACK_REF" |
+                                    grep -E '^region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua$')
+          if (( ${#CANDIDATES[@]} > 0 )); then
+            git checkout "origin/$FALLBACK_REF" -- "${CANDIDATES[@]}" || true
+          fi
+
+          have_real=0
+          for f in ./region_*.lua; do
+            [[ -e "$f" ]] || continue
+            if is_real "$f"; then have_real=$((have_real+1)); fi
+          done
+          if (( have_real == 0 )); then
+            echo "::warning::Still no usable region Lua files after fallback fetch; batches will use bracket-only keys."
+          else
+            echo "✅ Seeded $have_real region Lua file(s) from $FALLBACK_REF."
+          fi
       - name: Install deps
         run: |
           pip install aiohttp requests psutil
