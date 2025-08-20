@@ -300,16 +300,17 @@ jobs:
           echo "Merging batches and writing final region_${REGION}.lua…"
           python sync_pvp.py --mode finalize --region "$REGION"
 
-      - name: Split oversized region Lua (if > 95 MB)
+      - name: Split oversized region Lua (if > 49 MB)
         id: split
         run: |
           REGION="${{ needs.guard.outputs.region }}"
           MAIN="region_${REGION}.lua"
           if [ -f "$MAIN" ]; then
             SIZE=$(stat -c%s "$MAIN")
-            if [ "$SIZE" -gt 99000000 ]; then
-              echo "🔎 Splitting $MAIN ($SIZE bytes) into <95 MB parts..."
-              split --bytes=90M --numeric-suffixes=1 --suffix-length=2 \
+            # 49 MiB = 49 * 1024 * 1024 = 51380224 bytes
+            if [ "$SIZE" -gt 51380224 ]; then
+              echo "🔎 Splitting $MAIN ($SIZE bytes) into <49 MB parts..."
+              split --bytes=49M --numeric-suffixes=1 --suffix-length=2 \
                     "$MAIN" "region_${REGION}-part-"
               rm "$MAIN"
               i=1
