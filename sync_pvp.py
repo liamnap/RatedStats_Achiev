@@ -43,30 +43,29 @@ def is_lfs_pointer(path: Path) -> bool:
 
 def find_region_lua_paths(region: str) -> list[Path]:
     """
-    Return a list of existing Lua files for the region, covering:
+    Recursively discover Lua files for the region anywhere in the repo, covering:
       - monolithic: region_{r}.lua
-      - split (current workflow step naming): region_{r}-*.lua
-      - split (older writer naming):        region_{r}_part*.lua
+      - split (current workflow naming): region_{r}-*.lua
+      - split (legacy naming):           region_{r}_part*.lua
+    Skips Git LFS pointer stubs.
     """
     r = region.lower()
+    patterns = [
+        f"**/region_{r}.lua",
+        f"**/region_{r}-*.lua",
+        f"**/region_{r}_part*.lua",
+    ]
     paths: list[Path] = []
-    mono = Path(f"region_{r}.lua")
-    if mono.exists() and not is_lfs_pointer(mono):
-        paths.append(mono)
-    elif mono.exists():
-        print(f"[WARN] Skipping LFS pointer {mono.name}; will try split files")
-    # current splitter in workflow creates region_{r}-{i}.lua
-    for p in sorted(Path(".").glob(f"region_{r}-*.lua")):
-        if not is_lfs_pointer(p):
-            paths.append(p)
-        else:
-            print(f"[WARN] Skipping LFS pointer {p.name}")
-    # older writer created region_{r}_part{i}.lua
-    for p in sorted(Path(".").glob(f"region_{r}_part*.lua")):
-        if not is_lfs_pointer(p):
-            paths.append(p)
-        else:
-            print(f"[WARN] Skipping LFS pointer {p.name}")
+    for pat in patterns:
+        for p in sorted(Path(".").rglob(pat)):
+            try:
+                if p.is_file() and p.stat().st_size > 0 and not is_lfs_pointer(p):
+                    paths.append(p)
+                elif p.is_file() and is_lfs_pointer(p):
+                    print(f"[WARN] Skipping LFS pointer {p}")
+            except FileNotFoundError:
+                # Race with checkout/cleanup—ignore
+                continue
     # de-dup while preserving order
     seen = set()
     uniq = []
@@ -155,6 +154,11 @@ parser.add_argument(
     "--list-ids-only",
     action="store_true",
     help="Print the total number of characters and exit",
+)
+parser.add_argument(
+    "--with-brackets",
+    action="store_true",
+    help="When used with --list-ids-only, also include current leaderboard characters via the Blizzard API",
 )
 parser.add_argument(
     "--offset", type=int, default=0, help="Skip this many characters at start"
@@ -463,23 +467,24 @@ if args.list_ids_only:
         for m in alts_rx.finditer(text):
             for alt in m.group(1).split(","):
                 keys.add(alt.strip().strip('"').lower())
-    # Optionally include current leaderboard keys (best effort).
-    try:
-        season_id = get_current_pvp_season_id(region)
-        brackets = get_available_brackets(region, season_id)
-        token = get_access_token(region)
-        headers = {"Authorization": f"Bearer {token}"}
-        api_chars = get_characters_from_leaderboards(
-            region, headers, season_id, brackets
-        )
-        keys.update(
-            f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
-        )
-    except Exception as e:
-        print(
-            f"[WARN] list-ids-only: failed to include bracket keys: {e}",
-            file=sys.stderr,
-        )
+    # Optionally include current leaderboard keys (best effort), but only if requested.
+    if args.with_brackets:
+        try:
+            season_id = get_current_pvp_season_id(region)
+            brackets = get_available_brackets(region, season_id)
+            token = get_access_token(region)
+            headers = {"Authorization": f"Bearer {token}"}
+            api_chars = get_characters_from_leaderboards(
+                region, headers, season_id, brackets
+            )
+            keys.update(
+                f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
+            )
+        except Exception as e:
+            print(
+                f"[WARN] list-ids-only: failed to include bracket keys: {e}",
+                file=sys.stderr,
+            )
     for k in sorted(keys):
         print(k)
     sys.exit(0)
