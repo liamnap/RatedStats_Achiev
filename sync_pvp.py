@@ -1179,7 +1179,11 @@ if __name__ == "__main__":
             PARTIAL_DIR.mkdir(exist_ok=True)
             empty_partial = PARTIAL_DIR / f"{REGION}_batch_{BATCH_ID}.lua"
             with open(empty_partial, "w", encoding="utf-8") as f:
-                f.write(f"-- Partial batch {BATCH_ID}/{TOTAL_BATCHES} for {REGION}\nlocal entries={{{}}}\n")
+                # Double braces {{}} emit a literal {} in the file
+                f.write(
+                    f"-- Partial batch {BATCH_ID}/{TOTAL_BATCHES} for {REGION}\n"
+                    f"local entries={{}}\n"
+                )
             shard = PARTIAL_DIR / f"achdb_{REGION}_b{BATCH_ID}.sqlite"
             try:
                 # Always export a shard (even if empty DB) so artifact upload succeeds
