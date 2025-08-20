@@ -79,18 +79,73 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with: { python-version: '3.13' }
       - name: Install deps
         run: pip install aiohttp requests psutil
+      - name: Ensure usable region Lua files are present (dev/main aware, no LFS)
+        id: seed_luas
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # prefer the current ref; fall back to main for prod repos or dev for dev repos
+          REF="${{ github.ref_name }}"
+          FALLBACK_REF="$REF"
+          if [[ "$FALLBACK_REF" != "main" && "$FALLBACK_REF" != "dev" ]]; then
+            # if the current ref is a tag/feature branch, prefer main
+            FALLBACK_REF="main"
+          fi
+
+          echo "Current ref: $REF ; fallback ref: $FALLBACK_REF"
+
+          is_real () { [[ -s "$1" ]] && ! head -n2 "$1" | grep -qi 'git-lfs.github.com/spec'; }
+
+          # repo-root only
+          have_real=0
+          for f in ./region_*.lua; do
+            [[ -e "$f" ]] || continue
+            if is_real "$f"; then have_real=$((have_real+1)); fi
+          done
+
+          if (( have_real > 0 )); then
+            echo "Found $have_real usable region Lua file(s) in workspace."
+            exit 0
+          fi
+
+          echo "::warning::No usable region Lua files in workspace. Pulling from $FALLBACK_REF…"
+
+          git fetch --no-tags --depth=1 origin "$FALLBACK_REF"
+
+          # Only repo-root files from that ref
+          mapfile -t CANDIDATES < <(git ls-tree --name-only "origin/$FALLBACK_REF" |
+                                    grep -E '^region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua$')
+
+          if (( ${#CANDIDATES[@]} > 0 )); then
+            git checkout "origin/$FALLBACK_REF" -- "${CANDIDATES[@]}" || true
+          fi
+
+          have_real=0
+          for f in ./region_*.lua; do
+            [[ -e "$f" ]] || continue
+            if is_real "$f"; then have_real=$((have_real+1)); fi
+          done
+
+          if (( have_real == 0 )); then
+            echo "::warning::Still no usable region Lua files after fallback fetch; dispatcher will use bracket-only counts."
+          else
+            echo "✅ Seeded $have_real region Lua file(s) from $FALLBACK_REF."
+          fi
       - name: Build batch matrix
         id: matrix
         shell: bash
         run: |
           ITEMS=()
           for region in $REGIONS; do
+            # list-ids-only now: repo-root union bracket → merged set
             TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
             COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
             echo "=== Region=$region | TOTAL Chars=$TOTAL | COUNT batches=$COUNT ==="
@@ -164,6 +219,6 @@ jobs:
               core.info(`▶️ Dispatched ${job.region}@${job.offset} (group ${groupKey})`);
             }
         env:
-          MATRIX:     ${{ needs.prepare.outputs.MATRIX }}
+          MATRIX:     ${{ needs.prepare.outputs.matrix }}
           GROUP_ID:   ${{ github.run_id }}
           BATCH_SIZE: ${{ env.BATCH_SIZE }}
