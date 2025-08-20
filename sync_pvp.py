@@ -1193,7 +1193,8 @@ if __name__ == "__main__":
                 print(f"[WARN] failed to export empty DB shard: {e}")
             db.close()
             sys.exit(0)
-        slice_keys = all_keys[start : start + cur_limit]        characters = {k: chars[k] for k in slice_keys}
+        slice_keys = all_keys[start : start + cur_limit]        
+        characters = {k: chars[k] for k in slice_keys}
         print(
             f"[INFO] Region={REGION} batch {batch_id+1}/{total_batches}: {len(characters)} chars"
         )
