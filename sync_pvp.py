@@ -1013,7 +1013,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 parts += [f"id{i}={aid}", f'name{i}="{esc}"']
             entry_lines.append("    { " + ", ".join(parts) + " },\n")
 
-        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(95 * 1024 * 1024)))
+        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(49 * 1024 * 1024)))
         part_index = 1
         current_lines = []
         out_files = []
