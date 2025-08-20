@@ -24,42 +24,100 @@ try:
 except ImportError:
     psutil = None
 
+def is_lfs_pointer(path: Path) -> bool:
+    """
+    Return True if the file looks like a Git LFS pointer (not the real content).
+    Detects the standard pointer header + oid line and keeps a small-size guard.
+    """
+    try:
+        if not path.exists():
+            return False
+        # pointer stubs are tiny (usually <200 bytes)
+        if path.stat().st_size > 1024:
+            return False
+        head = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return False
+    return ("version https://git-lfs.github.com/spec" in head) and ("oid sha256:" in head)
 
-def seed_db_from_lua(lua_path: Path) -> dict:
-    rows = {}
-    if not lua_path.exists():
+
+def find_region_lua_paths(region: str) -> list[Path]:
+    """
+    Repo-root only:
+      - region_{r}.lua
+      - region_{r}-*.lua
+      - region_{r}_part*.lua
+    Skips Git LFS pointer stubs.
+    """
+    r = region.lower()
+    candidates = [
+        Path(f"region_{r}.lua"),
+        *sorted(Path(".").glob(f"region_{r}-*.lua")),
+        *sorted(Path(".").glob(f"region_{r}_part*.lua")),
+    ]
+    out: list[Path] = []
+    for p in candidates:
+        if p.exists():
+            if is_lfs_pointer(p):
+                print(f"[WARN] Skipping LFS pointer {p.name}")
+            elif p.stat().st_size > 0:
+                out.append(p)
+    # de-dup while preserving order
+    seen = set()
+    uniq = []
+    for p in out:
+        if p not in seen and p.exists():
+            uniq.append(p)
+            seen.add(p)
+    return uniq
+
+def region_seed_candidates(region: str) -> list[Path]:
+    """
+    Return all on-disk files we should use to seed characters for a region.
+    This includes:
+      - monolithic:       region_{r}.lua
+      - split (current):  region_{r}-*.lua
+      - split (legacy):   region_{r}_part*.lua
+    """
+    return find_region_lua_paths(region)
+
+def seed_db_from_lua_paths(paths: list[Path]) -> dict:
+    """Seed the DB from any/all region Lua files provided."""
+    rows: dict[str, dict] = {}
+    if not paths:
         return rows
-    txt = lua_path.read_text(encoding="utf-8")
-    row_rx = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
-    ach_rx = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
+    row_rx  = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
+    ach_rx  = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
     guid_rx = re.compile(r"guid\s*=\s*(\d+)")
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
-    for m in row_rx.finditer(txt):
-        block = m.group(0)
-        key = m.group(1)
-        gm = guid_rx.search(block)
-        if not gm:
+    for lua_path in paths:
+        try:
+            txt = lua_path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
             continue
-        guid = int(gm.group(1))
-        # preserve the same structure as live‐fetched entries
-        ach = {
-            int(aid): {"name": name, "ts": None}
-            for _, aid, name in ach_rx.findall(block)
-        }
-        db_upsert(key, guid, ach)
-        n, r = key.split("-", 1)
-        rows[key] = {"id": guid, "name": n, "realm": r}
-        # also seed alt *keys* into the to‑fetch list (id will be filled on fetch)
-        am = alts_rx.search(block)
-        if am:
-            for alt in am.group(1).split(","):
-                altk = alt.strip().strip('"')
-                if altk and altk not in rows:
-                    an, ar = altk.split("-", 1)
-                    rows[altk] = {"id": 0, "name": an, "realm": ar}
+        for m in row_rx.finditer(txt):
+            block = m.group(0)
+            key = m.group(1)
+            gm = guid_rx.search(block)
+            if not gm:
+                continue
+            guid = int(gm.group(1))
+            ach = {int(aid): {"name": name, "ts": None}
+                   for _, aid, name in ach_rx.findall(block)}
+            db_upsert(key, guid, ach)
+            if "-" in key:
+                n, r = key.split("-", 1)
+                rows[key] = {"id": guid, "name": n, "realm": r}
+            # seed alt keys (id 0 → will be filled on fetch)
+            am = alts_rx.search(block)
+            if am:
+                for alt in am.group(1).split(","):
+                    altk = alt.strip().strip('"')
+                    if altk and altk not in rows and "-" in altk:
+                        an, ar = altk.split("-", 1)
+                        rows[altk] = {"id": 0, "name": an, "realm": ar}
     db.commit()
     return rows
-
 
 # --------------------------------------------------------------------------
 # CLI + MODE + REGION + BATCH SETTINGS
@@ -94,6 +152,11 @@ parser.add_argument(
     help="Print the total number of characters and exit",
 )
 parser.add_argument(
+    "--with-brackets",
+    action="store_true",
+    help="When used with --list-ids-only, also include current leaderboard characters via the Blizzard API",
+)
+parser.add_argument(
     "--offset", type=int, default=0, help="Skip this many characters at start"
 )
 parser.add_argument(
@@ -110,35 +173,40 @@ args = parser.parse_args()
 CRED_SUFFIX_FORCE = args.cred_suffix
 
 
-def _emit_list_ids_only(region: str) -> None:
-    """Print union of keys from local Lua + bracket leaderboards (if available)."""
-    keys: set[str] = set()
-    lua_file = Path(f"region_{region}.lua")
-    if lua_file.exists():
-        text = lua_file.read_text(encoding="utf-8")
-        char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-        alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
-        for m in char_rx.finditer(text):
-            keys.add(m.group(1).lower())
-        for m in alts_rx.finditer(text):
-            for alt in m.group(1).split(","):
-                keys.add(alt.strip().strip('"').lower())
-    # Try to add bracket keys too (useful on first run when Lua is empty)
-    try:
-        token = get_access_token(region)
-        season = get_current_pvp_season_id(region)
-        brs = get_available_brackets(region, season)
-        headers = {"Authorization": f"Bearer {token}"}
-        for c in get_characters_from_leaderboards(
-            region, headers, season, brs
-        ).values():
-            keys.add(f"{c['name'].lower()}-{c['realm'].lower()}")
-    except Exception as e:
-        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}")
-    for k in sorted(keys):
-        print(k)
-    sys.exit(0)
-
+#def _emit_list_ids_only(region: str) -> None:
+#    """Print union of keys from local Lua + bracket leaderboards (if available)."""
+#    keys: set[str] = set()
+#    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+#    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+#    # Consider both the main and _party variant
+#    keys: set[str] = set()
+#    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+#    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+#    for p in find_region_lua_paths(region):
+#        try:
+#            text = p.read_text(encoding="utf-8")
+#        except Exception:
+#            continue
+#        for m in char_rx.finditer(text):
+#            keys.add(m.group(1).lower())
+#        for m in alts_rx.finditer(text):
+#            for alt in m.group(1).split(","):
+#                keys.add(alt.strip().strip('"').lower())
+#    # Try to add bracket keys too (useful on first run when Lua is empty)
+#    try:
+#        token = get_access_token(region)
+#        season = get_current_pvp_season_id(region)
+#        brs = get_available_brackets(region, season)
+#        headers = {"Authorization": f"Bearer {token}"}
+#        for c in get_characters_from_leaderboards(
+#            region, headers, season, brs
+#        ).values():
+#            keys.add(f"{c['name'].lower()}-{c['realm'].lower()}")
+#    except Exception as e:
+#        print(f"[WARN] list-ids-only: failed to include bracket keys: {e}")
+#    for k in sorted(keys):
+#        print(k)
+#    sys.exit(0)
 
 REGION = args.region
 BATCH_ID = args.batch_id
@@ -168,7 +236,8 @@ NAMESPACE_PROFILE = f"profile-{REGION}"
 CRED_SUFFIX_USED = "_1"
 REGION_HAS_FALLBACK = REGION in ("us", "eu", "tw", "kr")
 SWITCHED_TO_429 = False
-
+REGION_IDS = {"us": 1, "kr": 2, "eu": 3, "tw": 4}
+REGION_ID = REGION_IDS[REGION.lower()]
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -380,18 +449,23 @@ def get_latest_static_namespace(region: str) -> str:
 # ── list‑only short‑circuit (now placed after all needed defs) ──
 if args.list_ids_only:
     region = args.region or os.getenv("REGION", "eu")
-    keys = set()
-    lua_file = Path(f"region_{region}.lua")
-    if lua_file.exists():
-        text = lua_file.read_text(encoding="utf-8")
-        char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
-        alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+    keys: set[str] = set()
+    char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
+    alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
+
+    # 1) repo-root region files first
+    for p in find_region_lua_paths(region):
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
         for m in char_rx.finditer(text):
             keys.add(m.group(1).lower())
         for m in alts_rx.finditer(text):
             for alt in m.group(1).split(","):
                 keys.add(alt.strip().strip('"').lower())
-    # Optionally include current leaderboard keys (best effort).
+
+    # 2) union with bracket “seen” (best-effort)
     try:
         season_id = get_current_pvp_season_id(region)
         brackets = get_available_brackets(region, season_id)
@@ -404,10 +478,9 @@ if args.list_ids_only:
             f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
         )
     except Exception as e:
-        print(
-            f"[WARN] list-ids-only: failed to include bracket keys: {e}",
-            file=sys.stderr,
-        )
+        print(f"[WARN] list-ids-only: bracket union skipped: {e}", file=sys.stderr)
+
+    # 3) print merged + deduped keys
     for k in sorted(keys):
         print(k)
     sys.exit(0)
@@ -940,7 +1013,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 parts += [f"id{i}={aid}", f'name{i}="{esc}"']
             entry_lines.append("    { " + ", ".join(parts) + " },\n")
 
-        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(95 * 1024 * 1024)))
+        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(49 * 1024 * 1024)))
         part_index = 1
         current_lines = []
         out_files = []
@@ -976,7 +1049,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             )
 
         # Try to chunk the data
-        region_check = f"if GetCurrentRegion() ~= {REGION} then return end\n"
+        region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
         region_check_len = len(region_check.encode("utf-8"))
 
         for line in entry_lines:
@@ -1059,8 +1132,8 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 # Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # 1) seed from existing full Lua
-    old_chars = seed_db_from_lua(OUTFILE)
+    # 1) seed from any existing region Lua files (mono or split)
+    old_chars = seed_db_from_lua_paths(find_region_lua_paths(REGION))
 
     if MODE == "finalize":
         # offline finalize: do not hit any APIs
@@ -1116,11 +1189,8 @@ if __name__ == "__main__":
         # make any downloaded shards visible
         merged_rows, shard_count = merge_db_shards(Path("partial_outputs"))
         if shard_count == 0 or merged_rows == 0:
-            print(
-                "❌ Merge produced zero rows; refusing to write an empty achievements file."
-            )
-            db.close()
-            sys.exit(1)  # run the writer path (characters dict can be empty)
+            # No shards? That's okay — we already seeded from any region_*.lua above.
+            print("⚠️ No DB shards merged; finalizing from existing region_*.lua seed.")
         asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
         sys.exit(0)
