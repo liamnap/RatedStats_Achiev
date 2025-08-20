@@ -102,19 +102,14 @@ jobs:
 
           echo "Current ref: $REF ; fallback ref: $FALLBACK_REF"
 
-          is_real_file () {
-            # a “real” region file is non-empty and not a Git LFS pointer
-            [[ -s "$1" ]] && ! head -n2 "$1" | grep -qi 'git-lfs.github.com/spec'
-          }
+          is_real () { [[ -s "$1" ]] && ! head -n2 "$1" | grep -qi 'git-lfs.github.com/spec'; }
 
+          # repo-root only
           have_real=0
-          shopt -s nullglob
-          while IFS= read -r -d '' f; do
-            if is_real_file "$f"; then
-              have_real=$((have_real+1))
-            fi
-          done < <(find . -type f -regextype posix-extended \
-                    -regex '.*/region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua' -print0)
+          for f in ./region_*.lua; do
+            [[ -e "$f" ]] || continue
+            if is_real "$f"; then have_real=$((have_real+1)); fi
+          done
 
           if (( have_real > 0 )); then
             echo "Found $have_real usable region Lua file(s) in workspace."
@@ -125,23 +120,19 @@ jobs:
 
           git fetch --no-tags --depth=1 origin "$FALLBACK_REF"
 
-          # List candidate files on that branch and check them out into the current worktree.
-          mapfile -t CANDIDATES < <(
-            git ls-tree -r --name-only "origin/$FALLBACK_REF" |
-              grep -E '.*/region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua$'
-          )
+          # Only repo-root files from that ref
+          mapfile -t CANDIDATES < <(git ls-tree --name-only "origin/$FALLBACK_REF" |
+                                    grep -E '^region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua$')
 
           if (( ${#CANDIDATES[@]} > 0 )); then
             git checkout "origin/$FALLBACK_REF" -- "${CANDIDATES[@]}" || true
           fi
 
           have_real=0
-          while IFS= read -r -d '' f; do
-            if is_real_file "$f"; then
-              have_real=$((have_real+1))
-            fi
-          done < <(find . -type f -regextype posix-extended \
-                    -regex '.*/region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua' -print0)
+          for f in ./region_*.lua; do
+            [[ -e "$f" ]] || continue
+            if is_real "$f"; then have_real=$((have_real+1)); fi
+          done
 
           if (( have_real == 0 )); then
             echo "::warning::Still no usable region Lua files after fallback fetch; dispatcher will use bracket-only counts."
@@ -154,6 +145,7 @@ jobs:
         run: |
           ITEMS=()
           for region in $REGIONS; do
+            # list-ids-only now: repo-root union bracket → merged set
             TOTAL=$(python sync_pvp.py --list-ids-only --region "$region" | wc -l)
             COUNT=$(( (TOTAL + BATCH_SIZE - 1) / BATCH_SIZE ))
             echo "=== Region=$region | TOTAL Chars=$TOTAL | COUNT batches=$COUNT ==="
