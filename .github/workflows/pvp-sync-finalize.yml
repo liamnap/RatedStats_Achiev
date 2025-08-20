@@ -89,16 +89,17 @@ jobs:
           ref: ${{ github.event.workflow_run.head_branch || inputs.branch }}
           lfs: false   # don't fail if LFS objects were cleaned up
 
-      - name: Try to hydrate LFS (best-effort)
+      - name: (Optional) Hydrate LFS if available, but never fail
         env:
-          GIT_LFS_SKIP_SMUDGE: "1"   # never fail the checkout if blobs are gone
+          # Don’t auto-download LFS during checkout (keeps pointers only)
+          GIT_LFS_SKIP_SMUDGE: "1"
         run: |
+          set +e
           git lfs install --local
-          git lfs fetch || true
-          git lfs checkout || true
-
-      - name: Pull LFS content
-        run: git lfs pull
+          git lfs fetch
+          git lfs checkout
+          # If LFS server has pruned objects you’ll see 410/404; we ignore it.
+          echo "LFS hydration attempted (continuing even if it failed)."
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -190,9 +191,8 @@ jobs:
           # show row counts BEFORE any cleanup
           cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
           if (( cnt == 0 )); then
-            echo "⚠️ Still no shards found after fallback — will rely on repo root region_*.lua files."
-            touch partial_outputs/.no_shards
-          fi
+            echo "❌ No shards found — skipping region_${region}.lua write!"
+            touch region_${region}.lua
           else
             echo "✅ Found $cnt shard(s), continuing to finalize region_${region}.lua"
             for dbf in partial_outputs/achdb_${region}_b*.sqlite; do
@@ -228,8 +228,8 @@ jobs:
             # Re-count
             cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
             if (( cnt == 0 )); then
-              echo "❌ Still no shards found after fallback — aborting."
-              exit 1
+              echo "⚠️ Still no shards found after fallback — will rely on repo root region_*.lua files."
+              touch partial_outputs/.no_shards
             fi
           fi
 
