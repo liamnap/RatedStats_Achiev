@@ -86,68 +86,65 @@ jobs:
         with: { python-version: '3.13' }
       - name: Install deps
         run: pip install aiohttp requests psutil
-      - name: Attempt LFS hydration (non-fatal)
-        id: hydrate
-        run: |
-          git lfs install --local
-          echo "Attempting to fetch and checkout LFS files..."
-          if git lfs fetch --all && git lfs checkout; then
-            echo "::notice::LFS hydration succeeded."
-            echo "lfs_hydrated=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::LFS hydration failed or blobs missing. Proceeding without LFS."
-            echo "lfs_hydrated=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Ensure repo-root region Lua files exist (dev/main aware)
+      - name: Ensure usable region Lua files are present (dev/main aware, no LFS)
         id: seed_luas
         shell: bash
         run: |
           set -euo pipefail
 
-          # pick a sane fallback branch for files: use the current ref if it's dev,
-          # otherwise use main (works in both dev and main repos)
+          # prefer the current ref; fall back to main for prod repos or dev for dev repos
           REF="${{ github.ref_name }}"
           FALLBACK_REF="$REF"
-          if [[ "$REF" != "dev" ]]; then
+          if [[ "$FALLBACK_REF" != "main" && "$FALLBACK_REF" != "dev" ]]; then
+            # if the current ref is a tag/feature branch, prefer main
             FALLBACK_REF="main"
           fi
 
-          echo "Current ref: $REF ; fallback ref for region files: $FALLBACK_REF"
+          echo "Current ref: $REF ; fallback ref: $FALLBACK_REF"
 
-          # count real (non-LFS-pointer) region files in the workspace
+          is_real_file () {
+            # a “real” region file is non-empty and not a Git LFS pointer
+            [[ -s "$1" ]] && ! head -n2 "$1" | grep -qi 'git-lfs.github.com/spec'
+          }
+
           have_real=0
           shopt -s nullglob
-          for f in region_*.lua region_*-[0-9]*.lua region_*_part*.lua; do
-            # LFS pointer stubs are tiny and contain the git-lfs header
-            if [[ -s "$f" ]] && ! head -n1 "$f" | grep -qi 'git-lfs.github.com/spec' ; then
+          while IFS= read -r -d '' f; do
+            if is_real_file "$f"; then
               have_real=$((have_real+1))
             fi
-          done
+          done < <(find . -type f -regextype posix-extended \
+                    -regex '.*/region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua' -print0)
 
           if (( have_real > 0 )); then
-            echo "Found $have_real usable region_*.lua files locally; continuing."
+            echo "Found $have_real usable region Lua file(s) in workspace."
             exit 0
           fi
 
-          echo "::warning::No usable region_*.lua files locally (likely LFS stubs). Fetching from $FALLBACK_REF…"
+          echo "::warning::No usable region Lua files in workspace. Pulling from $FALLBACK_REF…"
 
-          # Make sure we have the fallback branch locally
           git fetch --no-tags --depth=1 origin "$FALLBACK_REF"
 
-          # Pull the region files from that branch into the working tree (no checkout switch)
-          git checkout "origin/$FALLBACK_REF" -- \
-            region_*.lua region_*-[0-9]*.lua region_*_part*.lua || true
+          # List candidate files on that branch and check them out into the current worktree.
+          mapfile -t CANDIDATES < <(
+            git ls-tree -r --name-only "origin/$FALLBACK_REF" |
+              grep -E '.*/region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua$'
+          )
 
-          # Re-check
+          if (( ${#CANDIDATES[@]} > 0 )); then
+            git checkout "origin/$FALLBACK_REF" -- "${CANDIDATES[@]}" || true
+          fi
+
           have_real=0
-          for f in region_*.lua region_*-[0-9]*.lua region_*_part*.lua; do
-            if [[ -s "$f" ]] && ! head -n1 "$f" | grep -qi 'git-lfs.github.com/spec' ; then
+          while IFS= read -r -d '' f; do
+            if is_real_file "$f"; then
               have_real=$((have_real+1))
             fi
-          done
+          done < <(find . -type f -regextype posix-extended \
+                    -regex '.*/region_(us|eu|tw|kr)((_part[0-9]+)|(-[0-9]+))?\.lua' -print0)
 
           if (( have_real == 0 )); then
-            echo "::warning::Still no usable region_*.lua after fallback fetch; dispatcher will fall back to bracket-only counts."
+            echo "::warning::Still no usable region Lua files after fallback fetch; dispatcher will use bracket-only counts."
           else
             echo "✅ Seeded $have_real region Lua file(s) from $FALLBACK_REF."
           fi
