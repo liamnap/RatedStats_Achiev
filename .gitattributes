@@ -1,5 +1,2 @@
 ## .gitattributes
-
-# region files must never go to LFS (both root and subdir)
 region_*.lua              -filter -diff -merge -text
-RatedStats_Achiev/region_*.lua  -filter -diff -merge -text
