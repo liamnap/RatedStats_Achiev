@@ -87,10 +87,19 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_branch || inputs.branch }}
-          lfs: true   # make sure any LFS pointers are hydrated if present
+          lfs: false   # don't fail if LFS objects were cleaned up
 
-      - name: Pull LFS content
-        run: git lfs pull
+      - name: (Optional) Hydrate LFS if available, but never fail
+        env:
+          # Don’t auto-download LFS during checkout (keeps pointers only)
+          GIT_LFS_SKIP_SMUDGE: "1"
+        run: |
+          set +e
+          git lfs install --local
+          git lfs fetch
+          git lfs checkout
+          # If LFS server has pruned objects you’ll see 410/404; we ignore it.
+          echo "LFS hydration attempted (continuing even if it failed)."
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -219,8 +228,8 @@ jobs:
             # Re-count
             cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
             if (( cnt == 0 )); then
-              echo "❌ Still no shards found after fallback — aborting."
-              exit 1
+              echo "⚠️ Still no shards found after fallback — will rely on repo root region_*.lua files."
+              touch partial_outputs/.no_shards
             fi
           fi
 
@@ -291,16 +300,17 @@ jobs:
           echo "Merging batches and writing final region_${REGION}.lua…"
           python sync_pvp.py --mode finalize --region "$REGION"
 
-      - name: Split oversized region Lua (if > 95 MB)
+      - name: Split oversized region Lua (if > 49 MB)
         id: split
         run: |
           REGION="${{ needs.guard.outputs.region }}"
           MAIN="region_${REGION}.lua"
           if [ -f "$MAIN" ]; then
             SIZE=$(stat -c%s "$MAIN")
-            if [ "$SIZE" -gt 99000000 ]; then
-              echo "🔎 Splitting $MAIN ($SIZE bytes) into <95 MB parts..."
-              split --bytes=90M --numeric-suffixes=1 --suffix-length=2 \
+            # 49 MiB = 49 * 1024 * 1024 = 51380224 bytes
+            if [ "$SIZE" -gt 51380224 ]; then
+              echo "🔎 Splitting $MAIN ($SIZE bytes) into <49 MB parts..."
+              split --bytes=49M --numeric-suffixes=1 --suffix-length=2 \
                     "$MAIN" "region_${REGION}-part-"
               rm "$MAIN"
               i=1
@@ -376,7 +386,7 @@ jobs:
                 -c filter.lfs.process= \
                 -c filter.lfs.required=false \
               rebase --autostash origin/"${BRANCH}"
-              
+
             # Git rebase --autostash handles unstaged files automatically.
             # If rebase fails due to conflict, stop early—manual intervention may be needed.
             sleep $((2 * tries))
