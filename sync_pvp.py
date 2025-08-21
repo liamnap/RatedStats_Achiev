@@ -1038,10 +1038,11 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     f"local achievements={{\n"
                 )
                 footer = f"}}\n\n{varname} = achievements\n"
-                fname = f"{OUTFILE.rsplit('.',1)[0]}_part{part_idx}.lua"
+                # OUTFILE is a Path, so use .stem and join in the same directory
+                fname = OUTFILE.parent / f"{OUTFILE.stem}_part{part_idx}.lua"
 
             content = header + "".join(lines) + footer
-            with open(fname, "w", encoding="utf-8") as outf:
+            with open(str(fname), "w", encoding="utf-8") as outf:
                 outf.write(content)
             out_files.append(fname)
             print(
