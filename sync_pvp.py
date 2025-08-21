@@ -86,7 +86,10 @@ def seed_db_from_lua_paths(paths: list[Path]) -> dict:
     rows: dict[str, dict] = {}
     if not paths:
         return rows
-    row_rx  = re.compile(r'\{[^{]*?character\s*=\s*"([^"]+)"[^}]*?\}', re.S)
+    row_rx  = re.compile(
+        r'\{(?:[^{}]|\{[^{}]*\})*?character\s*=\s*"([^"]+)"(?:[^{}]|\{[^{}]*\})*?\}',
+        re.S
+    )
     ach_rx  = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
     guid_rx = re.compile(r"guid\s*=\s*(\d+)")
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
