@@ -41,6 +41,7 @@ jobs:
     outputs:
       is_final: ${{ steps.parse.outputs.is_final }}
       region:   ${{ steps.parse.outputs.region }}
+      total:    ${{ steps.parse.outputs.total }}
     steps:
       - name: Determine region + whether this is the final batch
         id: parse
@@ -60,6 +61,7 @@ jobs:
           if [[ "$TITLE" =~ ^PvP[[:space:]]Sync[[:space:]]Batch[[:space:]]([0-9]+)[[:space:]]*/[[:space:]]*([0-9]+)[[:space:]]for[[:space:]]([a-z]{2})$ ]]; then
             CUR="${BASH_REMATCH[1]}"; TOT="${BASH_REMATCH[2]}"; REGION="${BASH_REMATCH[3]}"
             echo "region=$REGION" >>"$GITHUB_OUTPUT"
+            echo "total=$TOT"     >>"$GITHUB_OUTPUT"
             if [[ "$CUR" == "$TOT" ]]; then
               echo "is_final=true"  >>"$GITHUB_OUTPUT"
               echo "✅ Detected final batch ($CUR/$TOT) for $REGION"
@@ -153,18 +155,18 @@ jobs:
           region="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha }}"
           branch="${{ github.event.workflow_run.head_branch }}"
+          expected="${{ needs.guard.outputs.total }}"
           # Fallbacks for workflow_dispatch
           if [[ -z "$sha" ]]; then sha="${{ inputs.sha }}"; fi
           if [[ -z "$branch" ]]; then branch="${{ inputs.branch }}"; fi
           mkdir -p partial_outputs
           # grab the list of run IDs for this sha+region
+          # First pass: only runs from THIS commit (sha)
           ids=$(gh run list \
-                  -w "$wf" -b "$branch" -L 500 \
-                  --json databaseId,displayTitle,headSha \
-                  --jq "[ .[]
-                            | select(.headSha==\"$sha\")
-                            | select(.displayTitle|endswith(\" for $region\"))
-                            | .databaseId ] | unique | .[]")
+                  -w "$wf" -b "$branch" -c "$sha" -s completed -L 500 \
+                  --json databaseId,displayTitle,conclusion \
+                  --jq "[ .[] | select(.conclusion==\"success\") | select(.displayTitle|endswith(\" for $region\")) | .databaseId ] | unique | .[]")
+
           # download only the DB artifacts for this region, into a temp dir
           rm -rf _dl && mkdir -p _dl
           for id in $ids; do
@@ -201,35 +203,38 @@ jobs:
             done
           fi
 
-          # Fallback: Retry artifact download without SHA filter if none were found
-          cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
-          if (( cnt == 0 )); then
-            echo "⚠️ No DB shards found — retrying download WITHOUT strict SHA filter…"
-          
-            ids=$(gh run list \
-                    -w "$wf" -b "$branch" -L 500 \
-                    --json databaseId,displayTitle \
-                    --jq "[ .[]
-                              | select(.displayTitle|endswith(\" for $region\"))
-                              | .databaseId ] | unique | .[]")
-          
-            for id in $ids; do
-              echo "🔄 Re-trying download from run $id (no SHA filter)…"
-              gh run download "$id" \
-                --pattern "pvp-db-${region}-batch-*" \
-                -D _dl || true
+          # If we expected more than we found, widen search without the SHA filter,
+          # and download ONLY the missing batch numbers to fill the gaps.
+          if [[ -n "$expected" ]]; then
+            mapfile -t found_nums < <(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
+              | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq)
+            missing=()
+            for ((i=1; i<=expected; i++)); do
+              if ! printf '%s\n' "${found_nums[@]}" | grep -qx "$i"; then
+                missing+=("$i")
+              fi
             done
-          
-            for f in _dl/**/achdb_${region}_b*.sqlite; do
-              echo "Copying shard: $f"
-              cp -f "$f" partial_outputs/
-            done
-
-            # Re-count
-            cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
-            if (( cnt == 0 )); then
-              echo "⚠️ Still no shards found after fallback — will rely on repo root region_*.lua files."
-              touch partial_outputs/.no_shards
+            if (( ${#missing[@]} > 0 )); then
+              echo "⚠️ Missing batches: ${missing[*]} — widening search (no SHA filter)…"
+              ids_all=$(gh run list \
+                          -w "$wf" -b "$branch" -s completed -L 500 \
+                          --json databaseId,displayTitle,conclusion \
+                          --jq "[ .[] | select(.conclusion==\"success\") | select(.displayTitle|endswith(\" for $region\")) | .databaseId ] | unique | .[]")
+              rm -rf _dl && mkdir -p _dl
+              for id in $ids_all; do
+                for n in "${missing[@]}"; do
+                  pat="pvp-db-${region}-batch-${n}-*"
+                  echo "Downloading run $id pattern $pat…"
+                  gh run download "$id" --pattern "$pat" -D _dl || true
+                done
+              done
+              shopt -s globstar nullglob
+              for f in _dl/**/achdb_${region}_b*.sqlite; do
+                echo "Copying shard: $f"
+                cp -f "$f" partial_outputs/
+              done
+              cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
+              echo "Now have $cnt shard(s) after widened search."
             fi
           fi
 
