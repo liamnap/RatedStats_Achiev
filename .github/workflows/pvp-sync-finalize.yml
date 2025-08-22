@@ -206,39 +206,19 @@ jobs:
             done
           fi
 
-          # If we expected more than we found, widen search without the SHA filter,
-          # and download ONLY the missing batch numbers to fill the gaps.
+          # Strict verification: if we expected N and don't have 1..N, fail fast.
           if [[ -n "$expected" ]]; then
-            mapfile -t found_nums < <(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
-              | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq)
+            mapfile -t found_nums < <(
+              ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
+              | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq
+            )
             missing=()
             for ((i=1; i<=expected; i++)); do
               if ! printf '%s\n' "${found_nums[@]}" | grep -qx "$i"; then
                 missing+=("$i")
               fi
             done
-            if (( ${#missing[@]} > 0 )); then
-              echo "⚠️ Missing batches: ${missing[*]} — widening search (no SHA filter)…"
-              ids_all=$(gh run list \
-                          -w "$wf" -b "$branch" -s completed -L 500 \
-                          --json databaseId,displayTitle,conclusion \
-                          --jq "[ .[] | select(.conclusion==\"success\") | select(.displayTitle|endswith(\" for $region\")) | .databaseId ] | unique | .[]")
-              rm -rf _dl && mkdir -p _dl
-              for id in $ids_all; do
-                for n in "${missing[@]}"; do
-                  pat="pvp-db-${region}-batch-${n}-*"
-                  echo "Downloading run $id pattern $pat…"
-                  gh run download "$id" --pattern "$pat" -D _dl || true
-                done
-              done
-              shopt -s globstar nullglob
-              for f in _dl/**/achdb_${region}_b*.sqlite; do
-                echo "Copying shard: $f"
-                cp -f "$f" partial_outputs/
-              done
-              cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
-              echo "Now have $cnt shard(s) after widened search."
-            fi
+            (( ${#missing[@]} == 0 )) || { echo "❌ Missing batches for $region/$sha: ${missing[*]}"; exit 1; }
           fi
 
       - name: Check disk usage
