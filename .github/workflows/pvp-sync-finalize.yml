@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: ${{ github.event.workflow_run.head_branch || inputs.branch }}
           lfs: false   # don't fail if LFS objects were cleaned up
 
