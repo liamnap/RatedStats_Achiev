@@ -266,26 +266,25 @@ jobs:
             mapfile -t names < <(gh api repos/"$repo"/actions/runs/"$id"/artifacts \
               --paginate --jq '.artifacts[].name')
 
-            for nm in "${names[@]}"; do
-              if [[ -n "$group_id" ]]; then
-                if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+)-group-${group_id}$ ]]; then
-                  idx="${BASH_REMATCH[1]}"
-                else
-                  continue
-                fi
+          for nm in "${names[@]}"; do
+            if [[ -n "$group_id" ]]; then
+              if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+)-group-${group_id}$ ]]; then
+                idx="${BASH_REMATCH[1]}"
               else
-                if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+) ]]; then
-                  idx="${BASH_REMATCH[1]}"
-                else
-                  continue
-                fi
+                continue
               fi
-                if [[ -z "${art_by_batch[$idx]+x}" ]]; then
-                  art_by_batch[$idx]="$nm"
-                  run_by_batch[$idx]="$id"
-                fi
+            else
+              if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+) ]]; then
+                idx="${BASH_REMATCH[1]}"
+              else
+                continue
               fi
-            done
+            fi
+
+            if [[ -z "${art_by_batch[$idx]+x}" ]]; then
+              art_by_batch[$idx]="$nm"
+              run_by_batch[$idx]="$id"
+            fi
           done
 
           # Determine expected count if not provided
