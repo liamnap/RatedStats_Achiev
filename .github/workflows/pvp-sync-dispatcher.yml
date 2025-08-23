@@ -4,7 +4,7 @@ on:
     inputs:
       region:
         description: "Region to finalize"
-        required: true
+        required: false
         type: choice
         options: [kr, tw, eu, us]
   schedule:
