@@ -39,9 +39,10 @@ jobs:
     name: Check if this was the last batch
     runs-on: ubuntu-latest
     concurrency:
-      # one finalize per region+sha regardless of trigger type
-      group: finalize-${{ needs.guard.outputs.region }}-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-      cancel-in-progress: false
+       # one finalize per region+sha regardless of trigger type
+       # 'needs' isn't available inside the guard job; use a sha-only key here
+       group: guard-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+       cancel-in-progress: false
     outputs:
       is_final: ${{ steps.parse.outputs.is_final }}
       region:   ${{ steps.parse.outputs.region }}
@@ -91,6 +92,10 @@ jobs:
         (github.event_name == 'workflow_dispatch')
       )
     needs: guard
+    concurrency:
+      # Here we *can* use needs.guard.outputs.region because this job depends on 'guard'
+      group: finalize-${{ needs.guard.outputs.region }}-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -186,21 +191,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-      
+
           wf="PvP Sync Batch"
           region="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
           branch="${{ github.event.workflow_run.head_branch || inputs.branch }}"
           expected="${{ needs.guard.outputs.total }}"
           repo="${GITHUB_REPOSITORY:-${{ github.repository }}}"
-      
-          # Use the prepared /mnt workspace paths (fallback to RUNNER_TEMP)
+
           root="${ROOT:-${RUNNER_TEMP}/gha}"
           dl="${DL:-$root/_dl}"
           outdir="${OUTDIR:-$root/partial_outputs}"
           rm -rf "$dl" "$outdir"
           mkdir -p "$dl" "$outdir"
-      
+
           disk_report() {
             echo "------ DISK REPORT (after batch $1) ------"
             df -h
@@ -214,29 +218,25 @@ jobs:
               | sort -nr | head -n 10 | awk '{printf "%7.1f MB\t%s\n", $1/1048576, $2}'
             echo "------------------------------------------"
           }
-      
+
           # Completed run IDs for this commit/branch (newest first)
           mapfile -t ids < <(gh run list \
             --workflow "$wf" --branch "$branch" --commit "$sha" \
             --status completed -L 500 --json databaseId \
             --jq '.[].databaseId')
-      
-          # Build maps: batch_index -> artifact_name and run_id
+
+          # Build: batch_index -> artifact_name and run_id
           declare -A art_by_batch
           declare -A run_by_batch
-      
+
           for id in "${ids[@]}"; do
-            # List artifact names for the run via REST API
-            mapfile -t names < <(gh api \
-              repos/"$repo"/actions/runs/"$id"/artifacts \
+            # List artifact names for the run (REST: list workflow run artifacts)
+            mapfile -t names < <(gh api repos/"$repo"/actions/runs/"$id"/artifacts \
               --paginate --jq '.artifacts[].name')
-      
+
             for nm in "${names[@]}"; do
-              # Match only DB shards for this region and extract the batch index
               if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+) ]]; then
-                idx="${BASH_REMATCH[1]}"
-      
-                # Keep the first (newest) occurrence we see for a given index
+                idx="${BASHREMATCH[1]}"
                 if [[ -z "${art_by_batch[$idx]+x}" ]]; then
                   art_by_batch[$idx]="$nm"
                   run_by_batch[$idx]="$id"
@@ -244,30 +244,27 @@ jobs:
               fi
             done
           done
-      
-          # Work out index base & count if caller didn't supply `total`
+
+          # Determine expected count if not provided
           min_idx=999999; max_idx=-1
           for k in "${!art_by_batch[@]}"; do
             (( k < min_idx )) && min_idx="$k"
             (( k > max_idx )) && max_idx="$k"
           done
-      
-          if [[ -z "${expected}" || "${expected}" == "0" ]]; then
+          if [[ -z "${expected:-}" || "${expected}" == "0" ]]; then
             if (( max_idx >= 0 )); then
               expected=$(( max_idx - min_idx + 1 ))
             else
               expected=0
             fi
           fi
-      
           if (( expected == 0 )); then
             echo "❌ No matching artifacts found for region=$region / sha=$sha"
             exit 1
           fi
-      
-          echo "Expecting $expected shard(s) for region=$region (index base = $min_idx)"
-      
-          # Download in index order using exact artifact names
+          echo "Expecting ${expected} shard(s) for region=${region} (index base = ${min_idx})"
+
+          # Download by exact artifact name (no globs)
           for n in $(seq "$min_idx" "$max_idx"); do
             nm="${art_by_batch[$n]:-}"
             id="${run_by_batch[$n]:-}"
@@ -275,18 +272,38 @@ jobs:
               echo "❌ Missing artifact for batch index $n"
               exit 1
             fi
-      
             echo "== downloading index $n : '$nm' from run $id =="
             rm -rf "$dl" && mkdir -p "$dl"
-      
-            # Exact-name download (avoids glob off-by-one issues)
             gh run download "$id" --name "$nm" -D "$dl"
-      
             shopt -s globstar nullglob
             moved=0
             for f in "$dl"/**/achdb_${region}_b*.sqlite; do
               mv -f "$f" "$outdir/"
               moved=1
+            done
+            shopt -u globstar
+            if [[ "$moved" != "1" ]]; then
+              echo "❌ Did not find a single sqlite shard in artifact '$nm' (index $n)"
+              find "$dl" -maxdepth 3 -type f -print || true
+              exit 1
+            fi
+            rm -rf "$dl"
+            disk_report "$n"
+          done
+
+          ln -sfn "$outdir" partial_outputs
+          echo "Found shards:"
+          ls -1 partial_outputs
+
+          mapfile -t found_nums < <(
+            ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
+            | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq
+          )
+          if (( ${#found_nums[@]} != expected )); then
+            echo "❌ Expected ${expected} shard(s) but found ${#found_nums[@]}"
+            printf '  found indices: %s\n' "${found_nums[*]}"
+            exit 1
+          fi
       
       - name: Check disk usage
         run: df -h
