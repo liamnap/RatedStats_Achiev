@@ -150,76 +150,61 @@ jobs:
             sleep 10
           done
 
-      - name: Download every batch’s DB shard
+      - name: Download every batch’s DB shard (streamed, one-at-a-time)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           wf="PvP Sync Batch"
           region="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha }}"
           branch="${{ github.event.workflow_run.head_branch }}"
           expected="${{ needs.guard.outputs.total }}"
-          # Fallbacks for workflow_dispatch
+          # Fallbacks for dispatch
           if [[ -z "$sha" ]]; then sha="${{ inputs.sha }}"; fi
           if [[ -z "$branch" ]]; then branch="${{ inputs.branch }}"; fi
-          mkdir -p partial_outputs
-          # grab the list of run IDs for this sha+region
-          # First pass: only runs from THIS commit (sha)
+
+          # use /mnt (large, separate filesystem) for heavy I/O
+          root=/mnt/gha
+          dl="$root/_dl"
+          outdir="$root/partial_outputs"
+          rm -rf "$dl" "$outdir"
+          mkdir -p "$dl" "$outdir"
+
+          # Only completed runs for this commit; newest first
           ids=$(gh run list \
-                  -w "$wf" -b "$branch" -c "$sha" -s completed -L 500 \
-                  --json databaseId,displayTitle,conclusion \
-                  --jq "[ .[] | select(.conclusion==\"success\") | select(.displayTitle|endswith(\" for $region\")) | .databaseId ] | unique | .[]")
+                  -w "$wf" -b "$branch" -c "$sha" -s completed -L 200 \
+                  --json databaseId --jq '.[].databaseId' | tac)
 
-          # download only the DB artifacts for this region, into a temp dir
-          rm -rf _dl && mkdir -p _dl
-          for id in $ids; do
-            echo "Downloading DB artifacts from run $id…"
-            gh run download "$id" \
-              --pattern "pvp-db-${region}-batch-*" \
-              -D _dl || true
-          done
-          # flatten sqlite shards into ./partial_outputs (handle any nested layout)
-          shopt -s globstar nullglob
-          found_any=0
-          for f in _dl/**/achdb_${region}_b*.sqlite; do
-            echo "Copying shard: $f"
-            cp -f "$f" partial_outputs/
-            found_any=1
-          done
-          if [[ $found_any -eq 0 ]]; then
-            echo "❌ No achdb_${region}_b*.sqlite found under _dl/"
-            echo "Directory tree for debugging:"
-            ls -laR _dl || true
-          fi
-          echo "Found shards:"
-          ls -1 partial_outputs || true
-          # show row counts BEFORE any cleanup
-          cnt=$(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null | wc -l || true)
-          if (( cnt == 0 )); then
-            echo "❌ No shards found — skipping region_${region}.lua write!"
-            touch region_${region}.lua
-          else
-            echo "✅ Found $cnt shard(s), continuing to finalize region_${region}.lua"
-            for dbf in partial_outputs/achdb_${region}_b*.sqlite; do
-              echo -n "rows in $(basename "$dbf"): "
-              sqlite3 "$dbf" "SELECT COUNT(*) FROM char_data;" || true
-            done
-          fi
+          for ((n=1; n<=expected; n++)); do
+            echo "== locating batch $n =="
+            found=0
+            rm -rf "$dl" && mkdir -p "$dl"
+            pat="pvp-db-${region}-batch-${n}-*"
 
-          # Strict verification: if we expected N and don't have 1..N, fail fast.
-          if [[ -n "$expected" ]]; then
-            mapfile -t found_nums < <(
-              ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
-              | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq
-            )
-            missing=()
-            for ((i=1; i<=expected; i++)); do
-              if ! printf '%s\n' "${found_nums[@]}" | grep -qx "$i"; then
-                missing+=("$i")
+            for id in $ids; do
+              echo "  probing run $id ($pat)"
+              if gh run download "$id" --pattern "$pat" -D "$dl" >/dev/null 2>&1; then
+                shopt -s globstar nullglob
+                shard=()
+                for f in "$dl"/**/achdb_${region}_b${n}.sqlite; do shard+=("$f"); done
+                if (( ${#shard[@]} )); then
+                  echo "    ✓ ${shard[0]}"
+                  mv -f "${shard[0]}" "$outdir/"
+                  found=1
+                  break
+                fi
               fi
             done
-            (( ${#missing[@]} == 0 )) || { echo "❌ Missing batches for $region/$sha: ${missing[*]}"; exit 1; }
-          fi
+
+            [[ $found -eq 1 ]] || { echo "❌ missing batch ${n}"; exit 1; }
+            rm -rf "$dl"   # keep peak usage low
+          done
+
+    # expose to the rest of the job
+    ln -s "$outdir" partial_outputs
+    echo "Found shards:"
+    ls -1 partial_outputs
 
       - name: Check disk usage
         run: df -h
