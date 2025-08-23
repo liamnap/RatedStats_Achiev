@@ -200,7 +200,7 @@ jobs:
               --jq "[ .[]
                      | select(.headSha==\"$sha\")
                      | select(.displayTitle|endswith(\" for $region\"))
-                     | capture(\"(?<cur>\\\\d+)\\\\s*/\\\\s*(?<tot>\\\\d+)\").tot
+                     | (.displayTitle | capture(\"(?<cur>\\\\d+)\\\\s*/\\\\s*(?<tot>\\\\d+)\")).tot
                    ] | map(tonumber) | max" || true)
             expected="${expected:-0}"
           fi
@@ -267,7 +267,8 @@ jobs:
                 echo "⏭️ stopping at first gap (best-effort mode)"
                 break
               fi
-            fi            rm -rf "$dl"   # keep peak usage low
+            fi            
+            rm -rf "$dl"   # keep peak usage low
             disk_report "$n"
             if [[ "$expected" != "0" && $n -ge $expected ]]; then
               break
