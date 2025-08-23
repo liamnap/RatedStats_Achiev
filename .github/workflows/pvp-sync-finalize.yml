@@ -21,6 +21,10 @@ on:
         description: "Branch the batch runs executed on"
         required: true
         type: string
+      total_batches:
+        description: "How many batches to expect (optional; autodetected if omitted)"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -51,6 +55,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "region=${{ inputs.region }}" >>"$GITHUB_OUTPUT"
             echo "is_final=true" >>"$GITHUB_OUTPUT"
+            # propagate total if provided on dispatch
+            if [[ -n "${{ inputs.total_batches }}" ]]; then
+              echo "total=${{ inputs.total_batches }}" >>"$GITHUB_OUTPUT"
+            fi
             echo "🟢 Finalize via dispatch: region='${{ inputs.region }}'"
             exit 0
           fi
@@ -184,7 +192,23 @@ jobs:
           sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
           branch="${{ github.event.workflow_run.head_branch || inputs.branch }}"
           expected="${{ needs.guard.outputs.total }}"
-      
+          if [[ -z "$expected" || "$expected" == "0" ]]; then
+            # Derive from run display titles: "PvP Sync Batch X / N for <region>"
+            expected=$(gh run list \
+              --workflow "$wf" --branch "$branch" --commit "$sha" \
+              --status completed -L 500 --json displayTitle,headSha \
+              --jq "[ .[]
+                     | select(.headSha==\"$sha\")
+                     | select(.displayTitle|endswith(\" for $region\"))
+                     | capture(\"(?<cur>\\\\d+)\\\\s*/\\\\s*(?<tot>\\\\d+)\").tot
+                   ] | map(tonumber) | max" || true)
+            expected="${expected:-0}"
+          fi
+          if [[ "$expected" != "0" ]]; then
+            echo "Expecting $expected shard(s) for region=$region"
+          else
+            echo "⚠️ Could not determine expected batch count — running best-effort."
+          fi      
           # Use paths exported by the "Prepare large workspace" step; fall back if missing
           root="${ROOT:-${RUNNER_TEMP}/gha}"
           dl="${DL:-$root/_dl}"
@@ -213,7 +237,8 @@ jobs:
             --jq '.[].databaseId')
       
           # Walk batches 1..expected, pulling exactly that shard from the newest run that has it
-          for ((n=1; n<=expected; n++)); do
+          n=1
+          while :; do
             echo "== locating batch $n =="
             found=0
             rm -rf "$dl" && mkdir -p "$dl"
@@ -234,11 +259,21 @@ jobs:
               [[ $found -eq 1 ]] && break
             done
       
-            [[ $found -eq 1 ]] || { echo "❌ missing batch ${n}"; exit 1; }
-            rm -rf "$dl"   # keep peak usage low
+            if [[ $found -ne 1 ]]; then
+              if [[ "$expected" != "0" ]]; then
+                echo "❌ missing batch ${n}"
+                exit 1
+              else
+                echo "⏭️ stopping at first gap (best-effort mode)"
+                break
+              fi
+            fi            rm -rf "$dl"   # keep peak usage low
             disk_report "$n"
-          done
-      
+            if [[ "$expected" != "0" && $n -ge $expected ]]; then
+              break
+            fi
+            n=$((n+1))
+          done      
           # Expose to the rest of the job via a stable path under the workspace
           ln -sfn "$outdir" partial_outputs
           echo "Found shards:"
