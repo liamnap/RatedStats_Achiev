@@ -155,34 +155,48 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
           wf="PvP Sync Batch"
           region="${{ needs.guard.outputs.region }}"
-          sha="${{ github.event.workflow_run.head_sha }}"
-          branch="${{ github.event.workflow_run.head_branch }}"
+          sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
+          branch="${{ github.event.workflow_run.head_branch || inputs.branch }}"
           expected="${{ needs.guard.outputs.total }}"
-          # Fallbacks for dispatch
-          if [[ -z "$sha" ]]; then sha="${{ inputs.sha }}"; fi
-          if [[ -z "$branch" ]]; then branch="${{ inputs.branch }}"; fi
 
-          # use /mnt (large, separate filesystem) for heavy I/O
+          # Use the larger /mnt filesystem to keep peak usage low
           root=/mnt/gha
           dl="$root/_dl"
           outdir="$root/partial_outputs"
           rm -rf "$dl" "$outdir"
           mkdir -p "$dl" "$outdir"
 
-          # Only completed runs for this commit; newest first
-          ids=$(gh run list \
-                  -w "$wf" -b "$branch" -c "$sha" -s completed -L 200 \
-                  --json databaseId --jq '.[].databaseId' | tac)
+          disk_report() {
+            echo "------ DISK REPORT (after batch $1) ------"
+            df -h
+            echo "-- Top dirs in /mnt/gha --"
+            du -x -h -d1 "$root" 2>/dev/null | sort -hr | head -n 10 || true
+            echo "-- Top dirs in workspace --"
+            du -x -h -d1 "$GITHUB_WORKSPACE" 2>/dev/null | sort -hr | head -n 10 || true
+            echo "-- Largest files (workspace + /mnt/gha) --"
+            { find "$GITHUB_WORKSPACE" -type f -size +1M -printf '%s\t%p\n' 2>/dev/null; \
+              find "$root"            -type f -size +1M -printf '%s\t%p\n' 2>/dev/null; } \
+              | sort -nr | head -n 10 | awk '{printf "%7.1f MB\t%s\n", $1/1048576, $2}'
+            echo "------------------------------------------"
+          }
 
+          # Completed runs for this commit/branch (newest first)
+          mapfile -t ids < <(gh run list \
+            --workflow "$wf" --branch "$branch" --commit "$sha" \
+            --status completed -L 200 --json databaseId \
+            --jq '.[].databaseId')
+
+          # Walk batches 1..expected, pulling exactly that shard from the newest run that has it
           for ((n=1; n<=expected; n++)); do
             echo "== locating batch $n =="
             found=0
             rm -rf "$dl" && mkdir -p "$dl"
             pat="pvp-db-${region}-batch-${n}-*"
 
-            for id in $ids; do
+            for id in "${ids[@]}"; do
               echo "  probing run $id ($pat)"
               if gh run download "$id" --pattern "$pat" -D "$dl" >/dev/null 2>&1; then
                 shopt -s globstar nullglob
@@ -191,20 +205,36 @@ jobs:
                 if (( ${#shard[@]} )); then
                   echo "    ✓ ${shard[0]}"
                   mv -f "${shard[0]}" "$outdir/"
+                  # Immediate disk telemetry after each shard lands
+                  disk_report "$n"
                   found=1
                   break
                 fi
               fi
             done
 
-            [[ $found -eq 1 ]] || { echo "❌ missing batch ${n}"; exit 1; }
+            if [[ $found -ne 1 ]]; then
+              echo "❌ missing batch ${n}"
+              exit 1
+            fi
             rm -rf "$dl"   # keep peak usage low
           done
 
-    # expose to the rest of the job
-    ln -s "$outdir" partial_outputs
-    echo "Found shards:"
-    ls -1 partial_outputs
+          # Expose to the rest of the job via a stable path under the workspace
+          ln -sf "$outdir" partial_outputs
+          echo "Found shards:"
+          ls -1 partial_outputs
+
+          # Strict verification: ensure 1..N shards are present
+          mapfile -t found_nums < <(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
+            | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq)
+          missing=()
+          for ((i=1; i<=expected; i++)); do
+            if ! printf '%s\n' "${found_nums[@]}" | grep -qx "$i"; then
+              missing+=("$i")
+            fi
+          done
+          (( ${#missing[@]} == 0 )) || { echo "❌ Missing batches for $region/$sha: ${missing[*]}"; exit 1; }
 
       - name: Check disk usage
         run: df -h
