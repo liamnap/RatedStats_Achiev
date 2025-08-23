@@ -1,6 +1,12 @@
 name: Dispatch PvP Sync Batches
 on:
   workflow_dispatch:
+    inputs:
+      region:
+        description: "Region to finalize"
+        required: true
+        type: choice
+        options: [kr, tw, eu, us]
   schedule:
     - cron: '0 1 * * *'
 
