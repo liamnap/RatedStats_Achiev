@@ -121,6 +121,28 @@ jobs:
       - name: Check disk usage
         run: df -h
 
+      - name: Prepare large workspace (/mnt with sudo or RUNNER_TEMP)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="/mnt/gha"
+          if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+            # create /mnt/gha and give current user write perms
+            sudo install -d -o "$USER" -g "$USER" -m 0775 "$ROOT"
+            echo "Using $ROOT (separate volume)"
+          else
+            ROOT="${RUNNER_TEMP}/gha"
+            mkdir -p "$ROOT"
+            echo "Using $ROOT (RUNNER_TEMP fallback)"
+          fi
+          mkdir -p "$ROOT/_dl" "$ROOT/partial_outputs"
+          {
+            echo "ROOT=$ROOT"
+            echo "DL=$ROOT/_dl"
+            echo "OUTDIR=$ROOT/partial_outputs"
+          } >> "$GITHUB_ENV"
+          df -h
+
       - name: Wait for ALL region batch runs to complete
         env:
           GH_TOKEN: ${{ github.token }}
@@ -150,84 +172,83 @@ jobs:
             sleep 10
           done
 
-      - name: Download every batch’s DB shard (streamed, one-at-a-time)
+      - name: Download every batch’s DB shard (streamed + disk telemetry)
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
+      
           wf="PvP Sync Batch"
           region="${{ needs.guard.outputs.region }}"
           sha="${{ github.event.workflow_run.head_sha || inputs.sha }}"
           branch="${{ github.event.workflow_run.head_branch || inputs.branch }}"
           expected="${{ needs.guard.outputs.total }}"
-
-          # Use the larger /mnt filesystem to keep peak usage low
-          root=/mnt/gha
-          dl="$root/_dl"
-          outdir="$root/partial_outputs"
+      
+          # Use paths exported by the "Prepare large workspace" step; fall back if missing
+          root="${ROOT:-${RUNNER_TEMP}/gha}"
+          dl="${DL:-$root/_dl}"
+          outdir="${OUTDIR:-$root/partial_outputs}"
           rm -rf "$dl" "$outdir"
           mkdir -p "$dl" "$outdir"
-
+      
           disk_report() {
             echo "------ DISK REPORT (after batch $1) ------"
             df -h
-            echo "-- Top dirs in /mnt/gha --"
+            echo "-- Top dirs in $root --"
             du -x -h -d1 "$root" 2>/dev/null | sort -hr | head -n 10 || true
             echo "-- Top dirs in workspace --"
             du -x -h -d1 "$GITHUB_WORKSPACE" 2>/dev/null | sort -hr | head -n 10 || true
-            echo "-- Largest files (workspace + /mnt/gha) --"
-            { find "$GITHUB_WORKSPACE" -type f -size +1M -printf '%s\t%p\n' 2>/dev/null; \
+            echo "-- Largest files (workspace + $root) --"
+            { find "$GITHUB_WORKSPACE" -type f -size +1M -printf '%s\t%p\n' 2>/dev/null
               find "$root"            -type f -size +1M -printf '%s\t%p\n' 2>/dev/null; } \
               | sort -nr | head -n 10 | awk '{printf "%7.1f MB\t%s\n", $1/1048576, $2}'
             echo "------------------------------------------"
           }
-
-          # Completed runs for this commit/branch (newest first)
+      
+          # All completed run IDs for this commit/branch (newest first)
           mapfile -t ids < <(gh run list \
             --workflow "$wf" --branch "$branch" --commit "$sha" \
-            --status completed -L 200 --json databaseId \
+            --status completed -L 500 --json databaseId \
             --jq '.[].databaseId')
-
+      
           # Walk batches 1..expected, pulling exactly that shard from the newest run that has it
           for ((n=1; n<=expected; n++)); do
             echo "== locating batch $n =="
             found=0
             rm -rf "$dl" && mkdir -p "$dl"
             pat="pvp-db-${region}-batch-${n}-*"
-
+      
             for id in "${ids[@]}"; do
               echo "  probing run $id ($pat)"
               if gh run download "$id" --pattern "$pat" -D "$dl" >/dev/null 2>&1; then
                 shopt -s globstar nullglob
-                shard=()
-                for f in "$dl"/**/achdb_${region}_b${n}.sqlite; do shard+=("$f"); done
-                if (( ${#shard[@]} )); then
-                  echo "    ✓ ${shard[0]}"
-                  mv -f "${shard[0]}" "$outdir/"
-                  # Immediate disk telemetry after each shard lands
-                  disk_report "$n"
+                for f in "$dl"/**/achdb_${region}_b${n}.sqlite; do
+                  echo "    ✓ $f"
+                  mv -f "$f" "$outdir/"
                   found=1
                   break
-                fi
+                done
+                shopt -u globstar
               fi
+              [[ $found -eq 1 ]] && break
             done
-
-            if [[ $found -ne 1 ]]; then
-              echo "❌ missing batch ${n}"
-              exit 1
-            fi
+      
+            [[ $found -eq 1 ]] || { echo "❌ missing batch ${n}"; exit 1; }
             rm -rf "$dl"   # keep peak usage low
+            disk_report "$n"
           done
-
+      
           # Expose to the rest of the job via a stable path under the workspace
-          ln -sf "$outdir" partial_outputs
+          ln -sfn "$outdir" partial_outputs
           echo "Found shards:"
           ls -1 partial_outputs
-
-          # Strict verification: ensure 1..N shards are present
-          mapfile -t found_nums < <(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
-            | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq)
+      
+          # Strict verification: ensure we have 1..N
+          mapfile -t found_nums < <(
+            ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
+            | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq
+          )
           missing=()
           for ((i=1; i<=expected; i++)); do
             if ! printf '%s\n' "${found_nums[@]}" | grep -qx "$i"; then
