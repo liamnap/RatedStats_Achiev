@@ -21,6 +21,10 @@ on:
         description: "Branch the batch runs executed on"
         required: true
         type: string
+      group_id:
+        description: "Dispatcher group id to correlate this cycle"
+        required: false
+        type: string
       total_batches:
         description: "How many batches to expect (optional; autodetected if omitted)"
         required: false
@@ -47,10 +51,13 @@ jobs:
       is_final: ${{ steps.parse.outputs.is_final }}
       region:   ${{ steps.parse.outputs.region }}
       total:    ${{ steps.parse.outputs.total }}
+      group_id: ${{ steps.parse.outputs.group_id }}
     steps:
       - name: Determine region + whether this is the final batch
         id: parse
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -59,6 +66,10 @@ jobs:
             # propagate total if provided on dispatch
             if [[ -n "${{ inputs.total_batches }}" ]]; then
               echo "total=${{ inputs.total_batches }}" >>"$GITHUB_OUTPUT"
+            fi
+            # pass-through group_id if provided
+            if [[ -n "${{ inputs.group_id }}" ]]; then
+              echo "group_id=${{ inputs.group_id }}" >>"$GITHUB_OUTPUT"
             fi
             echo "🟢 Finalize via dispatch: region='${{ inputs.region }}'"
             exit 0
@@ -74,6 +85,17 @@ jobs:
             if [[ "$CUR" == "$TOT" ]]; then
               echo "is_final=true"  >>"$GITHUB_OUTPUT"
               echo "✅ Detected final batch ($CUR/$TOT) for $REGION"
+              # Try to discover group id from THIS completed run's artifacts
+              rid="${{ github.event.workflow_run.id }}"
+              repo="${GITHUB_REPOSITORY:-${{ github.repository }}}"
+              gid="$(gh api repos/"$repo"/actions/runs/"$rid"/artifacts \
+                       --jq '.artifacts[].name
+                         | capture("pvp-db-[a-z]+-batch-[0-9]+-group-(?<gid>.+)$")?.gid' \
+                       | sort -u | head -n1 || true)"
+              if [[ -n "$gid" ]]; then
+                echo "group_id=$gid" >>"$GITHUB_OUTPUT"
+                echo "🔎 Detected group_id: $gid"
+              fi
             else
               echo "is_final=false" >>"$GITHUB_OUTPUT"
               echo "⏭ Not final batch ($CUR/$TOT) for $REGION → skipping finalize."
@@ -220,10 +242,20 @@ jobs:
           }
 
           # Completed run IDs for this commit/branch (newest first)
-          mapfile -t ids < <(gh run list \
-            --workflow "$wf" --branch "$branch" --commit "$sha" \
-            --status completed -L 500 --json databaseId \
-            --jq '.[].databaseId')
+          # If we have a group_id, don't restrict by commit (batches may span SHAs).
+          # Otherwise, fall back to the last-batch commit like before.
+          group_id="${{ needs.guard.outputs.group_id }}"
+          if [[ -n "$group_id" ]]; then
+            mapfile -t ids < <(gh run list \
+              --workflow "$wf" --branch "$branch" \
+              --status completed -L 500 --json databaseId \
+              --jq '.[].databaseId')
+          else
+            mapfile -t ids < <(gh run list \
+              --workflow "$wf" --branch "$branch" --commit "$sha" \
+              --status completed -L 500 --json databaseId \
+              --jq '.[].databaseId')
+          fi
 
           # Build: batch_index -> artifact_name and run_id
           declare -A art_by_batch
@@ -235,8 +267,19 @@ jobs:
               --paginate --jq '.artifacts[].name')
 
             for nm in "${names[@]}"; do
-              if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+) ]]; then
-                idx="${BASH_REMATCH[1]}"
+              if [[ -n "$group_id" ]]; then
+                if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+)-group-${group_id}$ ]]; then
+                  idx="${BASH_REMATCH[1]}"
+                else
+                  continue
+                fi
+              else
+                if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+) ]]; then
+                  idx="${BASH_REMATCH[1]}"
+                else
+                  continue
+                fi
+              fi
                 if [[ -z "${art_by_batch[$idx]+x}" ]]; then
                   art_by_batch[$idx]="$nm"
                   run_by_batch[$idx]="$id"
@@ -251,12 +294,9 @@ jobs:
             (( k < min_idx )) && min_idx="$k"
             (( k > max_idx )) && max_idx="$k"
           done
+          # If caller provided total_batches, trust that; else derive.
           if [[ -z "${expected:-}" || "${expected}" == "0" ]]; then
-            if (( max_idx >= 0 )); then
-              expected=$(( max_idx - min_idx + 1 ))
-            else
-              expected=0
-            fi
+            if (( max_idx >= 0 )); then expected=$(( max_idx - min_idx + 1 )); else expected=0; fi
           fi
           if (( expected == 0 )); then
             echo "❌ No matching artifacts found for region=$region / sha=$sha"
@@ -295,13 +335,19 @@ jobs:
           echo "Found shards:"
           ls -1 partial_outputs
 
-          mapfile -t found_nums < <(
-            ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
-            | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq
-          )
-          if (( ${#found_nums[@]} != expected )); then
-            echo "❌ Expected ${expected} shard(s) but found ${#found_nums[@]}"
-            printf '  found indices: %s\n' "${found_nums[*]}"
+          # Strict check: require a contiguous 0..(expected-1) set
+          declare -A have=()
+          while IFS= read -r bn; do
+            have["$bn"]=1
+          done < <(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
+                   | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq)
+          missing=()
+          for i in $(seq 0 $((expected-1))); do
+            [[ -n "${have[$i]+x}" ]] || missing+=("$i")
+          done
+          if (( ${#missing[@]} )); then
+            echo "❌ Missing shard indices: ${missing[*]}"
+            echo "   (found $((${#have[@]})) of $expected)"
             exit 1
           fi
       
