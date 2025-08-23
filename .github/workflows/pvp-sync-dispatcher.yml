@@ -3,10 +3,11 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: "Region to finalize"
+        description: "Region to run (select a region or 'all')"
         required: false
         type: choice
-        options: [kr, tw, eu, us]
+        options: [all, kr, tw, eu, us]
+        default: all
   schedule:
     - cron: '0 1 * * *'
 
@@ -22,7 +23,7 @@ env:
   BATCH_SIZE: 2500
   MAX_BATCHES_PER_CRED: 20    # ~50k characters = 20 * 2500
   SUFFIX_LIST: '"_1","_2","_3","_4","_5","_429"'  # Customize per region
-  REGIONS: us eu tw kr
+  # REGIONS is resolved dynamically below (supports 'all' or blank)
 
 jobs:
   prepare:
@@ -92,6 +93,19 @@ jobs:
         with: { python-version: '3.13' }
       - name: Install deps
         run: pip install aiohttp requests psutil
+      - name: Resolve region list (supports 'all' or blank → all regions)
+        id: resolve_regions
+        shell: bash
+        run: |
+          set -euo pipefail
+          in="${{ inputs.region || '' }}"
+          if [[ -z "$in" || "$in" == "all" ]]; then
+            REGIONS="us eu tw kr"
+          else
+            REGIONS="$in"
+          fi
+          echo "REGIONS=$REGIONS" >> "$GITHUB_ENV"
+          echo "Region selection -> ${REGIONS}"
       - name: Ensure usable region Lua files are present (dev/main aware, no LFS)
         id: seed_luas
         shell: bash
