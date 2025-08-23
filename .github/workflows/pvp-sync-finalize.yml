@@ -236,7 +236,7 @@ jobs:
 
             for nm in "${names[@]}"; do
               if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+) ]]; then
-                idx="${BASHREMATCH[1]}"
+                idx="${BASH_REMATCH[1]}"
                 if [[ -z "${art_by_batch[$idx]+x}" ]]; then
                   art_by_batch[$idx]="$nm"
                   run_by_batch[$idx]="$id"
