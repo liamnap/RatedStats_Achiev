@@ -265,10 +265,6 @@ jobs:
             # List artifact names for the run (REST: list workflow run artifacts)
             mapfile -t names < <(gh api repos/"$repo"/actions/runs/"$id"/artifacts \
               --paginate --jq '.artifacts[].name')
-
-          for id in "${ids[@]}"; do
-            mapfile -t names < <(gh api repos/"$repo"/actions/runs/"$id"/artifacts \
-              --paginate --jq '.artifacts[].name')
           
             for nm in "${names[@]}"; do
               if [[ -n "$group_id" ]]; then
