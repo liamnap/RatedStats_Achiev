@@ -287,6 +287,6 @@ jobs:
             --ref "${{ github.ref_name }}" \
             -f region="${{ inputs.region }}" \
             -f sha="${{ github.sha }}" \
-            -f branch="${{ github.ref_name }}"
+            -f branch="${{ github.ref_name }}" \
             -f group_id="${{ inputs['group-id'] }}" \
             -f total_batches="${{ inputs.total_batches }}"
