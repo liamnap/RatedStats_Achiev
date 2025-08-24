@@ -279,7 +279,7 @@ jobs:
                 fi
               else
                 if [[ "$nm" =~ ^pvp-db-${region}-batch-([0-9]+) ]]; then
-                  idx="${BASHREMATCH[1]}"
+                  idx="${BASH_REMATCH[1]}"
                 else
                   continue
                 fi
