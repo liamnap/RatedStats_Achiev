@@ -443,52 +443,64 @@ jobs:
             fi
           fi
 
-      - name: Update RatedStats_Achiev.toc to match existing region files
+      - name: Normalize TOC, purge stale region files, and rewrite list
+        shell: bash
         run: |
           set -euo pipefail
           TOC="RatedStats_Achiev.toc"
-          if [[ ! -f "$TOC" ]]; then
-            echo "❌ $TOC not found in repo root"; exit 1
-          fi
+          [[ -f "$TOC" ]] || { echo "❌ $TOC not found"; exit 1; }
 
-          # Build the exact list of region files to include.
-          # Rule: if region_X.lua exists, include only that; otherwise include all parts
-          # matching either legacy *_partN.lua or new -N.lua forms, in natural order.
-          declare -a out
+          # 1) Normalize CRLF -> LF so regex anchors work
+          awk '{ sub("\r$", ""); print }' "$TOC" > "$TOC.tmp" && mv "$TOC.tmp" "$TOC"
+
+          # 2) Decide which files to KEEP per region:
+          #    Prefer split parts if any exist; otherwise keep single file.
+          declare -a keep_list=()
+          declare -A keep_map=()
           for r in eu us tw kr; do
-            if [[ -f "region_${r}.lua" ]]; then
-              out+=("region_${r}.lua")
-            else
-              mapfile -t parts < <(ls -1 \
-                "region_${r}_part"*.lua \
-                "region_${r}-"*.lua 2>/dev/null | sort -V || true)
-              if (( ${#parts[@]} )); then
-                out+=("${parts[@]}")
-              fi
+            shopt -s nullglob
+            parts=( region_${r}_part*.lua region_${r}-*.lua )
+            shopt -u nullglob
+            if (( ${#parts[@]} )); then
+              # natural sort
+              mapfile -t parts_sorted < <(printf '%s\n' "${parts[@]}" | sort -V)
+              keep_list+=( "${parts_sorted[@]}" )
+              for f in "${parts_sorted[@]}"; do keep_map["$f"]=1; done
+            elif [[ -f "region_${r}.lua" ]]; then
+              keep_list+=( "region_${r}.lua" )
+              keep_map["region_${r}.lua"]=1
             fi
           done
 
-          # Re-write the TOC:
-          #  - keep all non-region lines and non-achievements.lua lines as-is
-          #  - drop any existing region_* lines and achievements.lua
-          #  - append the computed region file list
-          #  - append achievements.lua once at the end
+          # 3) Remove any stale region files NOT in keep_list (prevents double loads in-game)
+          for r in eu us tw kr; do
+            shopt -s nullglob
+            all=( region_${r}.lua region_${r}_part*.lua region_${r}-*.lua )
+            shopt -u nullglob
+            for f in "${all[@]}"; do
+              if [[ -e "$f" && -z "${keep_map[$f]+x}" ]]; then
+                echo "🧹 Removing stale file: $f"
+                git rm -f --quiet "$f" || rm -f "$f"
+              fi
+            done
+          done
+
+          # 4) Rewrite the TOC file: drop any old region_* lines and old achievements.lua,
+          #    then append the fresh list + a single achievements.lua once.
           tmp="$(mktemp)"
-          awk '!/^region_.*\.lua$/ && !/^achievements\.lua$/ { print }' "$TOC" > "$tmp"
-          for f in "${out[@]}"; do
+          # keep all non-region/achievements lines (allow leading/trailing spaces)
+          sed -E '/^[[:space:]]*(region_.*\.lua|achievements\.lua)[[:space:]]*$/d' "$TOC" > "$tmp"
+          for f in "${keep_list[@]}"; do
             echo "$f" >> "$tmp"
           done
           echo "achievements.lua" >> "$tmp"
-          # Ensure trailing newline
           printf '\n' >> "$tmp"
           mv "$tmp" "$TOC"
 
-          echo "🔎 New region file list written to $TOC:"
-          printf '  - %s\n' "${out[@]:-<none>}"
-          # Sanity: fail if we somehow produced an empty region list
-          if ! grep -Eq '^region_.*\.lua$' "$TOC"; then
-            echo "❌ No region_*.lua entries found in $TOC after rewrite"; exit 1
-          fi
+          echo "🔎 Rewritten $TOC entries:"
+          printf '  - %s\n' "${keep_list[@]:-<none>}"
+          # fail hard if nothing listed
+          grep -Eq '^[[:space:]]*region_.*\.lua[[:space:]]*$' "$TOC" || { echo "❌ No region files listed"; exit 1; }
    
       - name: Commit region Lua chunks (bypassing LFS)
         run: |
