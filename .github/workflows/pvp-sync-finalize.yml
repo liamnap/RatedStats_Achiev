@@ -442,6 +442,53 @@ jobs:
               done
             fi
           fi
+
+      - name: Update RatedStats_Achiev.toc to match existing region files
+        run: |
+          set -euo pipefail
+          TOC="RatedStats_Achiev.toc"
+          if [[ ! -f "$TOC" ]]; then
+            echo "❌ $TOC not found in repo root"; exit 1
+          fi
+
+          # Build the exact list of region files to include.
+          # Rule: if region_X.lua exists, include only that; otherwise include all parts
+          # matching either legacy *_partN.lua or new -N.lua forms, in natural order.
+          declare -a out
+          for r in eu us tw kr; do
+            if [[ -f "region_${r}.lua" ]]; then
+              out+=("region_${r}.lua")
+            else
+              mapfile -t parts < <(ls -1 \
+                "region_${r}_part"*.lua \
+                "region_${r}-"*.lua 2>/dev/null | sort -V || true)
+              if (( ${#parts[@]} )); then
+                out+=("${parts[@]}")
+              fi
+            fi
+          done
+
+          # Re-write the TOC:
+          #  - keep all non-region lines and non-achievements.lua lines as-is
+          #  - drop any existing region_* lines and achievements.lua
+          #  - append the computed region file list
+          #  - append achievements.lua once at the end
+          tmp="$(mktemp)"
+          awk '!/^region_.*\.lua$/ && !/^achievements\.lua$/ { print }' "$TOC" > "$tmp"
+          for f in "${out[@]}"; do
+            echo "$f" >> "$tmp"
+          done
+          echo "achievements.lua" >> "$tmp"
+          # Ensure trailing newline
+          printf '\n' >> "$tmp"
+          mv "$tmp" "$TOC"
+
+          echo "🔎 New region file list written to $TOC:"
+          printf '  - %s\n' "${out[@]:-<none>}"
+          # Sanity: fail if we somehow produced an empty region list
+          if ! grep -Eq '^region_.*\.lua$' "$TOC"; then
+            echo "❌ No region_*.lua entries found in $TOC after rewrite"; exit 1
+          fi
    
       - name: Commit region Lua chunks (bypassing LFS)
         run: |
