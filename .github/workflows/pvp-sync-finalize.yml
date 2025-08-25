@@ -262,6 +262,7 @@ jobs:
           declare -A run_by_batch
 
           for id in "${ids[@]}"; do
+            # List artifact names for the run (REST: list workflow run artifacts)
             mapfile -t names < <(gh api repos/"$repo"/actions/runs/"$id"/artifacts \
               --paginate --jq '.artifacts[].name')
           
@@ -492,6 +493,8 @@ jobs:
       - name: Commit region Lua chunks (bypassing LFS)
         run: |
           REGION="${{ needs.guard.outputs.region }}"
+          TZ="Europe/London" ; export TZ
+          DATE="$(date +%F)"  # YYYY-MM-DD
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
           # Override LFS filters so actual Lua content is committed, not pointer
@@ -500,7 +503,8 @@ jobs:
               -c filter.lfs.process= \
               -c filter.lfs.required=false \
             add region_${REGION}*.lua
-          git commit -m "Finalize PvP sync: region_${REGION} *.lua chunks" || true
+          git add RatedStats_Achiev.toc
+          git commit -m "Finalize PvP Sync for ${REGION} - ${DATE}" || true
 
       - name: Check if all 4 regions are finalized (main branch only)
         if: ${{ github.ref_name == 'main' }}
