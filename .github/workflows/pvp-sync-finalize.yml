@@ -237,7 +237,7 @@ jobs:
             echo "-- Largest files (workspace + $root) --"
             { find "$GITHUB_WORKSPACE" -type f -size +1M -printf '%s\t%p\n' 2>/dev/null
               find "$root"            -type f -size +1M -printf '%s\t%p\n' 2>/dev/null; } \
-              | sort -nr | head -n 10 | awk '{printf "%7.1f MB\t%s\n", $1/1048576, $2}'
+              | sort -nr 2>/dev/null | head -n 10 | awk '{printf "%7.1f MB\t%s\n", $1/1048576, $2}' || true
             echo "------------------------------------------"
           }
 
