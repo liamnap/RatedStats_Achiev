@@ -318,7 +318,8 @@ jobs:
             shopt -s globstar nullglob
             moved=0
             for f in "$dl"/**/achdb_${region}_b*.sqlite; do
-              mv -f "$f" "$outdir/"
+              dst="$outdir/achdb_${region}_b${n}.sqlite"
+              mv -f "$f" "$dst"
               moved=1
             done
             shopt -u globstar
@@ -328,28 +329,13 @@ jobs:
               exit 1
             fi
             rm -rf "$dl"
+            # Merge just this shard into the accumulator DB in /tmp, then delete it.
+            ONE_SHARD="$dst" python sync_pvp.py --mode finalize
+            rm -f "$dst"
             disk_report "$n"
           done
 
-          ln -sfn "$outdir" partial_outputs
-          echo "Found shards:"
-          ls -1 partial_outputs
-
-          # Strict check: require a contiguous 0..(expected-1) set
-          declare -A have=()
-          while IFS= read -r bn; do
-            have["$bn"]=1
-          done < <(ls -1 partial_outputs/achdb_${region}_b*.sqlite 2>/dev/null \
-                   | sed -n 's/.*_b\([0-9]\+\)\.sqlite/\1/p' | sort -n | uniq)
-          missing=()
-          for i in $(seq 0 $((expected-1))); do
-            [[ -n "${have[$i]+x}" ]] || missing+=("$i")
-          done
-          if (( ${#missing[@]} )); then
-            echo "❌ Missing shard indices: ${missing[*]}"
-            echo "   (found $((${#have[@]})) of $expected)"
-            exit 1
-          fi
+          # All shards have been consumed and deleted; only the accumulator DB remains in /tmp.
       
       - name: Check disk usage
         run: df -h
@@ -418,8 +404,8 @@ jobs:
           LIMIT: "1"
         run: |
           set -euo pipefail
-          echo "Merging batches and writing final region_${REGION}.lua…"
-          python sync_pvp.py --mode finalize --region "$REGION"
+          echo "Exporting final region_${REGION}.lua from accumulator…"
+          EXPORT_ONLY=1 python sync_pvp.py --mode finalize --region "$REGION"
 
       - name: Split oversized region Lua (if > 49 MB)
         id: split
@@ -501,7 +487,7 @@ jobs:
           printf '  - %s\n' "${keep_list[@]:-<none>}"
           # fail hard if nothing listed
           grep -Eq '^[[:space:]]*region_.*\.lua[[:space:]]*$' "$TOC" || { echo "❌ No region files listed"; exit 1; }
-      
+   
       - name: Commit region Lua chunks (bypassing LFS)
         run: |
           REGION="${{ needs.guard.outputs.region }}"
