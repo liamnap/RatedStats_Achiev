@@ -759,6 +759,27 @@ def merge_db_shards(dirpath: Path) -> tuple[int, int]:
     print(f"[DEBUG] merged {merged} row upserts from {len(shards)} shard(s)")
     return (merged, len(shards))
 
+def merge_one_shard(shard_path: Path) -> int:
+    """Merge rows from exactly one sqlite shard into the working DB. Returns upsert count."""
+    if not shard_path.exists():
+        print(f"[ERROR] Shard not found: {shard_path}")
+        return 0
+    merged = 0
+    try:
+        with sqlite3.connect(shard_path) as src:
+            cnt = src.execute("SELECT COUNT(*) FROM char_data").fetchone()[0]
+            print(f"[DEBUG] shard {shard_path.name}: {cnt} rows")
+            for k, g, j in src.execute("SELECT key,guid,ach_json FROM char_data"):
+                db.execute(
+                    "INSERT OR REPLACE INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
+                    (k, g, j),
+                )
+                merged += 1
+        db.commit()
+        print(f"[DEBUG] merged {merged} row upserts from 1 shard")
+    except Exception as e:
+        print(f"[WARN] failed to merge shard {shard_path}: {e}")
+    return merged
 
 # --------------------------------------------------------------------------
 # Main processing
@@ -1002,7 +1023,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
     # Prepare rows to write
     rows_map = {k: (g, ach) for k, g, ach in db_iter_rows()}
 
-    if MODE == "finalize":
+    if MODE == "finalize" and os.getenv("EXPORT_ONLY", "") == "1":
         entry_lines = []
         for comp in groups:
             real_leaders = [m for m in comp if m in leaderboard_keys]
@@ -1092,9 +1113,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 os.remove(OUTFILE)
                 print(f"[DEBUG] Removed stale {OUTFILE.name}")
 
-        print(
-            f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}"
-        )
+        print(f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}")
 
         final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
         final_marker.parent.mkdir(exist_ok=True)
@@ -1140,6 +1159,13 @@ if __name__ == "__main__":
     old_chars = seed_db_from_lua_paths(find_region_lua_paths(REGION))
 
     if MODE == "finalize":
+        # Optional fast-path: consume exactly one shard, then exit (used by CI streaming merge).
+        one_shard = os.getenv("ONE_SHARD", "").strip()
+        if one_shard:
+            merged = merge_one_shard(Path(one_shard))
+            db.close()
+            sys.exit(0)
+
         # offline finalize: do not hit any APIs
         api_chars = {}
         leaderboard_keys = set()
@@ -1218,6 +1244,7 @@ if __name__ == "__main__":
         if shard_count == 0 or merged_rows == 0:
             # No shards? That's okay — we already seeded from any region_*.lua above.
             print("⚠️ No DB shards merged; finalizing from existing region_*.lua seed.")
+        # In streaming CI, export is run in a separate pass with EXPORT_ONLY=1.
         asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
         sys.exit(0)
