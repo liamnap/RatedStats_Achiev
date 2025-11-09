@@ -307,9 +307,11 @@ f:SetScript("OnEvent", function(_, event)
                 end)
             end
 
-            container:ForEachFrame(HookRow)
-            container:RegisterCallback("OnAcquiredFrame", HookRow, true)
-        end
+        container:RegisterCallback("OnAcquiredFrame", function(_, frame)
+            if type(frame) == "table" and frame.GetObjectType then
+                HookRow(frame)
+            end
+        end, true)
 
         C_Timer.After(2, HookCommunitiesGuildRows)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
