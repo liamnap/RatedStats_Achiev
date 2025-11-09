@@ -191,7 +191,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     end
 
     realm = realm or GetRealmName()
-    local fullName = string.lower(baseName .. "-" .. realm:gsub("%s+", ""))
+    local fullName = (baseName .. "-" .. realm):lower()
 
     -- Cache lookup
     if achievementCache[fullName] == nil then
