@@ -1,5 +1,6 @@
 ## Title: RatedStats – Achievements
-## Interface: 110200
+## Interface: 110207
+## Notes: Shows player PvP Achievements on tooltips
 ## DefaultState: enabled
 ## LoadOnDemand: 1
 ## RequiredDeps: RatedStats
