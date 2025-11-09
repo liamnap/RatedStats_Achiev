@@ -204,7 +204,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
             end
         end
         if not found then
-            achievementCache[fullName] = {}, nil
+            achievementCache[fullName] = { summary = {}, highest = nil }
         end
     end
 
@@ -313,7 +313,7 @@ f:SetScript("OnEvent", function(_, event)
             end
         end, true)
     end
-    
+
         C_Timer.After(2, HookCommunitiesGuildRows)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
