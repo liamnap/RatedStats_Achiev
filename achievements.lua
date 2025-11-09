@@ -288,17 +288,30 @@ f:SetScript("OnEvent", function(_, event)
             end
         end)
 
-        -- Hook Guild Roster tooltips
-        hooksecurefunc("GuildRoster_ShowPopup", function(...)
-            local name, rank, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, realm = GetGuildRosterInfo(...)
-            if name and realm then
-                AddAchievementInfoToTooltip({
-                    GetUnit = function() return nil, nil end,
-                    AddLine = function(_, ...) GameTooltip:AddLine(...) end,
-                    Show = function(_) GameTooltip:Show() end,
-                }, name, realm)
+        -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
+        local function HookCommunitiesGuildRows()
+            local container = CommunitiesFrame and CommunitiesFrame.MemberList and CommunitiesFrame.MemberList.ScrollBox
+            if not container then return end
+
+            local function HookRow(frame)
+                if frame.__ratedStatsHooked then return end
+                frame.__ratedStatsHooked = true
+
+                frame:HookScript("OnEnter", function(self)
+                    local info = self.memberInfo
+                    if not info or not info.name then return end
+
+                    local name, realm = strsplit("-", info.name)
+                    realm = realm or GetRealmName()
+                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                end)
             end
-        end)
+
+            container:ForEachFrame(HookRow)
+            container:RegisterCallback("OnAcquiredFrame", HookRow, true)
+        end
+
+        C_Timer.After(2, HookCommunitiesGuildRows)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             GameTooltip:SetUnit("mouseover")
