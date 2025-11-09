@@ -169,7 +169,7 @@ local function centerIcon(iconTag, width)
     return string.rep(" ", pad) .. iconTag .. string.rep(" ", width - len - pad)
 end
 
-local function AddAchievementInfoToTooltip(tooltip)
+local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     -- look up our per-char database and bail out if Achiev is off
     local key = UnitName("player") .. "-" .. GetRealmName()
     local db  = RSTATS.Database[key]
@@ -178,11 +178,18 @@ local function AddAchievementInfoToTooltip(tooltip)
         return
     end
   
-    local _, unit = tooltip:GetUnit()
-    if not unit or not UnitIsPlayer(unit) then return end
+    local baseName, realm
 
-    local baseName, realm = UnitFullName(unit)
-    if not baseName then return end
+    if overrideName then
+        baseName = overrideName
+        realm = overrideRealm or GetRealmName()
+    else
+        local _, unit = tooltip:GetUnit()
+        if not unit or not UnitIsPlayer(unit) then return end
+        baseName, realm = UnitFullName(unit)
+        if not baseName then return end
+    end
+
     realm = realm or GetRealmName()
     local fullName = string.lower(baseName .. "-" .. realm:gsub("%s+", ""))
 
@@ -264,6 +271,34 @@ f:SetScript("OnEvent", function(_, event)
             GameTooltip:HookScript("OnTooltipSetUnit", AddAchievementInfoToTooltip)
         end
         hooksecurefunc(GameTooltip, "SetUnit", AddAchievementInfoToTooltip)
+
+        -- Hook LFG tooltips
+        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
+            local id, activityID, name, comment, voiceChat, iLvl, age, numBNetFriends, numCharFriends, numGuildMates, isDelisted, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+            if leaderName then
+                local realm = GetNormalizedRealmName() or GetRealmName()
+                tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
+                tooltip:SetText(name)
+                -- Simulate a unit structure
+                AddAchievementInfoToTooltip({
+                    GetUnit = function() return nil, nil end,
+                    AddLine = function(_, ...) tooltip:AddLine(...) end,
+                    Show = function(_) tooltip:Show() end,
+                }, leaderName, realm)
+            end
+        end)
+
+        -- Hook Guild Roster tooltips
+        hooksecurefunc("GuildRoster_ShowPopup", function(...)
+            local name, rank, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, realm = GetGuildRosterInfo(...)
+            if name and realm then
+                AddAchievementInfoToTooltip({
+                    GetUnit = function() return nil, nil end,
+                    AddLine = function(_, ...) GameTooltip:AddLine(...) end,
+                    Show = function(_) GameTooltip:Show() end,
+                }, name, realm)
+            end
+        end)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             GameTooltip:SetUnit("mouseover")
