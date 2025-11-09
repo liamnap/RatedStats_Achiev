@@ -312,7 +312,8 @@ f:SetScript("OnEvent", function(_, event)
                 HookRow(frame)
             end
         end, true)
-
+    end
+    
         C_Timer.After(2, HookCommunitiesGuildRows)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
