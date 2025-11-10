@@ -304,6 +304,7 @@ f:SetScript("OnEvent", function(_, event)
 			local mixin = _G.TooltipLFGApplicantMixin
 			if type(mixin) == "table" and mixin.SetApplicantMember then
 				hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
+                    print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
 					local info = C_LFGList.GetApplicantInfo(applicantID)
 					if not info or info.numMembers < 1 then return end
 		
