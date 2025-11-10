@@ -300,7 +300,7 @@ f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 
-        -- Hook GameTooltip:SetUnit
+        -- Hook GameTooltip:SetUnit for all players (including yourself)
         hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
             local _, unit = tooltip:GetUnit()
             if not unit or not UnitIsPlayer(unit) then return end
@@ -309,8 +309,9 @@ f:SetScript("OnEvent", function(_, event)
             realm = realm or GetRealmName()
             local key = (name .. "-" .. realm):lower()
 
-            if tooltip.__RatedStatsLast == key then
-                return -- already processed for this unit
+            -- For yourself: always allow reinjection (no cache skip)
+            if unit ~= "player" and tooltip.__RatedStatsLast == key then
+                return
             end
             tooltip.__RatedStatsLast = key
 
@@ -319,22 +320,6 @@ f:SetScript("OnEvent", function(_, event)
                     AddAchievementInfoToTooltip(tooltip, name, realm)
                 end
             end)
-        end)
-
-       -- Ensure the player's own unit tooltip always shows achievements
-        hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-           local _, unit = tooltip:GetUnit()
-            if unit == "player" then
-                local name, realm = UnitFullName("player")
-                realm = realm or GetRealmName()
-                -- Always allow reinjection for the player, even if already cached
-                tooltip.__RatedStatsLast = nil
-                C_Timer.After(0.05, function()
-                    if tooltip:IsShown() then
-                        AddAchievementInfoToTooltip(tooltip, name, realm)
-                    end
-                end)
-            end
         end)
 
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
