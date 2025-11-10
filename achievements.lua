@@ -322,6 +322,21 @@ f:SetScript("OnEvent", function(_, event)
             end)
         end)
 
+        -- Fallback: handle when hovering your own player frame (for UIs that don't call SetUnit)
+        local playerFrame = PlayerFrame or ElvUF_Player or SUFUnitplayer
+        if playerFrame and not playerFrame.__RatedStatsHooked then
+            playerFrame.__RatedStatsHooked = true
+            playerFrame:HookScript("OnEnter", function()
+                local name, realm = UnitFullName("player")
+                realm = realm or GetRealmName()
+                C_Timer.After(0.05, function()
+                    if GameTooltip:IsShown() then
+                        AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                    end
+                end)
+            end)
+        end
+
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
 			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
