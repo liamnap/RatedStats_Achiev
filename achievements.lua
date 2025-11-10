@@ -296,6 +296,8 @@ local lastTooltipUnit = nil
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
 f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+f:RegisterEvent("PLAYER_TARGET_CHANGED")
+f:RegisterEvent("PLAYER_FOCUS_CHANGED")
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
@@ -340,8 +342,6 @@ f:SetScript("OnEvent", function(_, event)
 			-- Delay a touch to ensure tooltip lines are added
 			C_Timer.After(0.5, function()
 				if GameTooltip:IsShown() then
-                    -- Force refresh so moving away and back works correctly
-                    GameTooltip.__RatedStatsLast = nil
 					AddAchievementInfoToTooltip(GameTooltip, name, realm)
 				end
 			end)
@@ -484,15 +484,17 @@ f:SetScript("OnEvent", function(_, event)
 
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
-            local name, realm = UnitFullName("mouseover")
-            realm = realm or GetRealmName()
-            C_Timer.After(0.5, function()
-                if GameTooltip:IsShown() then
-                    -- Force refresh on re-hover of same unit
-                    GameTooltip.__RatedStatsLast = nil
-                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
-                end
-            end)
+            GameTooltip:SetUnit("mouseover")
+        end
+
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        if UnitExists("target") and UnitIsPlayer("target") then
+            GameTooltip:SetUnit("target")
+        end
+
+    elseif event == "PLAYER_FOCUS_CHANGED" then
+        if UnitExists("focus") and UnitIsPlayer("focus") then
+            GameTooltip:SetUnit("focus")
         end
     end
 end) -- closes f:SetScript
