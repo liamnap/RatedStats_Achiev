@@ -342,7 +342,7 @@ f:SetScript("OnEvent", function(_, event)
                 local realm = GetNormalizedRealmName() or GetRealmName()
 
                 -- Delay to ensure other tooltip extensions (e.g., RaiderIO) have run
-                C_Timer.After(0.02, function()
+                C_Timer.After(0.05, function()
                     if tooltip and tooltip:IsShown() then
                         -- Ensure correct anchor if needed
                         if not tooltip:GetOwner() then
@@ -385,10 +385,10 @@ f:SetScript("OnEvent", function(_, event)
         -- Keep retrying until the mixin exists
         local function WaitForMixin()
             if not TryHookApplicantTooltip() then
-                C_Timer.After(2, WaitForMixin)
+                C_Timer.After(0.05, WaitForMixin)
             end
         end
-        C_Timer.After(2, WaitForMixin)
+        C_Timer.After(0.05, WaitForMixin)
 
         -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
         local function HookCommunitiesGuildRows()
@@ -416,13 +416,13 @@ f:SetScript("OnEvent", function(_, event)
             end, true)
         end
 
-        C_Timer.After(2, HookCommunitiesGuildRows)
+        C_Timer.After(0.05, HookCommunitiesGuildRows)
 
         -- Hook applicant rows in LFG
         local function HookApplicantFrames()
             local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
             if not scrollBox or not scrollBox.GetFrames then
-                C_Timer.After(1, HookApplicantFrames)
+                C_Timer.After(0.05, HookApplicantFrames)
                 return
             end
 
@@ -455,7 +455,7 @@ f:SetScript("OnEvent", function(_, event)
 
             local frames = scrollBox:GetFrames()
             if not frames or #frames == 0 then
-                C_Timer.After(1, HookApplicantFrames)
+                C_Timer.After(0.05, HookApplicantFrames)
                 return
             end
 
@@ -468,13 +468,13 @@ f:SetScript("OnEvent", function(_, event)
             end
         end
 
-        C_Timer.After(1, HookApplicantFrames)
+        C_Timer.After(0.05, HookApplicantFrames)
 
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
             realm = realm or GetRealmName()
-            C_Timer.After(0.15, function()
+            C_Timer.After(0.05, function()
                 if GameTooltip:IsShown() then
                     AddAchievementInfoToTooltip(GameTooltip, name, realm)
                 end
