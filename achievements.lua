@@ -465,10 +465,19 @@ f:SetScript("OnEvent", function(_, event)
                         if not hooked[member] then
                             hooked[member] = true
                             member:HookScript("OnEnter", function(memberFrame)
-                                local name, realm = strsplit("-", memberFrame.memberName or "")
-                                if name then
+                                local applicantID = memberFrame:GetParent().applicantID
+                                local idx = memberFrame.memberIdx or 1
+                                local fullName = recentApplicants[applicantID .. "-" .. idx]
+
+                                -- Fallback if cache missed
+                                if (not fullName or fullName == "") and applicantID then
+                                    fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, idx))
+                                end
+
+                                if fullName and fullName ~= "" then
+                                    local baseName, realm = strsplit("-", fullName)
                                     realm = realm or GetRealmName()
-                                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                                    AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
                                 end
                             end)
                             member:HookScript("OnLeave", function() GameTooltip:Hide() end)
@@ -476,9 +485,13 @@ f:SetScript("OnEvent", function(_, event)
                     end
                 elseif self.memberIdx then
                     local parent = self:GetParent()
-                    local memberName = select(1, C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx))
-                    if memberName then
-                        local baseName, realm = strsplit("-", memberName)
+                    local idx = self.memberIdx
+                    local fullName = recentApplicants[applicantID .. "-" .. idx]
+                    if (not fullName or fullName == "") and applicantID then
+                        fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, idx))
+                    end
+                    if fullName and fullName ~= "" then
+                        local baseName, realm = strsplit("-", fullName)
                         realm = realm or GetRealmName()
                         AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
                     end
