@@ -386,6 +386,7 @@ f:SetScript("OnEvent", function(_, event)
 		else
 			lastTooltipUnit = nil
 		end
+    end
 
     local function HookApplicantFrames()
         local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
@@ -412,10 +413,11 @@ f:SetScript("OnEvent", function(_, event)
                 end
             elseif self.memberIdx then
                 local parent = self:GetParent()
-                local name, realm = strsplit("-", C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx))
-                if name then
+                local memberName = select(1, C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx))
+                if memberName then
+                    local baseName, realm = strsplit("-", memberName)
                     realm = realm or GetRealmName()
-                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                    AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
                 end
             end
         end
