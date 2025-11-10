@@ -306,6 +306,20 @@ f:SetScript("OnEvent", function(_, event)
             end)
         end)
 
+		-- Hook UnitFrame mouseovers (party/raid frames etc.)
+		hooksecurefunc("UnitFrame_OnEnter", function(self)
+			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+			local name, realm = UnitFullName(self.unit)
+			realm = realm or GetRealmName()
+		
+			-- Delay a touch to ensure tooltip lines are added
+			C_Timer.After(0.05, function()
+				if GameTooltip:IsShown() then
+					AddAchievementInfoToTooltip(GameTooltip, name, realm)
+				end
+			end)
+		end)
+
         -- Hook LFG tooltips
         hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
             local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
