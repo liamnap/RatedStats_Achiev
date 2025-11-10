@@ -57,21 +57,6 @@ local regionData = mergeRegionParts(regionCode)
 -- Cache table to avoid repeat lookups
 local achievementCache = {}
 
-local PvpRankColumns = {
-    { key = "a", label = "Co-I",   prefix = "Combatant I" },
-    { key = "b", label = "Co-II",  prefix = "Combatant II" },
-    { key = "c", label = "Ch-I",   prefix = "Challenger I" },
-    { key = "d", label = "Ch-II",  prefix = "Challenger II" },
-    { key = "e", label = "R-I",    prefix = "Rival I" },
-    { key = "f", label = "R-II",   prefix = "Rival II" },
-    { key = "g", label = "Duel",   prefix = "Duelist" },
-    { key = "h", label = "Elite",  prefix = "Elite" },
-    { key = "i", label = "Glad",   prefix = "Gladiator" },
-    { key = "j", label = "Legend", prefix = "Legend:" },
-    { key = "k", label = "Rank 1",     r1 = true },
-    { key = "l", label = "HotX",   hero = true },
-}
-
 local R1Titles = {
     "Primal Gladiator", "Wild Gladiator", "Warmongering Gladiator",
     "Vindictive Gladiator", "Fearless Gladiator", "Cruel Gladiator",
@@ -90,21 +75,21 @@ local HeroTitles = {
 }
 
 local PvpRankColumns = {
-    { key = "a", prefix = "Combatant I",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
-    { key = "b", prefix = "Combatant II", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
-    { key = "c", prefix = "Challenger I", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
-    { key = "d", prefix = "Challenger II",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
-    { key = "e", prefix = "Rival I",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
-    { key = "f", prefix = "Rival II",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
-    { key = "g", prefix = "Duelist",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
-    { key = "h", prefix = "Gladiator",    icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
-    { key = "i", prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
-    { key = "j", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "k", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l", hero = true, icons = {
+    { key = "a", label = "Co-I",   prefix = "Combatant I",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
+    { key = "b", label = "Co-II",  prefix = "Combatant II", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
+    { key = "c", label = "Ch-I",   prefix = "Challenger I", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
+    { key = "d", label = "Ch-II",  prefix = "Challenger II",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
+    { key = "e", label = "R-I",    prefix = "Rival I",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
+    { key = "f", label = "R-II",   prefix = "Rival II",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
+    { key = "g", label = "Duel",   prefix = "Duelist",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
+    { key = "h", label = "Elite",  prefix = "Gladiator",    icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
+    { key = "i", label = "Glad",   prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
+    { key = "j", label = "Legend", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "k", label = "Rank 1", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "l", label = "HotX",   hero = true,             icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
-    } },
+    }},
 }
 
 -- Center text in fixed-width column
