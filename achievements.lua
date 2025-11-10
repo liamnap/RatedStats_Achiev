@@ -300,6 +300,20 @@ f:SetScript("OnEvent", function(_, event)
 			end
 		end)
 
+        -- Hook LFG applicant tooltip popout like Raider.IO
+        hooksecurefunc(TooltipLFGApplicantMixin, "SetLFGApplicantMember", function(self, applicantID, memberIdx)
+            local info = C_LFGList.GetApplicantInfo(applicantID)
+            if not info or info.numMembers < 1 then return end
+
+            local member = C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
+            if not member or not member.name then return end
+
+            local name, realm = strsplit("-", member.name)
+            realm = realm or GetRealmName()
+
+            AddAchievementInfoToTooltip(self, name, realm)
+        end)
+
         -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
         local function HookCommunitiesGuildRows()
             local container = CommunitiesFrame and CommunitiesFrame.MemberList and CommunitiesFrame.MemberList.ScrollBox
