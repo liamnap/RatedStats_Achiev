@@ -315,11 +315,9 @@ f:SetScript("OnEvent", function(_, event)
 			end
 			tooltip.__RatedStatsLast = key
 		
-			C_Timer.After(0.05, function()
-				if tooltip:IsShown() and UnitIsPlayer(unit) then
-					AddAchievementInfoToTooltip(tooltip, name, realm)
-				end
-			end)
+			if tooltip:IsShown() and UnitIsPlayer(unit) then
+				AddAchievementInfoToTooltip(tooltip, name, realm)
+			end
 		end)
 
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
