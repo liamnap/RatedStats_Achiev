@@ -172,10 +172,6 @@ end
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     -- look up our per-char database and bail out if Achiev is off
     local key = UnitName("player") .. "-" .. GetRealmName()
-        -- Skip invalid names that come from bad override usage
-        if overrideName == "player" or overrideName == "mouseover" then
-            return
-        end
     local db  = RSTATS.Database[key]
 	local module = "RatedStats_Achiev"
     if C_AddOns.GetAddOnEnableState(module, nil) == 0 then
@@ -184,14 +180,19 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
   
     local baseName, realm
 
-    if overrideName then
+    -- Use override only if tooltip:GetUnit() is not supported or not a unit tooltip
+    local unit
+    if tooltip.GetUnit then
+        _, unit = tooltip:GetUnit()
+    end
+
+    if unit and UnitIsPlayer(unit) then
+        baseName, realm = UnitFullName(unit)
+    elseif overrideName then
         baseName = overrideName
         realm = overrideRealm or GetRealmName()
     else
-        local _, unit = tooltip:GetUnit()
-        if not unit or not UnitIsPlayer(unit) then return end
-        baseName, realm = UnitFullName(unit)
-        if not baseName then return end
+        return -- No usable name/realm source
     end
 
     realm = realm or GetRealmName()
