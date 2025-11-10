@@ -272,9 +272,6 @@ f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
-        if GameTooltip:HasScript("OnTooltipSetUnit") then
-            GameTooltip:HookScript("OnTooltipSetUnit", AddAchievementInfoToTooltip)
-        end
         hooksecurefunc(GameTooltip, "SetUnit", AddAchievementInfoToTooltip)
 
         -- Hook LFG tooltips
