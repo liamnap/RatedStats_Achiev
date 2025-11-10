@@ -276,24 +276,24 @@ f:SetScript("OnEvent", function(_, event)
         hooksecurefunc(GameTooltip, "SetUnit", AddAchievementInfoToTooltip)
 
         -- Hook LFG tooltips
-        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
-            local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
-            if leaderName then
-                local realm = GetNormalizedRealmName() or GetRealmName()
-
-                -- Let Blizzard populate the tooltip first
-                C_Timer.After(2, function()
-                    -- Only modify if tooltip is still visible
-                    if tooltip:IsShown() then
-                        AddAchievementInfoToTooltip({
-                            GetUnit = function() return nil, nil end,
-                            AddLine = function(_, ...) tooltip:AddLine(...) end,
-                            Show = function(_) tooltip:Show() end,
-                        }, leaderName, realm)
-                    end
-                end)
-            end
-        end)
+		hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
+			local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+			if leaderName then
+				local realm = GetNormalizedRealmName() or GetRealmName()
+		
+				-- Delay to ensure other tooltip extensions (e.g., RaiderIO) have run
+				C_Timer.After(0.02, function()
+					if tooltip and tooltip:IsShown() then
+						-- Ensure correct anchor if needed
+						if not tooltip:GetOwner() then
+							tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
+						end
+						-- Append your achievement info
+						AddAchievementInfoToTooltip(tooltip, leaderName, realm)
+					end
+				end)
+			end
+		end)
 
         -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
         local function HookCommunitiesGuildRows()
