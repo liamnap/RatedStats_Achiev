@@ -482,18 +482,24 @@ f:SetScript("OnEvent", function(_, event)
 
         C_Timer.After(0.5, HookApplicantFrames)
 
-        -- Fix: ensure entire TargetFrame (not just health bar) responds to hover
-        if TargetFrame and not TargetFrame.__ratedStatsHoverFixed then
-            TargetFrame.__ratedStatsHoverFixed = true
-            TargetFrame:EnableMouse(true)
-            TargetFrame:HookScript("OnEnter", function(self)
+        -- Fix: ensure the full visible target frame (not just health bar) is hoverable
+        local fullTargetArea = TargetFrame
+            and TargetFrame.TargetFrameContent
+            and TargetFrame.TargetFrameContent.TargetFrameContentMain
+
+        if fullTargetArea and not fullTargetArea.__ratedStatsHoverFixed then
+            fullTargetArea.__ratedStatsHoverFixed = true
+            fullTargetArea:EnableMouse(true)
+
+            fullTargetArea:HookScript("OnEnter", function(self)
                 if self.unit and UnitIsPlayer(self.unit) then
                     local name, realm = UnitFullName(self.unit)
                     realm = realm or GetRealmName()
                     AddAchievementInfoToTooltip(GameTooltip, name, realm)
                 end
             end)
-            TargetFrame:HookScript("OnLeave", function()
+
+            fullTargetArea:HookScript("OnLeave", function()
                 GameTooltip:Hide()
             end)
         end
