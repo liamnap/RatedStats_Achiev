@@ -321,47 +321,48 @@ f:SetScript("OnEvent", function(_, event)
         end, true)
     end
 
-       C_Timer.After(2, HookCommunitiesGuildRows)
+    C_Timer.After(2, HookCommunitiesGuildRows)
 
-       -- Hook LFG Application Viewer rows (applicants to your listing)
-       local function HookLFGApplicantRows()
-           local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
-           if not scrollBox then return end
-
-           local function HookRow(frame)
-               if frame.__ratedStatsHooked then return end
-               frame.__ratedStatsHooked = true
-
-               frame:HookScript("OnEnter", function(self)
-                   local applicantID = self.applicantID
-                   if not applicantID then return end
-
-                   local applicantInfo = C_LFGList.GetApplicantInfo(applicantID)
-                   if not applicantInfo then return end
-
-                   local numMembers = applicantInfo.numMembers or 0
-                   for i = 1, numMembers do
-                       local memberInfo = C_LFGList.GetApplicantMemberInfo(applicantID, i)
-                       local name = memberInfo and memberInfo.name
-                       if name then
-                           local baseName, realm = strsplit("-", name)
-                           realm = realm or GetRealmName()
-                           AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
-                           break -- only show tooltip for first member
-                       end
-                   end
-               end)
-           end
-
-           scrollBox:RegisterCallback("OnAcquiredFrame", function(_, frame)
-               if type(frame) == "table" and frame.GetObjectType then
-                   HookRow(frame)
-               end
-           end, true)
-       end
-
-       C_Timer.After(2, HookLFGApplicantRows)
-
+	-- Hook applicants (members joining your own group)
+	local function HookLFGApplicantRows()
+		local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
+		if not scrollBox then return end
+	
+		scrollBox:Update() -- force rows to populate
+	
+		local function HookRow(frame)
+			if frame.__ratedStatsHooked then return end
+			frame.__ratedStatsHooked = true
+	
+			frame:HookScript("OnEnter", function(self)
+				local applicantID = self.applicantID
+				if not applicantID then return end
+	
+				local info = C_LFGList.GetApplicantInfo(applicantID)
+				if not info or not info.numMembers then return end
+	
+				for i = 1, info.numMembers do
+					local member = C_LFGList.GetApplicantMemberInfo(applicantID, i)
+					if member and member.name then
+						local name, realm = strsplit("-", member.name)
+						realm = realm or GetRealmName()
+	
+						GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+						AddAchievementInfoToTooltip(GameTooltip, name, realm)
+						break -- one member only
+					end
+				end
+			end)
+		end
+	
+		scrollBox:RegisterCallback("OnAcquiredFrame", function(_, frame)
+			if frame and frame:GetObjectType() == "Button" and frame.applicantID then
+				HookRow(frame)
+			end
+		end, true)
+	end
+	
+	C_Timer.After(2, HookLFGApplicantRows)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
