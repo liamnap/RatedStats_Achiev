@@ -382,7 +382,7 @@ f2:SetScript("OnEvent", function(_, event)
                 HookRow(frame)
             end
         end, true)
-    end
+        end
 
     C_Timer.After(2, HookCommunitiesGuildRows)
 
