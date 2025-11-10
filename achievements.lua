@@ -372,60 +372,39 @@ f:SetScript("OnEvent", function(_, event)
 		local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
 		if not scrollBox then return end
 	
-		ScrollBoxUtil:OnViewFramesChanged(scrollBox, function(frames)
-			for _, frame in ipairs(frames) do
-				if not frame.__ratedStatsInfoAdded then
-					frame.__ratedStatsInfoAdded = true
-	
-					local label = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-					label:SetPoint("TOPLEFT", frame.Name, "BOTTOMLEFT", 0, -2)
-					label:SetTextColor(1, 0.85, 0) -- goldish color
-					label:SetText("") -- empty by default
-					frame.__ratedStatsLabel = label
-	
-					frame:HookScript("OnEnter", function(self)
-						local applicantID = self.applicantID
-						if not applicantID then return end
-	
-						local info = C_LFGList.GetApplicantInfo(applicantID)
-						if not info or info.numMembers < 1 then return end
-	
-						local member = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
-						if not member or not member.name then return end
-	
-						local name, realm = strsplit("-", member.name)
-						realm = realm or GetRealmName()
-						local fullName = (name .. "-" .. realm):lower()
-	
-						local result = achievementCache[fullName]
-						if not result then
-							for _, entry in ipairs(regionData) do
-								if entry.character and entry.character:lower() == fullName then
-									achievementCache[fullName] = GetPvpAchievementSummary(entry)
-									result = achievementCache[fullName]
-									break
-								end
-							end
-						end
-	
-						local highest = result and result.highest or nil
-						local label = self.__ratedStatsLabel
-						if highest then
-							label:SetText("Rated Stats: |cff00ff00" .. highest .. "|r")
-							label:Show()
-						else
-							label:SetText("Rated Stats: |cffff0000None|r")
-							label:Show()
-						end
-					end)
-	
-					frame:HookScript("OnLeave", function(self)
-						if self.__ratedStatsLabel then
-							self.__ratedStatsLabel:Hide()
-						end
-					end)
-				end
-			end
-		end)
-	end)
+        local hooked = {}
+
+        local function OnEnter(self)
+            if self.applicantID and self.Members then
+                for _, member in pairs(self.Members) do
+                    if not hooked[member] then
+                        hooked[member] = true
+                        member:HookScript("OnEnter", function(memberFrame)
+                            local name, realm = strsplit("-", memberFrame.memberName or "")
+                            if name then
+                                realm = realm or GetRealmName()
+                                AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                            end
+                        end)
+                        member:HookScript("OnLeave", function() GameTooltip:Hide() end)
+                    end
+                end
+            elseif self.memberIdx then
+                local parent = self:GetParent()
+                local name, realm = strsplit("-", C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx))
+                if name then
+                    realm = realm or GetRealmName()
+                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                end
+            end
+        end
+
+        for _, frame in ipairs(scrollBox:GetFrames() or {}) do
+            if not hooked[frame] then
+                hooked[frame] = true
+                frame:HookScript("OnEnter", OnEnter)
+                frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
+            end
+        end
+    end)
 end)
