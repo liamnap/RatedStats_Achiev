@@ -482,6 +482,22 @@ f:SetScript("OnEvent", function(_, event)
 
         C_Timer.After(0.5, HookApplicantFrames)
 
+        -- Fix: ensure entire TargetFrame (not just health bar) responds to hover
+        if TargetFrame and not TargetFrame.__ratedStatsHoverFixed then
+            TargetFrame.__ratedStatsHoverFixed = true
+            TargetFrame:EnableMouse(true)
+            TargetFrame:HookScript("OnEnter", function(self)
+                if self.unit and UnitIsPlayer(self.unit) then
+                    local name, realm = UnitFullName(self.unit)
+                    realm = realm or GetRealmName()
+                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                end
+            end)
+            TargetFrame:HookScript("OnLeave", function()
+                GameTooltip:Hide()
+            end)
+        end
+
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             GameTooltip:SetUnit("mouseover")
