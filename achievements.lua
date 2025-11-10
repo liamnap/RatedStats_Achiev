@@ -324,4 +324,5 @@ f:SetScript("OnEvent", function(_, event)
                 GameTooltip:Show()
             end
         end
+    end
 end)
