@@ -340,6 +340,8 @@ f:SetScript("OnEvent", function(_, event)
 			-- Delay a touch to ensure tooltip lines are added
 			C_Timer.After(0.5, function()
 				if GameTooltip:IsShown() then
+                    -- Force refresh so moving away and back works correctly
+                    GameTooltip.__RatedStatsLast = nil
 					AddAchievementInfoToTooltip(GameTooltip, name, realm)
 				end
 			end)
@@ -486,6 +488,8 @@ f:SetScript("OnEvent", function(_, event)
             realm = realm or GetRealmName()
             C_Timer.After(0.5, function()
                 if GameTooltip:IsShown() then
+                    -- Force refresh on re-hover of same unit
+                    GameTooltip.__RatedStatsLast = nil
                     AddAchievementInfoToTooltip(GameTooltip, name, realm)
                 end
             end)
