@@ -317,11 +317,10 @@ f:SetScript("OnEvent", function(_, event)
     end
 
         C_Timer.After(2, HookCommunitiesGuildRows)
-
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
-            if name then
+            if name and realm then
                 AddAchievementInfoToTooltip(GameTooltip, name, realm)
             end
         end
