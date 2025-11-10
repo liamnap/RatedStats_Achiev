@@ -300,9 +300,10 @@ f:SetScript("OnEvent", function(_, event)
 			end
 		end)
 
-		C_Timer.After(2, function()
-			if TooltipLFGApplicantMixin then
-				hooksecurefunc(TooltipLFGApplicantMixin, "SetApplicantMember", function(self, applicantID, memberIdx)
+		local function TryHookApplicantTooltip()
+			local mixin = _G.TooltipLFGApplicantMixin
+			if type(mixin) == "table" and mixin.SetApplicantMember then
+				hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
 					local info = C_LFGList.GetApplicantInfo(applicantID)
 					if not info or info.numMembers < 1 then return end
 		
@@ -314,11 +315,25 @@ f:SetScript("OnEvent", function(_, event)
 		
 					AddAchievementInfoToTooltip(self, name, realm)
 				end)
-				print("RatedStats: TooltipLFGApplicantMixin hooked successfully")
-			else
-				print("RatedStats: TooltipLFGApplicantMixin not found!")
+				print("RatedStats: TooltipLFGApplicantMixin hook attached.")
+				return true
 			end
-		end)
+			return false
+		end
+		
+		-- keep retrying until the mixin exists
+		local retryCount = 0
+		local function WaitForMixin()
+			if not TryHookApplicantTooltip() then
+				retryCount = retryCount + 1
+				if retryCount < 10 then
+					C_Timer.After(1, WaitForMixin)
+				else
+					print("RatedStats: TooltipLFGApplicantMixin not found after 10 attempts.")
+				end
+			end
+		end
+		C_Timer.After(1, WaitForMixin)
 
         -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
         local function HookCommunitiesGuildRows()
