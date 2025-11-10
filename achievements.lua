@@ -204,6 +204,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
             end
         end
         if not found then
+            print("Not found in data:", fullName)
             achievementCache[fullName] = { summary = {}, highest = nil }
         end
     end
