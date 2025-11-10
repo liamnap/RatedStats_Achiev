@@ -281,6 +281,7 @@ local lastTooltipUnit = nil
 -- Defer hook until player is fully in the game
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
+f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
@@ -454,5 +455,16 @@ f:SetScript("OnEvent", function(_, event)
         end
 
         C_Timer.After(1, HookApplicantFrames)
-    end -- closes if PLAYER_LOGIN
+
+    elseif event == "UPDATE_MOUSEOVER_UNIT" then
+        if UnitIsPlayer("mouseover") then
+            local name, realm = UnitFullName("mouseover")
+            realm = realm or GetRealmName()
+            C_Timer.After(0.05, function()
+                if GameTooltip:IsShown() then
+                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                end
+            end)
+        end
+    end
 end) -- closes f:SetScript
