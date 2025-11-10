@@ -266,6 +266,25 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     tooltip:Show()
 end
 
+-- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
+local ScrollBoxUtil = {}
+
+function ScrollBoxUtil:OnViewFramesChanged(scrollBox, callback)
+    if not scrollBox then return end
+    if scrollBox.GetFrames then
+        local frames = scrollBox:GetFrames()
+        if frames then
+            callback(frames, scrollBox)
+        end
+        scrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnUpdate, function()
+            local updated = scrollBox:GetFrames()
+            if updated then
+                callback(updated, scrollBox)
+            end
+        end)
+    end
+end
+
 -- Defer hook until player is fully in the game
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -323,25 +342,6 @@ f:SetScript("OnEvent", function(_, event)
 
     C_Timer.After(2, HookCommunitiesGuildRows)
 
-	-- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
-	local ScrollBoxUtil = {}
-	
-	function ScrollBoxUtil:OnViewFramesChanged(scrollBox, callback)
-		if not scrollBox then return end
-		if scrollBox.GetFrames then
-			local frames = scrollBox:GetFrames()
-			if frames then
-				callback(frames, scrollBox)
-			end
-			scrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnUpdate, function()
-				local updated = scrollBox:GetFrames()
-				if updated then
-					callback(updated, scrollBox)
-				end
-			end)
-		end
-	end
-	
 	-- Hook into LFG applicant rows using ScrollBoxUtil
 	C_Timer.After(2, function()
 		local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
