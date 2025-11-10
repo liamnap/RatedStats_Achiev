@@ -263,6 +263,7 @@ end
 -- Defer hook until player is fully in the game
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
+f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
@@ -314,5 +315,10 @@ f:SetScript("OnEvent", function(_, event)
     end
 
         C_Timer.After(2, HookCommunitiesGuildRows)
+
+    elseif event == "UPDATE_MOUSEOVER_UNIT" then
+        if UnitIsPlayer("mouseover") then
+            GameTooltip:SetUnit("mouseover")
+        end
     end
 end)
