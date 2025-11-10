@@ -282,7 +282,7 @@ f:SetScript("OnEvent", function(_, event)
                 local realm = GetNormalizedRealmName() or GetRealmName()
 
                 -- Let Blizzard populate the tooltip first
-                C_Timer.After(0, function()
+                C_Timer.After(2, function()
                     -- Only modify if tooltip is still visible
                     if tooltip:IsShown() then
                         AddAchievementInfoToTooltip({
