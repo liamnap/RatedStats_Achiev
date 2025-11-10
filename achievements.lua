@@ -155,11 +155,25 @@ local function centerIcon(iconTag, width)
 end
 
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
-    if tooltip.__RatedStatsDone then return end
-    tooltip.__RatedStatsDone = true
+    local _, unit = tooltip:GetUnit()
+    local name, realm
+
+    if unit and UnitIsPlayer(unit) then
+        name, realm = UnitFullName(unit)
+    else
+        name, realm = overrideName, overrideRealm
+    end
+
+    if not name then return end
+    realm = realm or GetRealmName()
+    local key = (name .. "-" .. realm):lower()
+
+    -- Avoid adding twice for same target, but allow refreshes
+    if tooltip.__RatedStatsLast == key then return end
+    tooltip.__RatedStatsLast = key
 
     tooltip:HookScript("OnHide", function(tip)
-        tip.__RatedStatsDone = nil
+        tip.__RatedStatsLast = nil
     end)
     -- look up our per-char database and bail out if Achiev is off
     local key = UnitName("player") .. "-" .. GetRealmName()
@@ -255,7 +269,6 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 	end
 
     tooltip:Show()
-    tooltip:FadeOut(0) -- reassert tooltip visibility immediately
 end
 
 -- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
@@ -461,7 +474,7 @@ f:SetScript("OnEvent", function(_, event)
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
             realm = realm or GetRealmName()
-            C_Timer.After(2, function()
+            C_Timer.After(0.15, function()
                 if GameTooltip:IsShown() then
                     AddAchievementInfoToTooltip(GameTooltip, name, realm)
                 end
