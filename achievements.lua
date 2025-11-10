@@ -307,6 +307,7 @@ f:SetScript("OnEvent", function(_, event)
 						if not tooltip:GetOwner() then
 							tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
 						end
+                        tooltip:ClearLines()
 						-- Append your achievement info
 						AddAchievementInfoToTooltip(tooltip, leaderName, realm)
 					end
@@ -353,23 +354,26 @@ f:SetScript("OnEvent", function(_, event)
 					frame.__ratedStatsHooked = true
 	
 					frame:HookScript("OnEnter", function(self)
-						local applicantID = self.applicantID
-						if not applicantID then return end
-	
-						local info = C_LFGList.GetApplicantInfo(applicantID)
-						if not info or info.numMembers < 1 then return end
-	
-						local member = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
-						if not member or not member.name then return end
-	
-						local name, realm = strsplit("-", member.name)
-						realm = realm or GetRealmName()
-						local fullName = (name .. "-" .. realm):lower()
-	
-						print("RatedStats: Hovered applicant:", fullName)
-	
-						GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-						AddAchievementInfoToTooltip(GameTooltip, name, realm)
+						C_Timer.After(0.05, function()
+							local applicantID = self.applicantID
+							if not applicantID then return end
+					
+							local info = C_LFGList.GetApplicantInfo(applicantID)
+							if not info or info.numMembers < 1 then return end
+					
+							local member = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
+							if not member or not member.name then return end
+					
+							local name, realm = strsplit("-", member.name)
+							realm = realm or GetRealmName()
+							local fullName = (name .. "-" .. realm):lower()
+					
+							print("RatedStats: Hovered applicant:", fullName)
+					
+							if GameTooltip:IsShown() then
+								AddAchievementInfoToTooltip(GameTooltip, name, realm)
+							end
+						end)
 					end)
 				end
 			end
