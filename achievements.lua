@@ -307,13 +307,6 @@ f:SetScript("OnEvent", function(_, event)
 		
 			local name, realm = UnitFullName(unit)
 			realm = realm or GetRealmName()
-			local key = (name .. "-" .. realm):lower()
-		
-			-- Avoid reprocessing same tooltip for same target (except player)
-			if tooltip.__RatedStatsLast == key and unit ~= "player" then
-				return
-			end
-			tooltip.__RatedStatsLast = key
 		
 			-- Target/focus sometimes need a slight delay for text lines to exist
 			local delay = (unit == "target" or unit == "focus") and 0.15 or 0.05
