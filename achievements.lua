@@ -368,12 +368,14 @@ f:SetScript("OnEvent", function(_, event)
         end
     end
 
-	C_Timer.After(2, function()
-		local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
-		if not scrollBox then return end
-	
-        local hooked = {}
+    local function HookApplicantFrames()
+        local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
+        if not scrollBox or not scrollBox.GetFrames then
+            C_Timer.After(1, HookApplicantFrames)
+            return
+        end
 
+        local hooked = {}
         local function OnEnter(self)
             if self.applicantID and self.Members then
                 for _, member in pairs(self.Members) do
@@ -399,12 +401,20 @@ f:SetScript("OnEvent", function(_, event)
             end
         end
 
-        for _, frame in ipairs(scrollBox:GetFrames() or {}) do
+        local frames = scrollBox:GetFrames()
+        if not frames or #frames == 0 then
+            C_Timer.After(1, HookApplicantFrames)
+            return
+        end
+
+        for _, frame in ipairs(frames) do
             if not hooked[frame] then
                 hooked[frame] = true
                 frame:HookScript("OnEnter", OnEnter)
                 frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
             end
         end
-    end)
+    end
+
+    C_Timer.After(1, HookApplicantFrames)
 end)
