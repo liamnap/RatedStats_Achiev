@@ -329,11 +329,9 @@ f:SetScript("OnEvent", function(_, event)
                 realm = realm or GetRealmName()
                 -- Always allow reinjection for the player, even if already cached
                 tooltip.__RatedStatsLast = nil
-                C_Timer.After(1, function()
-                    if tooltip:IsShown() then
-                        AddAchievementInfoToTooltip(tooltip, name, realm)
-                    end
-                end)
+                if tooltip:IsShown() then
+                    AddAchievementInfoToTooltip(tooltip, name, realm)
+                end
             end
        end)
 
