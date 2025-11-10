@@ -300,40 +300,27 @@ f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 
-        -- Hook GameTooltip:SetUnit
-        hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-            local _, unit = tooltip:GetUnit()
-            if not unit or not UnitIsPlayer(unit) then return end
-
-            local name, realm = UnitFullName(unit)
-            realm = realm or GetRealmName()
-            local key = (name .. "-" .. realm):lower()
-
-            if tooltip.__RatedStatsLast == key then
-                return -- already processed for this unit
-            end
-            tooltip.__RatedStatsLast = key
-
-            C_Timer.After(0.05, function()
-                if tooltip:IsShown() and UnitIsPlayer(unit) then
-                    AddAchievementInfoToTooltip(tooltip, name, realm)
-                end
-            end)
-        end)
-
-       -- Ensure the player's own unit tooltip always shows achievements
-        hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-           local _, unit = tooltip:GetUnit()
-            if unit == "player" then
-                local name, realm = UnitFullName("player")
-                realm = realm or GetRealmName()
-                -- Always allow reinjection for the player, even if already cached
-                tooltip.__RatedStatsLast = nil
-                if tooltip:IsShown() then
-                    AddAchievementInfoToTooltip(tooltip, name, realm)
-                end
-            end
-       end)
+		-- Unified SetUnit hook for all units (player, target, focus, etc.)
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if not unit or not UnitIsPlayer(unit) then return end
+		
+			local name, realm = UnitFullName(unit)
+			realm = realm or GetRealmName()
+			local key = (name .. "-" .. realm):lower()
+		
+			-- Always allow reinjection for yourself, target, and focus
+			if (unit ~= "player" and unit ~= "target" and unit ~= "focus") and tooltip.__RatedStatsLast == key then
+				return
+			end
+			tooltip.__RatedStatsLast = key
+		
+			C_Timer.After(0.05, function()
+				if tooltip:IsShown() and UnitIsPlayer(unit) then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end)
+		end)
 
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
