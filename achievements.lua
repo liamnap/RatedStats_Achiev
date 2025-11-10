@@ -346,6 +346,9 @@ f:SetScript("OnEvent", function(_, event)
 					if member and member.name then
 						local name, realm = strsplit("-", member.name)
 						realm = realm or GetRealmName()
+
+                        local full = (name .. "-" .. realm):lower()
+                        print("RatedStats: Hovered applicant:", full)
 	
 						GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 						AddAchievementInfoToTooltip(GameTooltip, name, realm)
