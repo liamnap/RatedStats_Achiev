@@ -284,79 +284,82 @@ f:RegisterEvent("PLAYER_LOGIN")
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
-		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-			local _, unit = tooltip:GetUnit()
-			if not unit or not UnitIsPlayer(unit) then return end
-		
-			local name, realm = UnitFullName(unit)
-			realm = realm or GetRealmName()
-			local key = (name .. "-" .. realm):lower()
-		
-			if tooltip.__RatedStatsLast == key then
-				return -- already processed for this unit
-			end
-			tooltip.__RatedStatsLast = key
-		
-			C_Timer.After(0.05, function()
-				if tooltip:IsShown() and UnitIsPlayer(unit) then
-					AddAchievementInfoToTooltip(tooltip, name, realm)
-				end
-			end)
-		end)
+
+        -- Hook GameTooltip:SetUnit
+        hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+            local _, unit = tooltip:GetUnit()
+            if not unit or not UnitIsPlayer(unit) then return end
+
+            local name, realm = UnitFullName(unit)
+            realm = realm or GetRealmName()
+            local key = (name .. "-" .. realm):lower()
+
+            if tooltip.__RatedStatsLast == key then
+                return -- already processed for this unit
+            end
+            tooltip.__RatedStatsLast = key
+
+            C_Timer.After(0.05, function()
+                if tooltip:IsShown() and UnitIsPlayer(unit) then
+                    AddAchievementInfoToTooltip(tooltip, name, realm)
+                end
+            end)
+        end)
 
         -- Hook LFG tooltips
-		hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
-			local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
-			if leaderName then
-				local realm = GetNormalizedRealmName() or GetRealmName()
-		
-				-- Delay to ensure other tooltip extensions (e.g., RaiderIO) have run
-				C_Timer.After(0.02, function()
-					if tooltip and tooltip:IsShown() then
-						-- Ensure correct anchor if needed
-						if not tooltip:GetOwner() then
-							tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
-						end
-                        tooltip:ClearLines()
-						-- Append your achievement info
-						AddAchievementInfoToTooltip(tooltip, leaderName, realm)
-					end
-				end)
-			end
-		end)
+        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
+            local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+            if leaderName then
+                local realm = GetNormalizedRealmName() or GetRealmName()
 
-		local function TryHookApplicantTooltip()
-			local mixin = _G.TooltipLFGApplicantMixin
-			if type(mixin) == "table" and mixin.SetApplicantMember then
-				hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
-					C_Timer.After(0.05, function()
-						print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
-						local name, class, localizedClass, level, itemLevel, tank, healer, damage, assignedRole, relationship =
-							C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
-						if not name then
-							print("RatedStats: Missing applicant member info for index", memberIdx)
-							return
-						end
-						local baseName, realm = strsplit("-", name)
-						realm = realm or GetRealmName()
-						print(string.format("RatedStats: Applicant %s-%s (appID=%d idx=%d)", baseName or "?", realm or "?", applicantID, memberIdx))
-						AddAchievementInfoToTooltip(self, baseName, realm)
-					end)
-				end) -- closes hooksecurefunc
-				print("RatedStats: TooltipLFGApplicantMixin hook attached.")
-				return true
-			end
-			return false
-		end
-		
-		-- keep retrying until the mixin exists
-		local retryCount = 0
-		local function WaitForMixin()
-			if not TryHookApplicantTooltip() then
-				C_Timer.After(2, WaitForMixin)
-			end
-		end
-		C_Timer.After(2, WaitForMixin)
+                -- Delay to ensure other tooltip extensions (e.g., RaiderIO) have run
+                C_Timer.After(0.02, function()
+                    if tooltip and tooltip:IsShown() then
+                        -- Ensure correct anchor if needed
+                        if not tooltip:GetOwner() then
+                            tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
+                        end
+                        tooltip:ClearLines()
+                        -- Append your achievement info
+                        AddAchievementInfoToTooltip(tooltip, leaderName, realm)
+                    end
+                end)
+            end
+        end)
+
+        -- Hook applicant tooltip popout (like Raider.IO)
+        local function TryHookApplicantTooltip()
+            local mixin = _G.TooltipLFGApplicantMixin
+            if type(mixin) == "table" and mixin.SetApplicantMember then
+                hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
+                    C_Timer.After(0.05, function()
+                        print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
+                        local name, class, localizedClass, level, itemLevel, tank, healer, damage, assignedRole, relationship =
+                            C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
+                        if not name then
+                            print("RatedStats: Missing applicant member info for index", memberIdx)
+                            return
+                        end
+
+                        local baseName, realm = strsplit("-", name)
+                        realm = realm or GetRealmName()
+                        print(string.format("RatedStats: Applicant %s-%s (appID=%d idx=%d)", baseName or "?", realm or "?", applicantID, memberIdx))
+                        AddAchievementInfoToTooltip(self, baseName, realm)
+                    end)
+                end)
+                print("RatedStats: TooltipLFGApplicantMixin hook attached.")
+                return true
+            end
+            return false
+        end
+
+        -- Keep retrying until the mixin exists
+        local function WaitForMixin()
+            if not TryHookApplicantTooltip() then
+                C_Timer.After(2, WaitForMixin)
+            end
+        end
+        C_Timer.After(2, WaitForMixin)
 
         -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
         local function HookCommunitiesGuildRows()
@@ -377,64 +380,65 @@ f:SetScript("OnEvent", function(_, event)
                 end)
             end
 
-        container:RegisterCallback("OnAcquiredFrame", function(_, frame)
-            if type(frame) == "table" and frame.GetObjectType then
-                HookRow(frame)
+            container:RegisterCallback("OnAcquiredFrame", function(_, frame)
+                if type(frame) == "table" and frame.GetObjectType then
+                    HookRow(frame)
+                end
+            end, true)
+        end
+
+        C_Timer.After(2, HookCommunitiesGuildRows)
+
+        -- Hook applicant rows in LFG
+        local function HookApplicantFrames()
+            local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
+            if not scrollBox or not scrollBox.GetFrames then
+                C_Timer.After(1, HookApplicantFrames)
+                return
             end
-        end, true)
-        end
 
-    C_Timer.After(2, HookCommunitiesGuildRows)
-
-    local function HookApplicantFrames()
-        local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
-        if not scrollBox or not scrollBox.GetFrames then
-            C_Timer.After(1, HookApplicantFrames)
-            return
-        end
-
-        local hooked = {}
-        local function OnEnter(self)
-            if self.applicantID and self.Members then
-                for _, member in pairs(self.Members) do
-                    if not hooked[member] then
-                        hooked[member] = true
-                        member:HookScript("OnEnter", function(memberFrame)
-                            local name, realm = strsplit("-", memberFrame.memberName or "")
-                            if name then
-                                realm = realm or GetRealmName()
-                                AddAchievementInfoToTooltip(GameTooltip, name, realm)
-                            end
-                        end)
-                        member:HookScript("OnLeave", function() GameTooltip:Hide() end)
+            local hooked = {}
+            local function OnEnter(self)
+                if self.applicantID and self.Members then
+                    for _, member in pairs(self.Members) do
+                        if not hooked[member] then
+                            hooked[member] = true
+                            member:HookScript("OnEnter", function(memberFrame)
+                                local name, realm = strsplit("-", memberFrame.memberName or "")
+                                if name then
+                                    realm = realm or GetRealmName()
+                                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                                end
+                            end)
+                            member:HookScript("OnLeave", function() GameTooltip:Hide() end)
+                        end
+                    end
+                elseif self.memberIdx then
+                    local parent = self:GetParent()
+                    local memberName = select(1, C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx))
+                    if memberName then
+                        local baseName, realm = strsplit("-", memberName)
+                        realm = realm or GetRealmName()
+                        AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
                     end
                 end
-            elseif self.memberIdx then
-                local parent = self:GetParent()
-                local memberName = select(1, C_LFGList.GetApplicantMemberInfo(parent.applicantID, self.memberIdx))
-                if memberName then
-                    local baseName, realm = strsplit("-", memberName)
-                    realm = realm or GetRealmName()
-                    AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
+            end
+
+            local frames = scrollBox:GetFrames()
+            if not frames or #frames == 0 then
+                C_Timer.After(1, HookApplicantFrames)
+                return
+            end
+
+            for _, frame in ipairs(frames) do
+                if not hooked[frame] then
+                    hooked[frame] = true
+                    frame:HookScript("OnEnter", OnEnter)
+                    frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
                 end
             end
         end
 
-        local frames = scrollBox:GetFrames()
-        if not frames or #frames == 0 then
-            C_Timer.After(1, HookApplicantFrames)
-            return
-        end
-
-        for _, frame in ipairs(frames) do
-            if not hooked[frame] then
-                hooked[frame] = true
-                frame:HookScript("OnEnter", OnEnter)
-                frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
-            end
-        end
-    end
-
-    C_Timer.After(1, HookApplicantFrames)
-end
-end)
+        C_Timer.After(1, HookApplicantFrames)
+    end -- closes if PLAYER_LOGIN
+end) -- closes f:SetScript
