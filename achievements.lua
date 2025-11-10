@@ -279,10 +279,10 @@ end
 local lastTooltipUnit = nil
 
 -- Defer hook until player is fully in the game
-local f = CreateFrame("Frame")
-f:RegisterEvent("PLAYER_LOGIN")
+local f2 = CreateFrame("Frame")
+f2:RegisterEvent("PLAYER_LOGIN")
 
-f:SetScript("OnEvent", function(_, event)
+f2:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
 			local _, unit = tooltip:GetUnit()
