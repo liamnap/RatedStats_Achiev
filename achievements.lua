@@ -320,7 +320,8 @@ f:SetScript("OnEvent", function(_, event)
 					local name, realm = strsplit("-", member.name)
 					realm = realm or GetRealmName()
 		
-					AddAchievementInfoToTooltip(self, name, realm)
+                    print("RatedStats: Applicant member =", name, realm)
+                    AddAchievementInfoToTooltip(self, name, realm)
 				end)
 				print("RatedStats: TooltipLFGApplicantMixin hook attached.")
 				return true
@@ -332,10 +333,10 @@ f:SetScript("OnEvent", function(_, event)
 		local retryCount = 0
 		local function WaitForMixin()
 			if not TryHookApplicantTooltip() then
-				C_Timer.After(1, WaitForMixin)
+				C_Timer.After(2, WaitForMixin)
 			end
 		end
-		C_Timer.After(1, WaitForMixin)
+		C_Timer.After(2, WaitForMixin)
 
         -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
         local function HookCommunitiesGuildRows()
@@ -369,8 +370,14 @@ f:SetScript("OnEvent", function(_, event)
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
             if name and realm then
-                AddAchievementInfoToTooltip(GameTooltip, name, realm)
+               local unitKey = name .. "-" .. (realm or GetRealmName())
+               if lastTooltipUnit ~= unitKey then
+                   lastTooltipUnit = unitKey
+                   AddAchievementInfoToTooltip(GameTooltip, name, realm)
+               end
             end
+        else
+            lastTooltipUnit = nil
         end
     end
 
