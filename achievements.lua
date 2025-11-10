@@ -313,5 +313,6 @@ f:SetScript("OnEvent", function(_, event)
         end, true)
     end
 
-    C_Timer.After(2, HookCommunitiesGuildRows)
+        C_Timer.After(2, HookCommunitiesGuildRows)
+    end
 end)
