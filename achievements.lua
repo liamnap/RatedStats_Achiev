@@ -281,11 +281,28 @@ local lastTooltipUnit = nil
 -- Defer hook until player is fully in the game
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
-f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
-        hooksecurefunc(GameTooltip, "SetUnit", AddAchievementInfoToTooltip)
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if not unit or not UnitIsPlayer(unit) then return end
+		
+			local name, realm = UnitFullName(unit)
+			realm = realm or GetRealmName()
+			local key = (name .. "-" .. realm):lower()
+		
+			if tooltip.__RatedStatsLast == key then
+				return -- already processed for this unit
+			end
+			tooltip.__RatedStatsLast = key
+		
+			C_Timer.After(0.05, function()
+				if tooltip:IsShown() and UnitIsPlayer(unit) then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end)
+		end)
 
         -- Hook LFG tooltips
 		hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
@@ -312,22 +329,24 @@ f:SetScript("OnEvent", function(_, event)
 			local mixin = _G.TooltipLFGApplicantMixin
 			if type(mixin) == "table" and mixin.SetApplicantMember then
 				hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
-                    print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
-                    local name, class, localizedClass, level, itemLevel, tank, healer, damage, assignedRole, relationship =
-                        C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
-                   if not name then
-                       print("RatedStats: Missing applicant member info for index", memberIdx)
-                   return
-               end
-               local baseName, realm = strsplit("-", name)
-               realm = realm or GetRealmName()
-               print(string.format("RatedStats: Applicant %s-%s (appID=%d idx=%d)", baseName or "?", realm or "?", applicantID, memberIdx))
-               AddAchievementInfoToTooltip(self, baseName, realm)
-			end)
-				print("RatedStats: TooltipLFGApplicantMixin hook attached.")
-				return true
-			end
-			return false
+                    C_Timer.After(0.05, function()
+                        print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
+                        local name, class, localizedClass, level, itemLevel, tank, healer, damage, assignedRole, relationship =
+                            C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
+                        if not name then
+                            print("RatedStats: Missing applicant member info for index", memberIdx)
+                            return
+                        end
+                        local baseName, realm = strsplit("-", name)
+                        realm = realm or GetRealmName()
+                        print(string.format("RatedStats: Applicant %s-%s (appID=%d idx=%d)", baseName or "?", realm or "?", applicantID, memberIdx))
+                        AddAchievementInfoToTooltip(self, baseName, realm)
+			        end)
+                end)
+			    print("RatedStats: TooltipLFGApplicantMixin hook attached.")
+			    return true
+		    end
+		    return false
 		end
 		
 		-- keep retrying until the mixin exists
@@ -366,27 +385,6 @@ f:SetScript("OnEvent", function(_, event)
     end
 
     C_Timer.After(2, HookCommunitiesGuildRows)
-
-	elseif event == "UPDATE_MOUSEOVER_UNIT" then
-		if UnitIsPlayer("mouseover") then
-			local name, realm = UnitFullName("mouseover")
-			if name then
-				realm = realm or GetRealmName()
-				local unitKey = (name .. "-" .. realm):lower()
-				if lastTooltipUnit ~= unitKey then
-					lastTooltipUnit = unitKey
-					-- Small delay to avoid flicker on refresh
-					C_Timer.After(0.05, function()
-						if UnitIsPlayer("mouseover") then
-							AddAchievementInfoToTooltip(GameTooltip, name, realm)
-						end
-					end)
-				end
-			end
-		else
-			lastTooltipUnit = nil
-		end
-    end
 
     local function HookApplicantFrames()
         local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
