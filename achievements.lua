@@ -277,17 +277,21 @@ f:SetScript("OnEvent", function(_, event)
 
         -- Hook LFG tooltips
         hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
-            local id, activityID, name, comment, voiceChat, iLvl, age, numBNetFriends, numCharFriends, numGuildMates, isDelisted, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+            local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
             if leaderName then
                 local realm = GetNormalizedRealmName() or GetRealmName()
-                tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
-                tooltip:SetText(name)
-                -- Simulate a unit structure
-                AddAchievementInfoToTooltip({
-                    GetUnit = function() return nil, nil end,
-                    AddLine = function(_, ...) tooltip:AddLine(...) end,
-                    Show = function(_) tooltip:Show() end,
-                }, leaderName, realm)
+
+                -- Let Blizzard populate the tooltip first
+                C_Timer.After(0, function()
+                    -- Only modify if tooltip is still visible
+                    if tooltip:IsShown() then
+                        AddAchievementInfoToTooltip({
+                            GetUnit = function() return nil, nil end,
+                            AddLine = function(_, ...) tooltip:AddLine(...) end,
+                            Show = function(_) tooltip:Show() end,
+                        }, leaderName, realm)
+                    end
+                end)
             end
         end)
 
