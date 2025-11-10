@@ -323,57 +323,58 @@ f:SetScript("OnEvent", function(_, event)
 
     C_Timer.After(2, HookCommunitiesGuildRows)
 
-	-- Force hook into visible LFG applicant rows
-	local function HookLFGApplicantRows()
+	-- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
+	local ScrollBoxUtil = {}
+	
+	function ScrollBoxUtil:OnViewFramesChanged(scrollBox, callback)
+		if not scrollBox then return end
+		if scrollBox.GetFrames then
+			local frames = scrollBox:GetFrames()
+			if frames then
+				callback(frames, scrollBox)
+			end
+			scrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnUpdate, function()
+				local updated = scrollBox:GetFrames()
+				if updated then
+					callback(updated, scrollBox)
+				end
+			end)
+		end
+	end
+	
+	-- Hook into LFG applicant rows using ScrollBoxUtil
+	C_Timer.After(2, function()
 		local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
 		if not scrollBox then return end
 	
-		local function TryHookRows()
-			local frames = scrollBox:GetFrames()
-			if not frames then return end
+		ScrollBoxUtil:OnViewFramesChanged(scrollBox, function(buttons)
+			for _, frame in ipairs(buttons) do
+				if not frame.__ratedStatsHooked then
+					frame.__ratedStatsHooked = true
 	
-			for frame in frames:Enumerate() do
-				if frame and frame.GetObjectType and frame:GetObjectType() == "Button" and frame.applicantID then
-					if not frame.__ratedStatsHooked then
-						frame.__ratedStatsHooked = true
+					frame:HookScript("OnEnter", function(self)
+						local applicantID = self.applicantID
+						if not applicantID then return end
 	
-						frame:HookScript("OnEnter", function(self)
-							local applicantID = self.applicantID
-							if not applicantID then return end
+						local info = C_LFGList.GetApplicantInfo(applicantID)
+						if not info or info.numMembers < 1 then return end
 	
-							local info = C_LFGList.GetApplicantInfo(applicantID)
-							if not info or not info.numMembers then return end
+						local member = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
+						if not member or not member.name then return end
 	
-							for i = 1, info.numMembers do
-								local member = C_LFGList.GetApplicantMemberInfo(applicantID, i)
-								if member and member.name then
-									local name, realm = strsplit("-", member.name)
-									realm = realm or GetRealmName()
+						local name, realm = strsplit("-", member.name)
+						realm = realm or GetRealmName()
+						local fullName = (name .. "-" .. realm):lower()
 	
-									local full = (name .. "-" .. realm):lower()
-									print("RatedStats: Hovered applicant:", full)
+						print("RatedStats: Hovered applicant:", fullName)
 	
-									GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-									AddAchievementInfoToTooltip(GameTooltip, name, realm)
-									break
-								end
-							end
-						end)
-					end
+						GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+						AddAchievementInfoToTooltip(GameTooltip, name, realm)
+					end)
 				end
 			end
-		end
-	
-		scrollBox:Update()
-		TryHookRows()
-		scrollBox:ScrollToBegin() -- force ScrollBox refresh
-	
-		-- Retry hook when entries change
-		scrollBox:RegisterCallback("OnUpdate", TryHookRows, true)
-	end
-	
-	C_Timer.After(2, HookLFGApplicantRows)
-
+		end)
+	end)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
