@@ -57,21 +57,6 @@ local regionData = mergeRegionParts(regionCode)
 -- Cache table to avoid repeat lookups
 local achievementCache = {}
 
-local PvpRankColumns = {
-    { key = "a", label = "Co-I",   prefix = "Combatant I" },
-    { key = "b", label = "Co-II",  prefix = "Combatant II" },
-    { key = "c", label = "Ch-I",   prefix = "Challenger I" },
-    { key = "d", label = "Ch-II",  prefix = "Challenger II" },
-    { key = "e", label = "R-I",    prefix = "Rival I" },
-    { key = "f", label = "R-II",   prefix = "Rival II" },
-    { key = "g", label = "Duel",   prefix = "Duelist" },
-    { key = "h", label = "Elite",  prefix = "Elite" },
-    { key = "i", label = "Glad",   prefix = "Gladiator" },
-    { key = "j", label = "Legend", prefix = "Legend:" },
-    { key = "k", label = "Rank 1",     r1 = true },
-    { key = "l", label = "HotX",   hero = true },
-}
-
 local R1Titles = {
     "Primal Gladiator", "Wild Gladiator", "Warmongering Gladiator",
     "Vindictive Gladiator", "Fearless Gladiator", "Cruel Gladiator",
@@ -90,21 +75,21 @@ local HeroTitles = {
 }
 
 local PvpRankColumns = {
-    { key = "a", prefix = "Combatant I",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
-    { key = "b", prefix = "Combatant II", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
-    { key = "c", prefix = "Challenger I", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
-    { key = "d", prefix = "Challenger II",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
-    { key = "e", prefix = "Rival I",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
-    { key = "f", prefix = "Rival II",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
-    { key = "g", prefix = "Duelist",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
-    { key = "h", prefix = "Gladiator",    icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
-    { key = "i", prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
-    { key = "j", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "k", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l", hero = true, icons = {
+    { key = "a", label = "Co-I",   prefix = "Combatant I",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
+    { key = "b", label = "Co-II",  prefix = "Combatant II", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
+    { key = "c", label = "Ch-I",   prefix = "Challenger I", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
+    { key = "d", label = "Ch-II",  prefix = "Challenger II",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
+    { key = "e", label = "R-I",    prefix = "Rival I",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
+    { key = "f", label = "R-II",   prefix = "Rival II",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
+    { key = "g", label = "Duel",   prefix = "Duelist",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
+    { key = "h", label = "Elite",  prefix = "Gladiator",    icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
+    { key = "i", label = "Glad",   prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
+    { key = "j", label = "Legend", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "k", label = "Rank 1", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "l", label = "HotX",   hero = true,             icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
-    } },
+    }},
 }
 
 -- Center text in fixed-width column
@@ -169,7 +154,27 @@ local function centerIcon(iconTag, width)
     return string.rep(" ", pad) .. iconTag .. string.rep(" ", width - len - pad)
 end
 
-local function AddAchievementInfoToTooltip(tooltip)
+local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
+    local _, unit = tooltip:GetUnit()
+    local name, realm
+
+    if unit and UnitIsPlayer(unit) then
+        name, realm = UnitFullName(unit)
+    else
+        name, realm = overrideName, overrideRealm
+    end
+
+    if not name then return end
+    realm = realm or GetRealmName()
+    local key = (name .. "-" .. realm):lower()
+
+    -- Avoid adding twice for same target, but allow refreshes
+    if tooltip.__RatedStatsLast == key then return end
+    tooltip.__RatedStatsLast = key
+
+    tooltip:HookScript("OnHide", function(tip)
+        tip.__RatedStatsLast = nil
+    end)
     -- look up our per-char database and bail out if Achiev is off
     local key = UnitName("player") .. "-" .. GetRealmName()
     local db  = RSTATS.Database[key]
@@ -178,13 +183,25 @@ local function AddAchievementInfoToTooltip(tooltip)
         return
     end
   
-    local _, unit = tooltip:GetUnit()
-    if not unit or not UnitIsPlayer(unit) then return end
+    local baseName, realm
 
-    local baseName, realm = UnitFullName(unit)
-    if not baseName then return end
+    -- Use override only if tooltip:GetUnit() is not supported or not a unit tooltip
+    local unit
+    if tooltip.GetUnit then
+        _, unit = tooltip:GetUnit()
+    end
+
+    if unit and UnitIsPlayer(unit) then
+        baseName, realm = UnitFullName(unit)
+    elseif overrideName then
+        baseName = overrideName
+        realm = overrideRealm or GetRealmName()
+    else
+        return -- No usable name/realm source
+    end
+
     realm = realm or GetRealmName()
-    local fullName = string.lower(baseName .. "-" .. realm:gsub("%s+", ""))
+    local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
 
     -- Cache lookup
     if achievementCache[fullName] == nil then
@@ -197,7 +214,8 @@ local function AddAchievementInfoToTooltip(tooltip)
             end
         end
         if not found then
-            achievementCache[fullName] = {}, nil
+            print("Not found in data:", fullName)
+            achievementCache[fullName] = { summary = {}, highest = nil }
         end
     end
 
@@ -208,12 +226,6 @@ local function AddAchievementInfoToTooltip(tooltip)
     tooltip:AddLine("|cffffff00Rated Stats - Achievements|r")
     tooltip:AddLine("----------------------------")
 
-    if highest then
-        tooltip:AddLine("|cff00ff00Highest PvP Rank:|r " .. highest)
-    else
-        tooltip:AddLine("|cffff0000No History / Not Seen in Bracket|r")
-    end
-
     local hasAnyHistory = false
     for _, col in ipairs(PvpRankColumns) do
         if summary[col.key] and summary[col.key] > 0 then
@@ -222,6 +234,12 @@ local function AddAchievementInfoToTooltip(tooltip)
         end
     end
 	
+    if highest then
+        tooltip:AddLine("|cff00ff00Highest PvP Rank:|r " .. highest)
+    else
+        tooltip:AddLine("|cffff0000No History / Not Seen in Bracket|r")
+    end
+
 	if hasAnyHistory then
 		local iconRow, valueRow = "", ""
 		local iconSize = 16
@@ -253,20 +271,318 @@ local function AddAchievementInfoToTooltip(tooltip)
     tooltip:Show()
 end
 
+-- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
+local ScrollBoxUtil = {}
+
+function ScrollBoxUtil:OnViewFramesChanged(scrollBox, callback)
+    if not scrollBox then return end
+    if scrollBox.GetFrames then
+        local frames = scrollBox:GetFrames()
+        if frames then
+            callback(frames, scrollBox)
+        end
+        scrollBox:RegisterCallback(ScrollBoxListMixin.Event.OnUpdate, function()
+            local updated = scrollBox:GetFrames()
+            if updated then
+                callback(updated, scrollBox)
+            end
+        end)
+    end
+end
+
+local lastTooltipUnit = nil
+
 -- Defer hook until player is fully in the game
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
-f:RegisterEvent("UPDATE_MOUSEOVER_UNIT") 
+f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+f:RegisterEvent("PLAYER_TARGET_CHANGED")
+f:RegisterEvent("PLAYER_FOCUS_CHANGED")
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
-        if GameTooltip:HasScript("OnTooltipSetUnit") then
-            GameTooltip:HookScript("OnTooltipSetUnit", AddAchievementInfoToTooltip)
+
+        -- Table to cache the most recent applicant names for use in tooltips
+        local recentApplicants = {}
+
+        -- Capture real applicant names when players apply to *your* listing
+        local appWatcher = CreateFrame("Frame")
+        appWatcher:RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED")
+        appWatcher:SetScript("OnEvent", function(_, _, applicantID, status)
+            if status ~= "applied" then return end
+            local activeEntry = C_LFGList.GetActiveEntryInfo()
+            if not activeEntry or not activeEntry.activityID then return end
+
+            local appInfo = C_LFGList.GetApplicantInfo(applicantID)
+            if not appInfo then return end
+            for i = 1, appInfo.numMembers do
+                local fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, i))
+                if fullName and fullName ~= "" then
+                    recentApplicants[applicantID .. "-" .. i] = fullName
+                end
+            end
+        end)
+
+		-- Hook 1: General player units (includes mouseover, target, focus)
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if not unit or not UnitIsPlayer(unit) then return end
+		
+			local name, realm = UnitFullName(unit)
+			realm = realm or GetRealmName()
+		
+			-- Target/focus sometimes need a slight delay for text lines to exist
+			local delay = (unit == "target" or unit == "focus") and 0.15 or 0.05
+		
+			C_Timer.After(delay, function()
+				if tooltip:IsShown() and UnitIsPlayer(unit) then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end)
+		end)
+		
+		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if unit == "player" then
+				local name, realm = UnitFullName("player")
+				realm = realm or GetRealmName()
+				tooltip.__RatedStatsLast = nil -- force refresh
+				if tooltip:IsShown() then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end
+		end)
+
+		-- Hook UnitFrame mouseovers (party/raid frames etc.)
+		hooksecurefunc("UnitFrame_OnEnter", function(self)
+			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+			local name, realm = UnitFullName(self.unit)
+			realm = realm or GetRealmName()
+		
+			-- Delay a touch to ensure tooltip lines are added
+			C_Timer.After(0.5, function()
+				if GameTooltip:IsShown() then
+					AddAchievementInfoToTooltip(GameTooltip, name, realm)
+				end
+			end)
+		end)
+
+        -- Hook LFG tooltips
+        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
+            local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+            if leaderName then
+                local realm = GetNormalizedRealmName() or GetRealmName()
+
+                -- Delay to ensure other tooltip extensions (e.g., RaiderIO) have run
+                C_Timer.After(0.5, function()
+                    if tooltip and tooltip:IsShown() then
+                        -- Ensure correct anchor if needed
+                        if not tooltip:GetOwner() then
+                            tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
+                        end
+                        tooltip:ClearLines()
+                        -- Append your achievement info
+                        AddAchievementInfoToTooltip(tooltip, leaderName, realm)
+                    end
+                end)
+            end
+        end)
+
+        -- Hook applicant tooltip popout (like Raider.IO)
+        local function TryHookApplicantTooltip()
+            local mixin = _G.TooltipLFGApplicantMixin
+            if type(mixin) == "table" and mixin.SetApplicantMember then
+                hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
+                    C_Timer.After(0.5, function()
+                        -- Prefer the full name captured from the application event
+                        local fullName = recentApplicants[applicantID .. "-" .. memberIdx]
+                        if not fullName or fullName == "" then
+                            fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx))
+                        end
+
+                        if fullName and fullName ~= "" then
+                            local baseName, realm = strsplit("-", fullName)
+                            realm = realm or GetRealmName()
+                            AddAchievementInfoToTooltip(self, baseName, realm)
+                        end
+                    end)
+                end)
+                print("RatedStats: TooltipLFGApplicantMixin hook attached.")
+                return true
+            end
+            return false
         end
-        hooksecurefunc(GameTooltip, "SetUnit", AddAchievementInfoToTooltip)
+
+        -- Keep retrying until the mixin exists
+        local function WaitForMixin()
+            if not TryHookApplicantTooltip() then
+                C_Timer.After(0.5, WaitForMixin)
+            end
+        end
+        C_Timer.After(0.5, WaitForMixin)
+
+        -- Hook CommunitiesFrame (Guild Roster) ScrollBox row tooltips
+        local function HookCommunitiesGuildRows()
+            local container = CommunitiesFrame and CommunitiesFrame.MemberList and CommunitiesFrame.MemberList.ScrollBox
+            if not container then return end
+
+            local function HookRow(frame)
+                if frame.__ratedStatsHooked then return end
+                frame.__ratedStatsHooked = true
+
+                frame:HookScript("OnEnter", function(self)
+                    local info = self.memberInfo
+                    if not info or not info.name then return end
+
+                    local name, realm = strsplit("-", info.name)
+                    realm = realm or GetRealmName()
+                    AddAchievementInfoToTooltip(GameTooltip, name, realm)
+                end)
+            end
+
+            container:RegisterCallback("OnAcquiredFrame", function(_, frame)
+                if type(frame) == "table" and frame.GetObjectType then
+                    HookRow(frame)
+                end
+            end, true)
+        end
+
+        C_Timer.After(0.5, HookCommunitiesGuildRows)
+
+        -- Hook applicant rows in LFG
+        local function HookApplicantFrames()
+            local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
+            if not scrollBox or not scrollBox.GetFrames then
+                C_Timer.After(0.5, HookApplicantFrames)
+                return
+            end
+
+            local hooked = {}
+            local function OnEnter(self)
+                if self.applicantID and self.Members then
+                    for _, member in pairs(self.Members) do
+                        if not hooked[member] then
+                            hooked[member] = true
+                            member:HookScript("OnEnter", function(memberFrame)
+                                local applicantID = memberFrame:GetParent().applicantID
+                                local idx = memberFrame.memberIdx or 1
+                                local fullName = recentApplicants[applicantID .. "-" .. idx]
+
+                                -- Fallback if cache missed
+                                if (not fullName or fullName == "") and applicantID then
+                                    fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, idx))
+                                end
+
+                                if fullName and fullName ~= "" then
+                                    local baseName, realm = strsplit("-", fullName)
+                                    realm = realm or GetRealmName()
+                                    AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
+                                end
+                            end)
+                            member:HookScript("OnLeave", function() GameTooltip:Hide() end)
+                        end
+                    end
+                elseif self.memberIdx then
+                    local parent = self:GetParent()
+                    local idx = self.memberIdx
+                    local fullName = recentApplicants[applicantID .. "-" .. idx]
+                    if (not fullName or fullName == "") and applicantID then
+                        fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, idx))
+                    end
+                    if fullName and fullName ~= "" then
+                        local baseName, realm = strsplit("-", fullName)
+                        realm = realm or GetRealmName()
+                        AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
+                    end
+                end
+            end
+
+            local frames = scrollBox:GetFrames()
+            if not frames or #frames == 0 then
+                C_Timer.After(0.5, HookApplicantFrames)
+                return
+            end
+
+            for _, frame in ipairs(frames) do
+                if not hooked[frame] then
+                    hooked[frame] = true
+                    frame:HookScript("OnEnter", OnEnter)
+                    frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
+                end
+            end
+        end
+
+        C_Timer.After(0.5, HookApplicantFrames)
+
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             GameTooltip:SetUnit("mouseover")
         end
+
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        if UnitExists("target") and UnitIsPlayer("target") then
+            GameTooltip:SetUnit("target")
+        end
+
+    elseif event == "PLAYER_FOCUS_CHANGED" then
+        if UnitExists("focus") and UnitIsPlayer("focus") then
+            GameTooltip:SetUnit("focus")
+        end
     end
-end)
+end) -- closes f:SetScript
+
+-- === RatedStats: LFG Search Popout (Leader) → Append Achievements ===
+-- Additive, self-contained; waits for LFG code to load, then appends our block.
+do
+    local function AppendLeaderAchievements(tooltip, resultID)
+        if not tooltip or not resultID or type(AddAchievementInfoToTooltip) ~= "function" then return end
+
+        -- Retail 11.x returns a table; older builds returned varargs. Handle both.
+        local info = C_LFGList.GetSearchResultInfo(resultID)
+        local leaderName
+        if type(info) == "table" then
+            leaderName = info.leaderName
+        else
+            local _1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_leader = C_LFGList.GetSearchResultInfo(resultID)
+            leaderName = _leader
+            info = nil
+        end
+        if not leaderName or leaderName == "" then return end
+
+        -- Parse "Name-Realm" if present; never assume our realm.
+        local baseName, realm = leaderName, nil
+        if string.find(leaderName, "-", 1, true) then
+            baseName, realm = strsplit("-", leaderName)
+        end
+        realm = (realm or (info and info.leaderRealm) or GetRealmName()):gsub("%s+", "")
+
+        -- Let Blizzard/other addons build their lines first, then append ours.
+        C_Timer.After(0.05, function()
+            if tooltip:IsShown() then
+                AddAchievementInfoToTooltip(tooltip, baseName, realm)
+            end
+        end)
+    end
+
+    -- Defer until LFG function exists (no edits to your existing init flow).
+    local function TryHook()
+        if type(_G.LFGListUtil_SetSearchEntryTooltip) == "function" then
+            hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", AppendLeaderAchievements)
+            return true
+        end
+    end
+
+    local waiter = CreateFrame("Frame")
+    waiter:RegisterEvent("PLAYER_LOGIN")
+    waiter:SetScript("OnEvent", function(self)
+        local function poll()
+            if not TryHook() then
+                C_Timer.After(0.25, poll)
+            else
+                self:UnregisterAllEvents()
+            end
+        end
+        poll()
+    end)
+end
