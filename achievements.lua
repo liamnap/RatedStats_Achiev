@@ -163,6 +163,15 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         return
     end
   
+    if tooltip.__RatedStatsDone then return end
+    C_Timer.After(0, function()
+        tooltip.__RatedStatsDone = true
+    end)
+
+    tooltip:HookScript("OnHide", function(tip)
+        tip.__RatedStatsDone = nil
+    end)
+
     local baseName, realm
 
     -- Use override only if tooltip:GetUnit() is not supported or not a unit tooltip
@@ -382,11 +391,20 @@ f:SetScript("OnEvent", function(_, event)
                     if not hooked[member] then
                         hooked[member] = true
                         member:HookScript("OnEnter", function(memberFrame)
-                            local name, realm = strsplit("-", memberFrame.memberName or "")
-                            if name then
-                                realm = realm or GetRealmName()
-                                AddAchievementInfoToTooltip(GameTooltip, name, realm)
-                            end
+							local name, realm = strsplit("-", memberFrame.memberName or "")
+							if not name or name == "" then
+								local parent = memberFrame:GetParent()
+								if parent and parent.applicantID and memberFrame.memberIdx then
+									local info = C_LFGList.GetApplicantMemberInfo(parent.applicantID, memberFrame.memberIdx)
+									if info and info.name then
+										name, realm = strsplit("-", info.name)
+									end
+								end
+							end
+							if name and name ~= "" then
+								realm = realm or GetRealmName()
+								AddAchievementInfoToTooltip(GameTooltip, name, realm)
+							end
                         end)
                         member:HookScript("OnLeave", function() GameTooltip:Hide() end)
                     end
