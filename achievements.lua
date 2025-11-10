@@ -531,3 +531,58 @@ f:SetScript("OnEvent", function(_, event)
         end
     end
 end) -- closes f:SetScript
+
+-- === RatedStats: LFG Search Popout (Leader) → Append Achievements ===
+-- Additive, self-contained; waits for LFG code to load, then appends our block.
+do
+    local function AppendLeaderAchievements(tooltip, resultID)
+        if not tooltip or not resultID or type(AddAchievementInfoToTooltip) ~= "function" then return end
+
+        -- Retail 11.x returns a table; older builds returned varargs. Handle both.
+        local info = C_LFGList.GetSearchResultInfo(resultID)
+        local leaderName
+        if type(info) == "table" then
+            leaderName = info.leaderName
+        else
+            local _1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_leader = C_LFGList.GetSearchResultInfo(resultID)
+            leaderName = _leader
+            info = nil
+        end
+        if not leaderName or leaderName == "" then return end
+
+        -- Parse "Name-Realm" if present; never assume our realm.
+        local baseName, realm = leaderName, nil
+        if string.find(leaderName, "-", 1, true) then
+            baseName, realm = strsplit("-", leaderName)
+        end
+        realm = (realm or (info and info.leaderRealm) or GetRealmName()):gsub("%s+", "")
+
+        -- Let Blizzard/other addons build their lines first, then append ours.
+        C_Timer.After(0.05, function()
+            if tooltip:IsShown() then
+                AddAchievementInfoToTooltip(tooltip, baseName, realm)
+            end
+        end)
+    end
+
+    -- Defer until LFG function exists (no edits to your existing init flow).
+    local function TryHook()
+        if type(_G.LFGListUtil_SetSearchEntryTooltip) == "function" then
+            hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", AppendLeaderAchievements)
+            return true
+        end
+    end
+
+    local waiter = CreateFrame("Frame")
+    waiter:RegisterEvent("PLAYER_LOGIN")
+    waiter:SetScript("OnEvent", function(self)
+        local function poll()
+            if not TryHook() then
+                C_Timer.After(0.25, poll)
+            else
+                self:UnregisterAllEvents()
+            end
+        end
+        poll()
+    end)
+end
