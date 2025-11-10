@@ -302,6 +302,27 @@ f:RegisterEvent("PLAYER_FOCUS_CHANGED")
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 
+        -- Table to cache the most recent applicant names for use in tooltips
+        local recentApplicants = {}
+
+        -- Capture real applicant names when players apply to *your* listing
+        local appWatcher = CreateFrame("Frame")
+        appWatcher:RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED")
+        appWatcher:SetScript("OnEvent", function(_, _, applicantID, status)
+            if status ~= "applied" then return end
+            local activeEntry = C_LFGList.GetActiveEntryInfo()
+            if not activeEntry or not activeEntry.activityID then return end
+
+            local appInfo = C_LFGList.GetApplicantInfo(applicantID)
+            if not appInfo then return end
+            for i = 1, appInfo.numMembers do
+                local fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, i))
+                if fullName and fullName ~= "" then
+                    recentApplicants[applicantID .. "-" .. i] = fullName
+                end
+            end
+        end)
+
 		-- Hook 1: General player units (includes mouseover, target, focus)
 		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
 			local _, unit = tooltip:GetUnit()
@@ -374,18 +395,17 @@ f:SetScript("OnEvent", function(_, event)
             if type(mixin) == "table" and mixin.SetApplicantMember then
                 hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
                     C_Timer.After(0.5, function()
-                        print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
-                        local name, class, localizedClass, level, itemLevel, tank, healer, damage, assignedRole, relationship =
-                            C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
-                        if not name then
-                            print("RatedStats: Missing applicant member info for index", memberIdx)
-                            return
+                        -- Prefer the full name captured from the application event
+                        local fullName = recentApplicants[applicantID .. "-" .. memberIdx]
+                        if not fullName or fullName == "" then
+                            fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx))
                         end
 
-                        local baseName, realm = strsplit("-", name)
-                        realm = realm or GetRealmName()
-                        print(string.format("RatedStats: Applicant %s-%s (appID=%d idx=%d)", baseName or "?", realm or "?", applicantID, memberIdx))
-                        AddAchievementInfoToTooltip(self, baseName, realm)
+                        if fullName and fullName ~= "" then
+                            local baseName, realm = strsplit("-", fullName)
+                            realm = realm or GetRealmName()
+                            AddAchievementInfoToTooltip(self, baseName, realm)
+                        end
                     end)
                 end)
                 print("RatedStats: TooltipLFGApplicantMixin hook attached.")
