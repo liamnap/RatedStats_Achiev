@@ -460,7 +460,7 @@ f:SetScript("OnEvent", function(_, event)
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
             realm = realm or GetRealmName()
-            C_Timer.After(0.05, function()
+            C_Timer.After(2, function()
                 if GameTooltip:IsShown() then
                     AddAchievementInfoToTooltip(GameTooltip, name, realm)
                 end
