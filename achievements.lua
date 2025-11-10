@@ -358,42 +358,6 @@ f:SetScript("OnEvent", function(_, event)
 
     C_Timer.After(2, HookCommunitiesGuildRows)
 
-	-- Hook into LFG applicant rows using ScrollBoxUtil
-	C_Timer.After(2, function()
-		local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
-		if not scrollBox then return end
-	
-		ScrollBoxUtil:OnViewFramesChanged(scrollBox, function(buttons)
-			for _, frame in ipairs(buttons) do
-				if not frame.__ratedStatsHooked then
-					frame.__ratedStatsHooked = true
-	
-					frame:HookScript("OnEnter", function(self)
-						C_Timer.After(0.05, function()
-							local applicantID = self.applicantID
-							if not applicantID then return end
-					
-							local info = C_LFGList.GetApplicantInfo(applicantID)
-							if not info or info.numMembers < 1 then return end
-					
-							local member = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
-							if not member or not member.name then return end
-					
-							local name, realm = strsplit("-", member.name)
-							realm = realm or GetRealmName()
-							local fullName = (name .. "-" .. realm):lower()
-					
-							print("RatedStats: Hovered applicant:", fullName)
-					
-							if GameTooltip:IsShown() then
-								AddAchievementInfoToTooltip(GameTooltip, name, realm)
-							end
-						end)
-					end)
-				end
-			end
-		end)
-	end)
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
             local name, realm = UnitFullName("mouseover")
@@ -402,4 +366,65 @@ f:SetScript("OnEvent", function(_, event)
             end
         end
     end
+
+	C_Timer.After(2, function()
+		local scrollBox = LFGListFrame and LFGListFrame.ApplicationViewer and LFGListFrame.ApplicationViewer.ScrollBox
+		if not scrollBox then return end
+	
+		ScrollBoxUtil:OnViewFramesChanged(scrollBox, function(frames)
+			for _, frame in ipairs(frames) do
+				if not frame.__ratedStatsInfoAdded then
+					frame.__ratedStatsInfoAdded = true
+	
+					local label = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+					label:SetPoint("TOPLEFT", frame.Name, "BOTTOMLEFT", 0, -2)
+					label:SetTextColor(1, 0.85, 0) -- goldish color
+					label:SetText("") -- empty by default
+					frame.__ratedStatsLabel = label
+	
+					frame:HookScript("OnEnter", function(self)
+						local applicantID = self.applicantID
+						if not applicantID then return end
+	
+						local info = C_LFGList.GetApplicantInfo(applicantID)
+						if not info or info.numMembers < 1 then return end
+	
+						local member = C_LFGList.GetApplicantMemberInfo(applicantID, 1)
+						if not member or not member.name then return end
+	
+						local name, realm = strsplit("-", member.name)
+						realm = realm or GetRealmName()
+						local fullName = (name .. "-" .. realm):lower()
+	
+						local result = achievementCache[fullName]
+						if not result then
+							for _, entry in ipairs(regionData) do
+								if entry.character and entry.character:lower() == fullName then
+									achievementCache[fullName] = GetPvpAchievementSummary(entry)
+									result = achievementCache[fullName]
+									break
+								end
+							end
+						end
+	
+						local highest = result and result.highest or nil
+						local label = self.__ratedStatsLabel
+						if highest then
+							label:SetText("Rated Stats: |cff00ff00" .. highest .. "|r")
+							label:Show()
+						else
+							label:SetText("Rated Stats: |cffff0000None|r")
+							label:Show()
+						end
+					end)
+	
+					frame:HookScript("OnLeave", function(self)
+						if self.__ratedStatsLabel then
+							self.__ratedStatsLabel:Hide()
+						end
+					end)
+				end
+			end
+		end)
+	end)
 end)
