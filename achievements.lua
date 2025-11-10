@@ -321,6 +321,22 @@ f:SetScript("OnEvent", function(_, event)
             end)
         end)
 
+       -- Ensure the player's own unit tooltip always shows achievements
+        hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+           local _, unit = tooltip:GetUnit()
+            if unit == "player" then
+                local name, realm = UnitFullName("player")
+                realm = realm or GetRealmName()
+                -- Always allow reinjection for the player, even if already cached
+                tooltip.__RatedStatsLast = nil
+                C_Timer.After(0.05, function()
+                    if tooltip:IsShown() then
+                        AddAchievementInfoToTooltip(tooltip, name, realm)
+                    end
+                end)
+            end
+        end)
+
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
 			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
