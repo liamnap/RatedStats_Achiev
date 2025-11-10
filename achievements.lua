@@ -212,12 +212,6 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     tooltip:AddLine("|cffffff00Rated Stats - Achievements|r")
     tooltip:AddLine("----------------------------")
 
-    if highest then
-        tooltip:AddLine("|cff00ff00Highest PvP Rank:|r " .. highest)
-    else
-        tooltip:AddLine("|cffff0000No History / Not Seen in Bracket|r")
-    end
-
     local hasAnyHistory = false
     for _, col in ipairs(PvpRankColumns) do
         if summary[col.key] and summary[col.key] > 0 then
@@ -226,6 +220,12 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         end
     end
 	
+    if highest then
+        tooltip:AddLine("|cff00ff00Highest PvP Rank:|r " .. highest)
+    else
+        tooltip:AddLine("|cffff0000No History / Not Seen in Bracket|r")
+    end
+
 	if hasAnyHistory then
 		local iconRow, valueRow = "", ""
 		local iconSize = 16
@@ -255,6 +255,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 	end
 
     tooltip:Show()
+    tooltip:FadeOut(0) -- reassert tooltip visibility immediately
 end
 
 -- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
