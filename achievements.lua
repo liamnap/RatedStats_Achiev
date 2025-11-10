@@ -325,12 +325,7 @@ f:SetScript("OnEvent", function(_, event)
 		local retryCount = 0
 		local function WaitForMixin()
 			if not TryHookApplicantTooltip() then
-				retryCount = retryCount + 1
-				if retryCount < 10 then
-					C_Timer.After(1, WaitForMixin)
-				else
-					print("RatedStats: TooltipLFGApplicantMixin not found after 10 attempts.")
-				end
+				C_Timer.After(1, WaitForMixin)
 			end
 		end
 		C_Timer.After(1, WaitForMixin)
