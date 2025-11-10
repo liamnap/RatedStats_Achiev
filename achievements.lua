@@ -172,6 +172,10 @@ end
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     -- look up our per-char database and bail out if Achiev is off
     local key = UnitName("player") .. "-" .. GetRealmName()
+        -- Skip invalid names that come from bad override usage
+        if overrideName == "player" or overrideName == "mouseover" then
+            return
+        end
     local db  = RSTATS.Database[key]
 	local module = "RatedStats_Achiev"
     if C_AddOns.GetAddOnEnableState(module, nil) == 0 then
@@ -319,7 +323,10 @@ f:SetScript("OnEvent", function(_, event)
 
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
         if UnitIsPlayer("mouseover") then
-            GameTooltip:SetUnit("mouseover")
+            local name, realm = UnitFullName("mouseover")
+            if name then
+                AddAchievementInfoToTooltip(GameTooltip, name, realm)
+            end
         end
     end
 end)
