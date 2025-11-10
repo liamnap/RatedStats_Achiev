@@ -436,5 +436,5 @@ f2:SetScript("OnEvent", function(_, event)
     end
 
     C_Timer.After(1, HookApplicantFrames)
-    end
+end
 end)
