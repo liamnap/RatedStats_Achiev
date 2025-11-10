@@ -300,7 +300,7 @@ f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 
-		-- Unified SetUnit hook for all units (player, target, focus, etc.)
+		-- Hook 1: General player units (includes mouseover, target, focus)
 		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
 			local _, unit = tooltip:GetUnit()
 			if not unit or not UnitIsPlayer(unit) then return end
@@ -309,14 +309,32 @@ f:SetScript("OnEvent", function(_, event)
 			realm = realm or GetRealmName()
 			local key = (name .. "-" .. realm):lower()
 		
-			-- Always allow reinjection for yourself, target, and focus
+			-- Avoid reprocessing same tooltip for same target (except player)
 			if tooltip.__RatedStatsLast == key and unit ~= "player" then
 				return
 			end
 			tooltip.__RatedStatsLast = key
 		
-			if tooltip:IsShown() and UnitIsPlayer(unit) then
-				AddAchievementInfoToTooltip(tooltip, name, realm)
+			-- Target/focus sometimes need a slight delay for text lines to exist
+			local delay = (unit == "target" or unit == "focus") and 0.15 or 0.05
+		
+			C_Timer.After(delay, function()
+				if tooltip:IsShown() and UnitIsPlayer(unit) then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end)
+		end)
+		
+		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if unit == "player" then
+				local name, realm = UnitFullName("player")
+				realm = realm or GetRealmName()
+				tooltip.__RatedStatsLast = nil -- force refresh
+				if tooltip:IsShown() then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
 			end
 		end)
 
