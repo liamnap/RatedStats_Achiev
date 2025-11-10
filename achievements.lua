@@ -329,24 +329,24 @@ f:SetScript("OnEvent", function(_, event)
 			local mixin = _G.TooltipLFGApplicantMixin
 			if type(mixin) == "table" and mixin.SetApplicantMember then
 				hooksecurefunc(mixin, "SetApplicantMember", function(self, applicantID, memberIdx)
-                    C_Timer.After(0.05, function()
-                        print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
-                        local name, class, localizedClass, level, itemLevel, tank, healer, damage, assignedRole, relationship =
-                            C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
-                        if not name then
-                            print("RatedStats: Missing applicant member info for index", memberIdx)
-                            return
-                        end
-                        local baseName, realm = strsplit("-", name)
-                        realm = realm or GetRealmName()
-                        print(string.format("RatedStats: Applicant %s-%s (appID=%d idx=%d)", baseName or "?", realm or "?", applicantID, memberIdx))
-                        AddAchievementInfoToTooltip(self, baseName, realm)
-			        end)
-                end)
-			    print("RatedStats: TooltipLFGApplicantMixin hook attached.")
-			    return true
-		    end
-		    return false
+					C_Timer.After(0.05, function()
+						print("RatedStats: Applicant popout hook fired: applicantID=", applicantID, "memberIdx=", memberIdx)
+						local name, class, localizedClass, level, itemLevel, tank, healer, damage, assignedRole, relationship =
+							C_LFGList.GetApplicantMemberInfo(applicantID, memberIdx)
+						if not name then
+							print("RatedStats: Missing applicant member info for index", memberIdx)
+							return
+						end
+						local baseName, realm = strsplit("-", name)
+						realm = realm or GetRealmName()
+						print(string.format("RatedStats: Applicant %s-%s (appID=%d idx=%d)", baseName or "?", realm or "?", applicantID, memberIdx))
+						AddAchievementInfoToTooltip(self, baseName, realm)
+					end)
+				end) -- closes hooksecurefunc
+				print("RatedStats: TooltipLFGApplicantMixin hook attached.")
+				return true
+			end
+			return false
 		end
 		
 		-- keep retrying until the mixin exists
