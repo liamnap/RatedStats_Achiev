@@ -214,7 +214,6 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
             end
         end
         if not found then
-            print("Not found in data:", fullName)
             achievementCache[fullName] = { summary = {}, highest = nil }
         end
     end
@@ -408,7 +407,6 @@ f:SetScript("OnEvent", function(_, event)
                         end
                     end)
                 end)
-                print("RatedStats: TooltipLFGApplicantMixin hook attached.")
                 return true
             end
             return false
