@@ -738,8 +738,8 @@ end
 
 local instanceWatcher = CreateFrame("Frame")
 instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-instanceWatcher:SetScript("OnEvent", function(_, isLogin, isReload)
-    if not isLogin and not isReload then
+instanceWatcher:SetScript("OnEvent", function(_, event, isLogin, isReload)
+    if event == "PLAYER_ENTERING_WORLD" and not isLogin and not isReload then
         C_Timer.After(30, PostPvPTeamSummary)
     end
 end)
