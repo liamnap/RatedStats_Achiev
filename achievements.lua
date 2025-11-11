@@ -700,7 +700,7 @@ local function PostPvPTeamSummary()
     local function collectTeamData(unitPrefix, count, target)
         for i = 1, count do
             local unit = unitPrefix .. i
-            if UnitExists(unit) and UnitIsPlayer(unit) then
+            if UnitExists(unit) and UnitIsPlayer(unit) and not UnitIsUnit(unit, "player") then
                 local name, realm = UnitFullName(unit)
                 realm = realm or GetRealmName()
                 local fullName = (name .. "-" .. realm):lower()
