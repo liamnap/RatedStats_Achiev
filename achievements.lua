@@ -376,6 +376,19 @@ f:SetScript("OnEvent", function(_, event)
 			end)
 		end)
 
+		-- Hook CompactUnitFrame mouseovers (used by modern party/raid/enemy frames)
+		hooksecurefunc("CompactUnitFrame_OnEnter", function(self)
+			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+			local name, realm = UnitFullName(self.unit)
+			realm = realm or GetRealmName()
+		
+			C_Timer.After(0.2, function()
+				if GameTooltip:IsShown() then
+					AddAchievementInfoToTooltip(GameTooltip, name, realm)
+				end
+			end)
+		end)
+
         -- Hook LFG tooltips
         hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
             local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
