@@ -699,7 +699,13 @@ local function PostPvPTeamSummary()
         end
     end
 
-    collectTeamData("party", GetNumGroupMembers() - 1, myTeam)
+    -- Use 'party' units for small groups (arena / shuffle), 'raid' for Rated BGs
+    if IsInRaid() then
+        collectTeamData("raid", GetNumGroupMembers(), myTeam)
+    else
+        collectTeamData("party", GetNumGroupMembers() - 1, myTeam)
+    end
+    
     local name, realm = UnitFullName("player")
     realm = realm or GetRealmName()
     local fullName = name .. "-" .. realm
