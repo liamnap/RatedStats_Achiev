@@ -599,16 +599,10 @@ end
 local function PrintPartyAchievements()
     if not IsInGroup() then return end
 
-    local channel
-    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        channel = "INSTANCE_CHAT"
-    elseif IsInRaid() then
-        channel = "RAID"
-    else
-        channel = "PARTY"
-    end
+    local channel = "INSTANCE_CHAT"  -- Always use /i; fails silently outside instance
 
     SendChatMessage("[Rated Stats] Group PvP Achievements:", channel)
+
     for i = 1, GetNumGroupMembers() do
         local name = GetRaidRosterInfo(i)
         if name then
