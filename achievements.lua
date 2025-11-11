@@ -599,7 +599,7 @@ end
 local function PrintPartyAchievements()
     if not IsInGroup() then return end
 
-    print("|cff00ff00[RSTATS]|r Party PvP Achievements:")
+    print("|cff00ff00[Rated Stats - Achievements]|r Group PvP Achievements:")
     for i = 1, GetNumGroupMembers() do
         local name, rank, subgroup, level, class, fileName, zone, online, isDead, role, isML = GetRaidRosterInfo(i)
         if name then
@@ -618,7 +618,7 @@ local function PrintPartyAchievements()
                 end
             end
 
-            local highest = cached and cached.highest or "|cffff0000Not Seen|r"
+            local highest = cached and cached.highest or "|cffff0000Not Seen in Bracket|r"
             print(" - " .. name .. ": " .. highest)
         end
     end
@@ -694,7 +694,7 @@ local function PostPvPTeamSummary()
         end
     end
 
-    SendChatMessage("=== |cff00ff00RatedStats PvP Summary|r ===", "RAID")
+    SendChatMessage("=== |cff00ff00Rated Stats - Achievements PvP Summary|r ===", "RAID")
     SendChatMessage(centerText("My Team", 25) .. " | " .. centerText("Enemy Team", 25), "RAID")
 
     local maxRows = math.max(#myTeam, #enemyTeam)
