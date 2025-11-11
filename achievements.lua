@@ -806,6 +806,8 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                     for i = 1, numScores do
                         local name, _, _, _, _, faction = select(1, GetBattlefieldScore(i))
                         if name and faction then
+                            -- Convert numeric faction index to string
+                            local faction = (factionIndex == 0) and "Horde" or "Alliance"
                             local isEnemy = (faction ~= myFaction)
                             local baseName, realm = strsplit("-", name)
                             realm = realm or GetRealmName()
