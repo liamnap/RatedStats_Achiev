@@ -599,9 +599,18 @@ end
 local function PrintPartyAchievements()
     if not IsInGroup() then return end
 
-    print("|cff00ff00[Rated Stats - Achievements]|r Group PvP Achievements:")
+    local channel
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        channel = "INSTANCE_CHAT"
+    elseif IsInRaid() then
+        channel = "RAID"
+    else
+        channel = "PARTY"
+    end
+
+    SendChatMessage("[Rated Stats] Group PvP Achievements:", channel)
     for i = 1, GetNumGroupMembers() do
-        local name, rank, subgroup, level, class, fileName, zone, online, isDead, role, isML = GetRaidRosterInfo(i)
+        local name = GetRaidRosterInfo(i)
         if name then
             local baseName, realm = strsplit("-", name)
             realm = realm or GetRealmName()
@@ -618,35 +627,37 @@ local function PrintPartyAchievements()
                 end
             end
 
-            local highest = cached and cached.highest or "|cffff0000Not Seen in Bracket|r"
-            print(" - " .. name .. ": " .. highest)
+            local highest = cached and cached.highest or "Not Seen in Bracket"
+            SendChatMessage(" - " .. name .. ": " .. highest, channel)
         end
     end
 end
 
--- === Queue watcher: fires for both LFG and traditional PvP queues ===
+-- === Queue watcher: fires once per queue start ===
 local queueWatcher = CreateFrame("Frame")
 queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
 queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
-queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")  -- covers Arena Skirmishes
+queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
 
+local lastQueued = 0
 queueWatcher:SetScript("OnEvent", function(_, event)
-    -- Check both LFG and standard PvP queue slots
+    local now = GetTime()
+    if now - lastQueued < 10 then return end -- prevent spam if multiple events fire
+
+    -- Check all PvP queues
     for i = 1, 3 do
         local status = select(1, GetBattlefieldStatus(i))
         if status == "queued" then
-            C_Timer.After(1.0, function()
-                PrintPartyAchievements()
-            end)
+            lastQueued = now
+            C_Timer.After(1.0, PrintPartyAchievements)
             return
         end
     end
 
-    -- Fallback: LFG queueing (Rated Shuffle / Blitz)
+    -- Fallback: LFG queues (Rated Shuffle / Blitz)
     if event == "LFG_QUEUE_STATUS_UPDATE" then
-        C_Timer.After(1.0, function()
-            PrintPartyAchievements()
-        end)
+        lastQueued = now
+        C_Timer.After(1.0, PrintPartyAchievements)
     end
 end)
 
