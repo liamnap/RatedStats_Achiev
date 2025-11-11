@@ -415,13 +415,16 @@ jobs:
           # 4) Rewrite the TOC file: drop any old region_* lines and old achievements.lua,
           #    then append the fresh list + a single achievements.lua once.
           tmp="$(mktemp)"
-          # keep all non-region/achievements lines (allow leading/trailing spaces)
-          sed -E '/^[[:space:]]*(region_.*\.lua|achievements\.lua)[[:space:]]*$/d' "$TOC" > "$tmp"
+          # Remove any old region/achievement lines AND strip trailing blank lines
+          sed -E '/^[[:space:]]*(region_.*\.lua|achievements\.lua)[[:space:]]*$/d' "$TOC" \
+            | sed -E ':a;/^[[:space:]]*$/{$d;N;ba}' > "$tmp"
+          
+          # Append new region list cleanly
           for f in "${keep_list[@]}"; do
             echo "$f" >> "$tmp"
           done
           echo "achievements.lua" >> "$tmp"
-          printf '\n' >> "$tmp"
+          
           mv "$tmp" "$TOC"
 
           echo "🔎 Rewritten $TOC entries:"
