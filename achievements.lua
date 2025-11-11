@@ -591,3 +591,124 @@ do
         poll()
     end)
 end
+
+-----------------------------------------------------------
+-- RatedStats: PvP Queue and Instance Announcements
+-----------------------------------------------------------
+
+local function PrintPartyAchievements()
+    if not IsInGroup() then return end
+
+    print("|cff00ff00[RSTATS]|r Party PvP Achievements:")
+    for i = 1, GetNumGroupMembers() do
+        local name, rank, subgroup, level, class, fileName, zone, online, isDead, role, isML = GetRaidRosterInfo(i)
+        if name then
+            local baseName, realm = strsplit("-", name)
+            realm = realm or GetRealmName()
+            local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
+
+            local cached = achievementCache[fullName]
+            if not cached then
+                for _, entry in ipairs(regionData) do
+                    if entry.character and entry.character:lower() == fullName then
+                        cached = GetPvpAchievementSummary(entry)
+                        achievementCache[fullName] = cached
+                        break
+                    end
+                end
+            end
+
+            local highest = cached and cached.highest or "|cffff0000Not Seen|r"
+            print(" - " .. name .. ": " .. highest)
+        end
+    end
+end
+
+local queueWatcher = CreateFrame("Frame")
+queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
+queueWatcher:SetScript("OnEvent", function(_, _, ...)
+    local mode, submode, instanceID = GetBattlefieldStatus(1)
+    if mode == "queued" then
+        C_Timer.After(1.0, PrintPartyAchievements)
+    end
+end)
+
+-----------------------------------------------------------
+-- RatedStats: Post Team Summary after entering PvP instance
+-----------------------------------------------------------
+
+local function PostPvPTeamSummary()
+    if not IsInInstance() then return end
+    local inInstance, instanceType = IsInInstance()
+    if not (inInstance and (instanceType == "pvp" or instanceType == "arena")) then return end
+
+    local myTeam = {}
+    local enemyTeam = {}
+
+    local function collectTeamData(unitPrefix, count, target)
+        for i = 1, count do
+            local unit = unitPrefix .. i
+            if UnitExists(unit) and UnitIsPlayer(unit) then
+                local name, realm = UnitFullName(unit)
+                realm = realm or GetRealmName()
+                local fullName = (name .. "-" .. realm):lower()
+                local cached = achievementCache[fullName]
+                if not cached then
+                    for _, entry in ipairs(regionData) do
+                        if entry.character and entry.character:lower() == fullName then
+                            cached = GetPvpAchievementSummary(entry)
+                            achievementCache[fullName] = cached
+                            break
+                        end
+                    end
+                end
+                local highest = cached and cached.highest or "Not Seen"
+                table.insert(target, string.format("%s - %s", name, highest))
+            end
+        end
+    end
+
+    collectTeamData("party", GetNumGroupMembers() - 1, myTeam)
+    table.insert(myTeam, 1, UnitName("player") .. " - " ..
+        ((achievementCache[playerName:lower()] and achievementCache[playerName:lower()].highest) or "Not Seen"))
+
+    -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
+    for i = 1, 40 do
+        local unit = "nameplate" .. i
+        if UnitExists(unit) and UnitIsPlayer(unit) and not UnitIsFriend("player", unit) then
+            local name, realm = UnitFullName(unit)
+            realm = realm or GetRealmName()
+            local fullName = (name .. "-" .. realm):lower()
+            local cached = achievementCache[fullName]
+            if not cached then
+                for _, entry in ipairs(regionData) do
+                    if entry.character and entry.character:lower() == fullName then
+                        cached = GetPvpAchievementSummary(entry)
+                        achievementCache[fullName] = cached
+                        break
+                    end
+                end
+            end
+            local highest = cached and cached.highest or "Not Seen"
+            table.insert(enemyTeam, string.format("%s - %s", name, highest))
+        end
+    end
+
+    SendChatMessage("=== |cff00ff00RatedStats PvP Summary|r ===", "RAID")
+    SendChatMessage(centerText("My Team", 25) .. " | " .. centerText("Enemy Team", 25), "RAID")
+
+    local maxRows = math.max(#myTeam, #enemyTeam)
+    for i = 1, maxRows do
+        local left = myTeam[i] or ""
+        local right = enemyTeam[i] or ""
+        SendChatMessage(centerText(left, 25) .. " | " .. centerText(right, 25), "RAID")
+    end
+end
+
+local instanceWatcher = CreateFrame("Frame")
+instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+instanceWatcher:SetScript("OnEvent", function(_, isLogin, isReload)
+    if not isLogin and not isReload then
+        C_Timer.After(30, PostPvPTeamSummary)
+    end
+end)
