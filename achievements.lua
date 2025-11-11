@@ -382,7 +382,7 @@ f:SetScript("OnEvent", function(_, event)
 			local name, realm = UnitFullName(self.unit)
 			realm = realm or GetRealmName()
 		
-			C_Timer.After(0.2, function()
+			C_Timer.After(0.5, function()
 				if GameTooltip:IsShown() then
 					AddAchievementInfoToTooltip(GameTooltip, name, realm)
 				end
