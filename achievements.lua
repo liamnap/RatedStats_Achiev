@@ -700,30 +700,36 @@ local function PostPvPTeamSummary()
     end
 
     collectTeamData("party", GetNumGroupMembers() - 1, myTeam)
-    table.insert(myTeam, 1, UnitName("player") .. " - " ..
-        ((achievementCache[playerName:lower()] and achievementCache[playerName:lower()].highest) or "Not Seen"))
+    local name, realm = UnitFullName("player")
+    realm = realm or GetRealmName()
+    local fullName = name .. "-" .. realm
+    local cached = achievementCache[fullName:lower()]
+    local highest = cached and cached.highest or "Not Seen"
+    table.insert(myTeam, 1, string.format("%s - %s", fullName, highest))
 
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
-    for i = 1, 40 do
-        local unit = "nameplate" .. i
-        if UnitExists(unit) and UnitIsPlayer(unit) and not UnitIsFriend("player", unit) then
-            local name, realm = UnitFullName(unit)
-            realm = realm or GetRealmName()
-            local fullName = (name .. "-" .. realm):lower()
-            local cached = achievementCache[fullName]
-            if not cached then
-                for _, entry in ipairs(regionData) do
-                    if entry.character and entry.character:lower() == fullName then
-                        cached = GetPvpAchievementSummary(entry)
-                        achievementCache[fullName] = cached
-                        break
-                    end
+    local function addEnemy(unit)
+        if not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsFriend("player", unit) then return end
+        local name, realm = UnitFullName(unit)
+        realm = realm or GetRealmName()
+        local fullName = (name .. "-" .. realm):lower()
+        local cached = achievementCache[fullName]
+        if not cached then
+            for _, entry in ipairs(regionData) do
+                if entry.character and entry.character:lower() == fullName then
+                    cached = GetPvpAchievementSummary(entry)
+                    achievementCache[fullName] = cached
+                    break
                 end
             end
-            local highest = cached and cached.highest or "Not Seen"
-            table.insert(enemyTeam, string.format("%s - %s", name, highest))
         end
+        local highest = cached and cached.highest or "Not Seen"
+        table.insert(enemyTeam, string.format("%s-%s - %s", name, realm, highest))
     end
+
+    -- Prefer nameplates, but fall back to arena enemies if available
+    for i = 1, 16 do addEnemy("nameplate" .. i) end
+    for i = 1, 5 do addEnemy("arena" .. i) end
 
     SendChatMessage("=== |cff00ff00Rated Stats - Achievements PvP Summary|r ===", "INSTANCE_CHAT")
     SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
