@@ -1,5 +1,6 @@
 local RatedStats, Achiev = ...
 local playerName   = UnitName("player") .. "-" .. GetRealmName()
+local lastMatchActive = 0
 
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
@@ -645,8 +646,16 @@ queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
 local lastQueued = 0
 queueWatcher:SetScript("OnEvent", function(_, event)
     local now = GetTime()
-    if now - lastQueued < 10 then return end -- prevent spam if multiple events fire
+    -- Skip if still cooling down from last queue trigger
+    if (now - lastQueued) < 10 then return end
 
+    -- Skip if we've entered or are still inside an active PvP match
+    local inInstance, instanceType = IsInInstance()
+    if (inInstance and (instanceType == "pvp" or instanceType == "arena")) then return end
+
+    -- Skip if a match became active recently (still resolving rounds)
+    if (now - lastMatchActive) < 60 then return end
+    
     -- Check all PvP queues
     for i = 1, 3 do
         local status = select(1, GetBattlefieldStatus(i))
@@ -807,6 +816,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     -- 🔸 Arenas / Skirmishes / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
         if inInstance and instanceType == "arena" then
+            lastMatchActive = GetTime()
             -- Fires once when gates open (Arenas, Skirmishes, Solo Shuffle)
             C_Timer.After(2, PostPvPTeamSummary)
         end
