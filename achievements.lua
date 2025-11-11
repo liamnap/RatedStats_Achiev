@@ -502,13 +502,20 @@ f:SetScript("OnEvent", function(_, event)
                 return
             end
 
-            for _, frame in ipairs(frames) do
-                if not hooked[frame] then
-                    hooked[frame] = true
-                    frame:HookScript("OnEnter", OnEnter)
-                    frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
-                end
-            end
+			local function HookRow(frame)
+				if not frame or hooked[frame] then return end
+				hooked[frame] = true
+				frame:HookScript("OnEnter", OnEnter)
+				frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
+			end
+			
+			for _, frame in ipairs(frames) do
+				HookRow(frame)
+			end
+			
+			scrollBox:RegisterCallback("OnAcquiredFrame", function(_, frame)
+				HookRow(frame)
+			end, true)
         end
 
         C_Timer.After(0.5, HookApplicantFrames)
