@@ -601,7 +601,7 @@ local function PrintPartyAchievements()
 
     local channel = "INSTANCE_CHAT"  -- Always use /i; fails silently outside instance
 
-    SendChatMessage("[Rated Stats] Group PvP Achievements:", channel)
+    SendChatMessage("Rated Stats - Achievements for Group", channel)
 
     for i = 1, GetNumGroupMembers() do
         local name = GetRaidRosterInfo(i)
