@@ -820,6 +820,12 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     -- 🔸 Arenas / Skirmishes / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
         if inInstance and instanceType == "arena" then
+            -- Ignore early trigger during loading; wait until gates actually open
+            local isWarmup = C_PvP.IsInBrawl() or (GetBattlefieldStatus(1) == "active" and not C_PvP.IsMatchComplete())
+            if not isWarmup then
+                return
+            end
+
             lastMatchActive = GetTime()
             -- Fires once when gates open (Arenas, Skirmishes, Solo Shuffle)
             C_Timer.After(2, PostPvPTeamSummary)
