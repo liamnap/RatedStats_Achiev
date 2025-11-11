@@ -115,8 +115,8 @@ jobs:
       )
     needs: guard
     concurrency:
-      # Here we *can* use needs.guard.outputs.region because this job depends on 'guard'
-      group: finalize-${{ needs.guard.outputs.region }}-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+      # prevent concurrent pushes across regions for the same commit
+      group: finalize-global-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
