@@ -671,7 +671,7 @@ queueWatcher:SetScript("OnEvent", function(_, event)
         -- Optional strict guard: skip if currently in or queued for any PvP match type
         local activeMatchType = C_PvP.GetActiveMatchType and C_PvP.GetActiveMatchType() or 0
         if activeMatchType and activeMatchType > 0 then return end
-        
+
         lastQueued = now
         C_Timer.After(1.0, PrintPartyAchievements)
     end
@@ -770,8 +770,8 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 
     -- 🔸 PvP Instances (BG / RBG / Blitz)
     if event == "PLAYER_ENTERING_WORLD" then
-        if inInstance and instanceType == "pvp" then
-            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
+        -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
+        if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
             C_Timer.After(10, function()
                 -- collect both teams based on battlefield score API
                 local numScores = GetNumBattlefieldScores()
