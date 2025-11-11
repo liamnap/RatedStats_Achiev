@@ -628,15 +628,25 @@ end
 local queueWatcher = CreateFrame("Frame")
 queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
 queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
-queueWatcher:RegisterEvent("PVPQUEUE_STATUS_CHANGED")
-queueWatcher:SetScript("OnEvent", function()
-    -- Scan all possible queues (up to 3 possible battlefield slots)
+queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")  -- covers Arena Skirmishes
+
+queueWatcher:SetScript("OnEvent", function(_, event)
+    -- Check both LFG and standard PvP queue slots
     for i = 1, 3 do
-        local status, mapName, queueID, instanceID = GetBattlefieldStatus(i)
+        local status = select(1, GetBattlefieldStatus(i))
         if status == "queued" then
-            C_Timer.After(1.0, PrintPartyAchievements)
+            C_Timer.After(1.0, function()
+                PrintPartyAchievements()
+            end)
             return
         end
+    end
+
+    -- Fallback: LFG queueing (Rated Shuffle / Blitz)
+    if event == "LFG_QUEUE_STATUS_UPDATE" then
+        C_Timer.After(1.0, function()
+            PrintPartyAchievements()
+        end)
     end
 end)
 
