@@ -599,7 +599,16 @@ end
 local function PrintPartyAchievements()
     if not IsInGroup() then return end
 
-    local channel = "INSTANCE_CHAT"  -- Always use /i; fails silently outside instance
+    local inInstance, instanceType = IsInInstance()
+    local channel
+
+    if inInstance and (instanceType == "pvp" or instanceType == "arena") then
+        channel = "INSTANCE_CHAT"  -- /i in PvP instances
+    elseif IsInRaid() then
+        channel = "RAID"           -- /raid for raid groups outside instances
+    else
+        channel = "PARTY"          -- /p for normal parties
+    end
 
     SendChatMessage("Rated Stats - Achievements for Group", channel)
 
