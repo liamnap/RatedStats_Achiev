@@ -750,8 +750,67 @@ end
 
 local instanceWatcher = CreateFrame("Frame")
 instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-instanceWatcher:SetScript("OnEvent", function(_, event, isLogin, isReload)
-    if event == "PLAYER_ENTERING_WORLD" and not isLogin and not isReload then
-        C_Timer.After(30, PostPvPTeamSummary)
+instanceWatcher:RegisterEvent("ARENA_OPPONENT_UPDATE")
+
+instanceWatcher:SetScript("OnEvent", function(_, event, ...)
+    local inInstance, instanceType = IsInInstance()
+
+    -- 🔸 PvP Instances (BG / RBG / Blitz)
+    if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+        if inInstance and instanceType == "pvp" then
+            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
+            C_Timer.After(10, function()
+                -- collect both teams based on battlefield score API
+                local numScores = GetNumBattlefieldScores()
+                if numScores and numScores > 0 then
+                    local myFaction = UnitFactionGroup("player")
+                    local myTeam, enemyTeam = {}, {}
+
+                    for i = 1, numScores do
+                        local name, _, _, _, _, faction = select(1, GetBattlefieldScore(i))
+                        if name and faction then
+                            local isEnemy = (faction ~= myFaction)
+                            local baseName, realm = strsplit("-", name)
+                            realm = realm or GetRealmName()
+                            local fullName = (baseName .. "-" .. realm):lower()
+                            local cached = achievementCache[fullName]
+                            if not cached then
+                                for _, entry in ipairs(regionData) do
+                                    if entry.character and entry.character:lower() == fullName then
+                                        cached = GetPvpAchievementSummary(entry)
+                                        achievementCache[fullName] = cached
+                                        break
+                                    end
+                                end
+                            end
+                            local highest = cached and cached.highest or "Not Seen"
+                            if isEnemy then
+                                table.insert(enemyTeam, string.format("%s - %s", name, highest))
+                            else
+                                table.insert(myTeam, string.format("%s - %s", name, highest))
+                            end
+                        end
+                    end
+
+                    SendChatMessage("=== Rated Stats - Achievements (Battleground) ===", "INSTANCE_CHAT")
+                    local maxRows = math.max(#myTeam, #enemyTeam)
+                    for i = 1, maxRows do
+                        local left = myTeam[i] or ""
+                        local right = enemyTeam[i] or ""
+                        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+                    end
+                end
+            end)
+        end
+    end
+
+    -- 🔸 Arenas / Skirmishes / Solo Shuffle
+    if event == "ARENA_OPPONENT_UPDATE" then
+        local unit, updateType = ...
+        -- Fires once per opponent when visible; only trigger once gates open
+        if updateType == "seen" or updateType == "updated" then
+            -- delay slightly to let all arena units register
+            C_Timer.After(3, PostPvPTeamSummary)
+        end
     end
 end)
