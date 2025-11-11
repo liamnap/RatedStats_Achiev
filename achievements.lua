@@ -725,12 +725,29 @@ local function PostPvPTeamSummary()
         collectTeamData("party", GetNumGroupMembers() - 1, myTeam)
     end
     
+    -- Only add yourself manually if you weren’t included by party/raid units
     local name, realm = UnitFullName("player")
     realm = realm or GetRealmName()
-    local fullName = name .. "-" .. realm
-    local cached = achievementCache[fullName:lower()]
-    local highest = cached and cached.highest or "Not Seen"
-    table.insert(myTeam, 1, string.format("%s - %s", fullName, highest))
+    local fullName = (name .. "-" .. realm):lower()
+    local foundSelf = false
+    for _, member in ipairs(myTeam) do
+        if member:lower():find(fullName, 1, true) then
+            foundSelf = true
+            break
+        end
+    end
+    if not foundSelf then
+        local cached = achievementCache[fullName]
+        if not cached then
+            local entry = regionLookup[fullName]
+            if entry then
+                cached = GetPvpAchievementSummary(entry)
+                achievementCache[fullName] = cached
+            end
+        end
+        local highest = cached and cached.highest or "Not Seen"
+        table.insert(myTeam, 1, string.format("%s - %s", name, highest))
+    end
 
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
     local function addEnemy(unit)
@@ -826,7 +843,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
         if inInstance and instanceType == "arena" then
             lastMatchActive = GetTime()
             -- Fires once when gates open (Arenas, Skirmishes, Solo Shuffle)
-            C_Timer.After(60, PostPvPTeamSummary)
+            C_Timer.After(90, PostPvPTeamSummary)
         end
     end
 end)
