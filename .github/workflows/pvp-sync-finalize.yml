@@ -336,76 +336,17 @@ jobs:
           done
 
           # All shards have been consumed and deleted; only the accumulator DB remains in /tmp.
-      
-      - name: Check disk usage
-        run: df -h
 
-      - name: Finalize region file
+      - name: Export final Lua (same job, same workspace)
         env:
           REGION: ${{ needs.guard.outputs.region }}
-          BLIZZARD_CLIENT_ID_EU_1:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_1 }}
-          BLIZZARD_CLIENT_SECRET_EU_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_1 }}
-          BLIZZARD_CLIENT_ID_US_1:     ${{ secrets.BLIZZARD_CLIENT_ID_US_1 }}
-          BLIZZARD_CLIENT_SECRET_US_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_1 }}
-          BLIZZARD_CLIENT_ID_TW_1:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_1 }}
-          BLIZZARD_CLIENT_SECRET_TW_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_1 }}
-          BLIZZARD_CLIENT_ID_KR_1:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_1 }}
-          BLIZZARD_CLIENT_SECRET_KR_1: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_1 }}
-          
-          BLIZZARD_CLIENT_ID_EU_2:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_2 }}
-          BLIZZARD_CLIENT_SECRET_EU_2: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_2 }}
-          BLIZZARD_CLIENT_ID_US_2:     ${{ secrets.BLIZZARD_CLIENT_ID_US_2 }}
-          BLIZZARD_CLIENT_SECRET_US_2: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_2 }}
-          BLIZZARD_CLIENT_ID_TW_2:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_2 }}
-          BLIZZARD_CLIENT_SECRET_TW_2: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_2 }}
-          BLIZZARD_CLIENT_ID_KR_2:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_2 }}
-          BLIZZARD_CLIENT_SECRET_KR_2: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_2 }}
-          
-          BLIZZARD_CLIENT_ID_EU_3:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_3 }}
-          BLIZZARD_CLIENT_SECRET_EU_3: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_3 }}
-          BLIZZARD_CLIENT_ID_US_3:     ${{ secrets.BLIZZARD_CLIENT_ID_US_3 }}
-          BLIZZARD_CLIENT_SECRET_US_3: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_3 }}
-          BLIZZARD_CLIENT_ID_TW_3:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_3 }}
-          BLIZZARD_CLIENT_SECRET_TW_3: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_3 }}
-          BLIZZARD_CLIENT_ID_KR_3:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_3 }}
-          BLIZZARD_CLIENT_SECRET_KR_3: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_3 }}
-          
-          BLIZZARD_CLIENT_ID_EU_4:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_4 }}
-          BLIZZARD_CLIENT_SECRET_EU_4: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_4 }}
-          BLIZZARD_CLIENT_ID_US_4:     ${{ secrets.BLIZZARD_CLIENT_ID_US_4 }}
-          BLIZZARD_CLIENT_SECRET_US_4: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_4 }}
-          BLIZZARD_CLIENT_ID_TW_4:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_4 }}
-          BLIZZARD_CLIENT_SECRET_TW_4: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_4 }}
-          BLIZZARD_CLIENT_ID_KR_4:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_4 }}
-          BLIZZARD_CLIENT_SECRET_KR_4: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_4 }}
-          
-          BLIZZARD_CLIENT_ID_EU_5:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_5 }}
-          BLIZZARD_CLIENT_SECRET_EU_5: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_5 }}
-          BLIZZARD_CLIENT_ID_US_5:     ${{ secrets.BLIZZARD_CLIENT_ID_US_5 }}
-          BLIZZARD_CLIENT_SECRET_US_5: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_5 }}
-          BLIZZARD_CLIENT_ID_TW_5:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_5 }}
-          BLIZZARD_CLIENT_SECRET_TW_5: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_5 }}
-          BLIZZARD_CLIENT_ID_KR_5:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_5 }}
-          BLIZZARD_CLIENT_SECRET_KR_5: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_5 }}
-          
-          BLIZZARD_CLIENT_ID_EU_429:     ${{ secrets.BLIZZARD_CLIENT_ID_EU_429 }}
-          BLIZZARD_CLIENT_SECRET_EU_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_EU_429 }}
-          BLIZZARD_CLIENT_ID_US_429:     ${{ secrets.BLIZZARD_CLIENT_ID_US_429 }}
-          BLIZZARD_CLIENT_SECRET_US_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_US_429 }}
-          BLIZZARD_CLIENT_ID_TW_429:     ${{ secrets.BLIZZARD_CLIENT_ID_TW_429 }}
-          BLIZZARD_CLIENT_SECRET_TW_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_TW_429 }}
-          BLIZZARD_CLIENT_ID_KR_429:     ${{ secrets.BLIZZARD_CLIENT_ID_KR_429 }}
-          BLIZZARD_CLIENT_SECRET_KR_429: ${{ secrets.BLIZZARD_CLIENT_SECRET_KR_429 }}
-          # finalize doesn’t actually use these, but the script reads them at import time
-          BATCH_SIZE: "1"
-          BATCH_ID: "0"
-          TOTAL_BATCHES: "1"
-          OFFSET: "0"
-          LIMIT: "1"
         run: |
           set -euo pipefail
           echo "Exporting final region_${REGION}.lua from accumulator…"
           EXPORT_ONLY=1 python sync_pvp.py --mode finalize --region "$REGION"
+
+      - name: Check disk usage
+        run: df -h
 
       - name: Split oversized region Lua (if > 49 MB)
         id: split
