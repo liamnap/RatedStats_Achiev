@@ -713,7 +713,7 @@ local function PostPvPTeamSummary()
                         achievementCache[fullName] = cached
                     end
                 end
-                local highest = cached and cached.highest or "Not Seen"
+                local highest = cached and cached.highest or "Not Seen in Bracket"
                 table.insert(target, string.format("%s - %s", name, highest))
             end
         end
@@ -746,7 +746,7 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local highest = cached and cached.highest or "Not Seen"
+        local highest = cached and cached.highest or "Not Seen in Bracket"
         table.insert(myTeam, 1, string.format("%s - %s", name, highest))
     end
 
@@ -766,7 +766,7 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local highest = cached and cached.highest or "Not Seen"
+        local highest = cached and cached.highest or "Not Seen in Bracket"
         table.insert(enemyTeam, string.format("%s-%s - %s", name, realm, highest))
     end
 
@@ -820,7 +820,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                                     end
                                 end
                             end
-                            local highest = cached and cached.highest or "Not Seen"
+                            local highest = cached and cached.highest or "Not Seen in Bracket"
                             if isEnemy then
                                 table.insert(enemyTeam, string.format("%s - %s", name, highest))
                             else
