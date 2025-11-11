@@ -58,6 +58,14 @@ local regionData = mergeRegionParts(regionCode)
 -- Cache table to avoid repeat lookups
 local achievementCache = {}
 
+-- 🔹 Build fast lookup index for character → entry
+local regionLookup = {}
+for _, entry in ipairs(regionData) do
+    if entry.character then
+        regionLookup[entry.character:lower()] = entry
+    end
+end
+
 local R1Titles = {
     "Primal Gladiator", "Wild Gladiator", "Warmongering Gladiator",
     "Vindictive Gladiator", "Fearless Gladiator", "Cruel Gladiator",
@@ -698,12 +706,10 @@ local function PostPvPTeamSummary()
                 local fullName = (name .. "-" .. realm):lower()
                 local cached = achievementCache[fullName]
                 if not cached then
-                    for _, entry in ipairs(regionData) do
-                        if entry.character and entry.character:lower() == fullName then
-                            cached = GetPvpAchievementSummary(entry)
-                            achievementCache[fullName] = cached
-                            break
-                        end
+                    local entry = regionLookup[fullName]
+                    if entry then
+                        cached = GetPvpAchievementSummary(entry)
+                        achievementCache[fullName] = cached
                     end
                 end
                 local highest = cached and cached.highest or "Not Seen"
@@ -734,12 +740,10 @@ local function PostPvPTeamSummary()
         local fullName = (name .. "-" .. realm):lower()
         local cached = achievementCache[fullName]
         if not cached then
-            for _, entry in ipairs(regionData) do
-                if entry.character and entry.character:lower() == fullName then
-                    cached = GetPvpAchievementSummary(entry)
-                    achievementCache[fullName] = cached
-                    break
-                end
+            local entry = regionLookup[fullName]
+            if entry then
+                cached = GetPvpAchievementSummary(entry)
+                achievementCache[fullName] = cached
             end
         end
         local highest = cached and cached.highest or "Not Seen"
