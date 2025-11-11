@@ -696,6 +696,7 @@ local function PostPvPTeamSummary()
 
     local myTeam = {}
     local enemyTeam = {}
+    local seenEnemies = {}
 
     local function collectTeamData(unitPrefix, count, target)
         for i = 1, count do
@@ -756,6 +757,8 @@ local function PostPvPTeamSummary()
         realm = realm or GetRealmName()
         local fullName = (name .. "-" .. realm):lower()
         local cached = achievementCache[fullName]
+        if seenEnemies[fullName] then return end  -- skip duplicates
+        seenEnemies[fullName] = true
         if not cached then
             local entry = regionLookup[fullName]
             if entry then
