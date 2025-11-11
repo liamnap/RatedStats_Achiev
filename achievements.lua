@@ -1,5 +1,6 @@
 local RatedStats, Achiev = ...
 local playerName   = UnitName("player") .. "-" .. GetRealmName()
+local lastMatchActive = 0
 
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
@@ -56,6 +57,14 @@ local regionData = mergeRegionParts(regionCode)
 
 -- Cache table to avoid repeat lookups
 local achievementCache = {}
+
+-- 🔹 Build fast lookup index for character → entry
+local regionLookup = {}
+for _, entry in ipairs(regionData) do
+    if entry.character then
+        regionLookup[entry.character:lower()] = entry
+    end
+end
 
 local R1Titles = {
     "Primal Gladiator", "Wild Gladiator", "Warmongering Gladiator",
@@ -367,6 +376,19 @@ f:SetScript("OnEvent", function(_, event)
 			end)
 		end)
 
+		-- Hook CompactUnitFrame mouseovers (used by modern party/raid/enemy frames)
+		hooksecurefunc("CompactUnitFrame_OnEnter", function(self)
+			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+			local name, realm = UnitFullName(self.unit)
+			realm = realm or GetRealmName()
+		
+			C_Timer.After(0.5, function()
+				if GameTooltip:IsShown() then
+					AddAchievementInfoToTooltip(GameTooltip, name, realm)
+				end
+			end)
+		end)
+
         -- Hook LFG tooltips
         hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
             local _, _, name, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
@@ -380,7 +402,7 @@ f:SetScript("OnEvent", function(_, event)
                         if not tooltip:GetOwner() then
                             tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
                         end
-                        tooltip:ClearLines()
+                        tooltip:AddLine(" ")
                         -- Append your achievement info
                         AddAchievementInfoToTooltip(tooltip, leaderName, realm)
                     end
@@ -591,3 +613,257 @@ do
         poll()
     end)
 end
+
+-----------------------------------------------------------
+-- RatedStats: PvP Queue and Instance Announcements
+-----------------------------------------------------------
+
+local function PrintPartyAchievements()
+    if not IsInGroup() then return end
+
+    local inInstance, instanceType = IsInInstance()
+    local channel
+
+    if inInstance and (instanceType == "pvp" or instanceType == "arena") then
+        channel = "INSTANCE_CHAT"  -- /i in PvP instances
+    elseif IsInRaid() then
+        channel = "RAID"           -- /raid for raid groups outside instances
+    else
+        channel = "PARTY"          -- /p for normal parties
+    end
+
+    SendChatMessage("Rated Stats - Achievements for Group", channel)
+
+    for i = 1, GetNumGroupMembers() do
+        local name = GetRaidRosterInfo(i)
+        if name then
+            local baseName, realm = strsplit("-", name)
+            realm = realm or GetRealmName()
+            local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
+
+            local cached = achievementCache[fullName]
+            if not cached then
+                for _, entry in ipairs(regionData) do
+                    if entry.character and entry.character:lower() == fullName then
+                        cached = GetPvpAchievementSummary(entry)
+                        achievementCache[fullName] = cached
+                        break
+                    end
+                end
+            end
+
+            local highest = cached and cached.highest or "Not Seen in Bracket"
+            SendChatMessage(" - " .. name .. ": " .. highest, channel)
+        end
+    end
+end
+
+-- === Queue watcher: fires once per queue start ===
+local queueWatcher = CreateFrame("Frame")
+queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
+queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
+queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
+
+local lastQueued = 0
+queueWatcher:SetScript("OnEvent", function(_, event)
+    local now = GetTime()
+    -- Skip if still cooling down from last queue trigger
+    if (now - lastQueued) < 10 then return end
+
+    -- Skip if we've entered or are still inside an active PvP match
+    local inInstance, instanceType = IsInInstance()
+    if (inInstance and (instanceType == "pvp" or instanceType == "arena")) then return end
+
+    -- Skip if a match became active recently (still resolving rounds)
+    if (now - lastMatchActive) < 60 then return end
+
+    -- Check all PvP queues
+    for i = 1, 3 do
+        local status = select(1, GetBattlefieldStatus(i))
+        if status == "queued" then
+            lastQueued = now
+            C_Timer.After(1.0, PrintPartyAchievements)
+            return
+        end
+    end
+
+    -- Fallback: LFG queues (Rated Shuffle / Blitz)
+    if event == "LFG_QUEUE_STATUS_UPDATE" then
+        -- Optional strict guard: skip if currently in or queued for any PvP match type
+        local activeMatchType = C_PvP.GetActiveMatchType and C_PvP.GetActiveMatchType() or 0
+        if activeMatchType and activeMatchType > 0 then return end
+
+        lastQueued = now
+        C_Timer.After(1.0, PrintPartyAchievements)
+    end
+end)
+
+-----------------------------------------------------------
+-- RatedStats: Post Team Summary after entering PvP instance
+-----------------------------------------------------------
+
+local function PostPvPTeamSummary()
+    if not IsInInstance() then return end
+    local inInstance, instanceType = IsInInstance()
+    if not (inInstance and (instanceType == "pvp" or instanceType == "arena")) then return end
+
+    local myTeam = {}
+    local enemyTeam = {}
+    local seenEnemies = {}
+
+    local function collectTeamData(unitPrefix, count, target)
+        for i = 1, count do
+            local unit = unitPrefix .. i
+            if UnitExists(unit) and UnitIsPlayer(unit) and not UnitIsUnit(unit, "player") then
+                local name, realm = UnitFullName(unit)
+                realm = realm or GetRealmName()
+                local fullName = (name .. "-" .. realm):lower()
+                local cached = achievementCache[fullName]
+                if not cached then
+                    local entry = regionLookup[fullName]
+                    if entry then
+                        cached = GetPvpAchievementSummary(entry)
+                        achievementCache[fullName] = cached
+                    end
+                end
+                local highest = cached and cached.highest or "Not Seen in Bracket"
+                table.insert(target, string.format("%s - %s", name, highest))
+            end
+        end
+    end
+
+    -- Use 'party' units for small groups (arena / shuffle), 'raid' for Rated BGs
+    if IsInRaid() then
+        collectTeamData("raid", GetNumGroupMembers(), myTeam)
+    else
+        collectTeamData("party", GetNumGroupMembers() - 1, myTeam)
+    end
+    
+    -- Only add yourself manually if you weren’t included by party/raid units
+    local name, realm = UnitFullName("player")
+    realm = realm or GetRealmName()
+    local fullName = (name .. "-" .. realm):lower()
+    local foundSelf = false
+    for _, member in ipairs(myTeam) do
+        if member:lower():find(fullName, 1, true) then
+            foundSelf = true
+            break
+        end
+    end
+    if not foundSelf then
+        local cached = achievementCache[fullName]
+        if not cached then
+            local entry = regionLookup[fullName]
+            if entry then
+                cached = GetPvpAchievementSummary(entry)
+                achievementCache[fullName] = cached
+            end
+        end
+        local highest = cached and cached.highest or "Not Seen in Bracket"
+        table.insert(myTeam, 1, string.format("%s - %s", name, highest))
+    end
+
+    -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
+    local function addEnemy(unit)
+        if not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsFriend("player", unit) then return end
+        local name, realm = UnitFullName(unit)
+        realm = realm or GetRealmName()
+        local fullName = (name .. "-" .. realm):lower()
+        local cached = achievementCache[fullName]
+        if seenEnemies[fullName] then return end  -- skip duplicates
+        seenEnemies[fullName] = true
+        if not cached then
+            local entry = regionLookup[fullName]
+            if entry then
+                cached = GetPvpAchievementSummary(entry)
+                achievementCache[fullName] = cached
+            end
+        end
+        local highest = cached and cached.highest or "Not Seen in Bracket"
+        table.insert(enemyTeam, string.format("%s-%s - %s", name, realm, highest))
+    end
+
+    -- Prefer nameplates, but fall back to arena enemies if available
+    for i = 1, 20 do addEnemy("nameplate" .. i) end
+    for i = 1, 5 do addEnemy("arena" .. i) end
+
+    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
+    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+
+    local maxRows = math.max(#myTeam, #enemyTeam)
+    for i = 1, maxRows do
+        local left = myTeam[i] or ""
+        local right = enemyTeam[i] or ""
+        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+    end
+end
+
+local instanceWatcher = CreateFrame("Frame")
+instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+instanceWatcher:RegisterEvent("PVP_MATCH_ACTIVE")
+
+instanceWatcher:SetScript("OnEvent", function(_, event, ...)
+    local inInstance, instanceType = IsInInstance()
+
+    -- 🔸 PvP Instances (BG / RBG / Blitz)
+    if event == "PLAYER_ENTERING_WORLD" then
+        -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
+        if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
+            C_Timer.After(10, function()
+                -- collect both teams based on battlefield score API
+                local numScores = GetNumBattlefieldScores()
+                if numScores and numScores > 0 then
+                    local myFaction = UnitFactionGroup("player")
+                    local myTeam, enemyTeam = {}, {}
+
+					for i = 1, numScores do
+						local name, _, _, _, _, factionIndex = GetBattlefieldScore(i)
+						if name and factionIndex ~= nil then
+							-- Convert numeric faction index (0 = Horde, 1 = Alliance)
+							local faction = (factionIndex == 0) and "Horde" or "Alliance"
+							local myFaction = UnitFactionGroup("player")
+							local isEnemy = (faction ~= myFaction)
+					
+							local baseName, realm = strsplit("-", name)
+							realm = realm or GetRealmName()
+							local fullName = (baseName .. "-" .. realm):lower()
+					
+							local cached = achievementCache[fullName]
+							if not cached then
+								local entry = regionLookup[fullName]
+								if entry then
+									cached = GetPvpAchievementSummary(entry)
+									achievementCache[fullName] = cached
+								end
+							end
+					
+							local highest = cached and cached.highest or "Not Seen in Bracket"
+							if isEnemy then
+								table.insert(enemyTeam, string.format("%s - %s", name, highest))
+							else
+								table.insert(myTeam, string.format("%s - %s", name, highest))
+							end
+						end
+					end
+
+                    SendChatMessage("=== Rated Stats - Achievements (Battleground) ===", "INSTANCE_CHAT")
+                    local maxRows = math.max(#myTeam, #enemyTeam)
+                    for i = 1, maxRows do
+                        local left = myTeam[i] or ""
+                        local right = enemyTeam[i] or ""
+                        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+                    end
+                end
+            end)
+        end
+    end
+
+    -- 🔸 Arenas / Skirmishes / Solo Shuffle
+    if event == "PVP_MATCH_ACTIVE" then
+        if inInstance and instanceType == "arena" then
+            lastMatchActive = GetTime()
+            -- Fires once when gates open (Arenas, Skirmishes, Solo Shuffle)
+            C_Timer.After(90, PostPvPTeamSummary)
+        end
+    end
+end)
