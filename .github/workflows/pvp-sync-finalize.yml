@@ -340,6 +340,11 @@ jobs:
       - name: Export final Lua (same job, same workspace)
         env:
           REGION: ${{ needs.guard.outputs.region }}
+          BATCH_SIZE: "1"
+          BATCH_ID: "0"
+          TOTAL_BATCHES: "1"
+          OFFSET: "0"
+          LIMIT: "1"
         run: |
           set -euo pipefail
           echo "Exporting final region_${REGION}.lua from accumulator…"
