@@ -381,7 +381,7 @@ f:SetScript("OnEvent", function(_, event)
                         if not tooltip:GetOwner() then
                             tooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
                         end
-                        tooltip:ClearLines()
+                        tooltip:AddLine(" ")
                         -- Append your achievement info
                         AddAchievementInfoToTooltip(tooltip, leaderName, realm)
                     end
@@ -655,7 +655,7 @@ queueWatcher:SetScript("OnEvent", function(_, event)
 
     -- Skip if a match became active recently (still resolving rounds)
     if (now - lastMatchActive) < 60 then return end
-    
+
     -- Check all PvP queues
     for i = 1, 3 do
         local status = select(1, GetBattlefieldStatus(i))
@@ -668,6 +668,10 @@ queueWatcher:SetScript("OnEvent", function(_, event)
 
     -- Fallback: LFG queues (Rated Shuffle / Blitz)
     if event == "LFG_QUEUE_STATUS_UPDATE" then
+        -- Optional strict guard: skip if currently in or queued for any PvP match type
+        local activeMatchType = C_PvP.GetActiveMatchType and C_PvP.GetActiveMatchType() or 0
+        if activeMatchType and activeMatchType > 0 then return end
+        
         lastQueued = now
         C_Timer.After(1.0, PrintPartyAchievements)
     end
