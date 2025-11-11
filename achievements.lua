@@ -728,7 +728,7 @@ local function PostPvPTeamSummary()
     end
 
     -- Prefer nameplates, but fall back to arena enemies if available
-    for i = 1, 16 do addEnemy("nameplate" .. i) end
+    for i = 1, 20 do addEnemy("nameplate" .. i) end
     for i = 1, 5 do addEnemy("arena" .. i) end
 
     SendChatMessage("=== |cff00ff00Rated Stats - Achievements PvP Summary|r ===", "INSTANCE_CHAT")
