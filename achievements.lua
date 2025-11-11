@@ -826,7 +826,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
         if inInstance and instanceType == "arena" then
             lastMatchActive = GetTime()
             -- Fires once when gates open (Arenas, Skirmishes, Solo Shuffle)
-            C_Timer.After(60, PostPvPTeamSummary)
+            C_Timer.After(2, PostPvPTeamSummary)
         end
     end
 end)
