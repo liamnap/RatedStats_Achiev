@@ -624,12 +624,19 @@ local function PrintPartyAchievements()
     end
 end
 
+-- === Queue watcher: fires for both LFG and traditional PvP queues ===
 local queueWatcher = CreateFrame("Frame")
 queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
-queueWatcher:SetScript("OnEvent", function(_, _, ...)
-    local mode, submode, instanceID = GetBattlefieldStatus(1)
-    if mode == "queued" then
-        C_Timer.After(1.0, PrintPartyAchievements)
+queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
+queueWatcher:RegisterEvent("PVPQUEUE_STATUS_CHANGED")
+queueWatcher:SetScript("OnEvent", function()
+    -- Scan all possible queues (up to 3 possible battlefield slots)
+    for i = 1, 3 do
+        local status, mapName, queueID, instanceID = GetBattlefieldStatus(i)
+        if status == "queued" then
+            C_Timer.After(1.0, PrintPartyAchievements)
+            return
+        end
     end
 end)
 
