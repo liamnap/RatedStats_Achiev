@@ -731,7 +731,7 @@ local function PostPvPTeamSummary()
     for i = 1, 20 do addEnemy("nameplate" .. i) end
     for i = 1, 5 do addEnemy("arena" .. i) end
 
-    SendChatMessage("=== |cff00ff00Rated Stats - Achievements PvP Summary|r ===", "INSTANCE_CHAT")
+    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
     SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
 
     local maxRows = math.max(#myTeam, #enemyTeam)
