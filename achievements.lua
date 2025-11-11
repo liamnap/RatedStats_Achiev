@@ -750,13 +750,13 @@ end
 
 local instanceWatcher = CreateFrame("Frame")
 instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-instanceWatcher:RegisterEvent("ARENA_OPPONENT_UPDATE")
+instanceWatcher:RegisterEvent("PVP_MATCH_ACTIVE")
 
 instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     local inInstance, instanceType = IsInInstance()
 
     -- 🔸 PvP Instances (BG / RBG / Blitz)
-    if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+    if event == "PLAYER_ENTERING_WORLD" then
         if inInstance and instanceType == "pvp" then
             -- battlegrounds: enemy list available right away via GetBattlefieldScore()
             C_Timer.After(10, function()
@@ -805,12 +805,10 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     end
 
     -- 🔸 Arenas / Skirmishes / Solo Shuffle
-    if event == "ARENA_OPPONENT_UPDATE" then
-        local unit, updateType = ...
-        -- Fires once per opponent when visible; only trigger once gates open
-        if updateType == "seen" or updateType == "updated" then
-            -- delay slightly to let all arena units register
-            C_Timer.After(3, PostPvPTeamSummary)
+    if event == "PVP_MATCH_ACTIVE" then
+        if inInstance and instanceType == "arena" then
+            -- Fires once when gates open (Arenas, Skirmishes, Solo Shuffle)
+            C_Timer.After(2, PostPvPTeamSummary)
         end
     end
 end)
