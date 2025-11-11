@@ -803,33 +803,35 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                     local myFaction = UnitFactionGroup("player")
                     local myTeam, enemyTeam = {}, {}
 
-                    for i = 1, numScores do
-                        local name, _, _, _, _, faction = select(1, GetBattlefieldScore(i))
-                        if name and faction then
-                            -- Convert numeric faction index to string
-                            local faction = (factionIndex == 0) and "Horde" or "Alliance"
-                            local isEnemy = (faction ~= myFaction)
-                            local baseName, realm = strsplit("-", name)
-                            realm = realm or GetRealmName()
-                            local fullName = (baseName .. "-" .. realm):lower()
-                            local cached = achievementCache[fullName]
-                            if not cached then
-                                for _, entry in ipairs(regionData) do
-                                    if entry.character and entry.character:lower() == fullName then
-                                        cached = GetPvpAchievementSummary(entry)
-                                        achievementCache[fullName] = cached
-                                        break
-                                    end
-                                end
-                            end
-                            local highest = cached and cached.highest or "Not Seen in Bracket"
-                            if isEnemy then
-                                table.insert(enemyTeam, string.format("%s - %s", name, highest))
-                            else
-                                table.insert(myTeam, string.format("%s - %s", name, highest))
-                            end
-                        end
-                    end
+					for i = 1, numScores do
+						local name, _, _, _, _, factionIndex = GetBattlefieldScore(i)
+						if name and factionIndex ~= nil then
+							-- Convert numeric faction index (0 = Horde, 1 = Alliance)
+							local faction = (factionIndex == 0) and "Horde" or "Alliance"
+							local myFaction = UnitFactionGroup("player")
+							local isEnemy = (faction ~= myFaction)
+					
+							local baseName, realm = strsplit("-", name)
+							realm = realm or GetRealmName()
+							local fullName = (baseName .. "-" .. realm):lower()
+					
+							local cached = achievementCache[fullName]
+							if not cached then
+								local entry = regionLookup[fullName]
+								if entry then
+									cached = GetPvpAchievementSummary(entry)
+									achievementCache[fullName] = cached
+								end
+							end
+					
+							local highest = cached and cached.highest or "Not Seen in Bracket"
+							if isEnemy then
+								table.insert(enemyTeam, string.format("%s - %s", name, highest))
+							else
+								table.insert(myTeam, string.format("%s - %s", name, highest))
+							end
+						end
+					end
 
                     SendChatMessage("=== Rated Stats - Achievements (Battleground) ===", "INSTANCE_CHAT")
                     local maxRows = math.max(#myTeam, #enemyTeam)
