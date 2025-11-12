@@ -333,7 +333,7 @@ jobs:
             fi
             rm -rf "$dl"
             # Merge this shard into the accumulator DB
-            ONE_SHARD="$dst" python sync_pvp.py --mode finalize --region "$REGION"
+            ONE_SHARD="$dst" python sync_pvp.py --mode finalize --region "$region"
             
             # Prune: keep every 5th shard for export inspection, delete the rest once merged
             # EU ≈107 shards → keeps ~22 small sqlite files ≈<10 GB total
