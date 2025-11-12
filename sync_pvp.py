@@ -133,7 +133,8 @@ parser.add_argument(
     help="Mode: 'batch' to emit partials, 'finalize' to write full Lua",
 )
 parser.add_argument(
-    "--region", default=os.getenv("REGION", "eu"), help="Region code: us, eu, kr, tw"
+   "--region", required=True,
+   help="Region code: us, eu, kr, tw (must be explicitly passed)"
 )
 parser.add_argument(
     "--batch-id",
@@ -172,6 +173,11 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
+REGION = args.region.lower()
+if REGION not in ("us", "eu", "kr", "tw"):
+    print(f"[ERROR] Invalid region: {args.region!r}. Must be one of: us, eu, kr, tw")
+    sys.exit(1)
 
 CRED_SUFFIX_FORCE = args.cred_suffix
 
