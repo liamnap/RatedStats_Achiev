@@ -457,7 +457,7 @@ def get_latest_static_namespace(region: str) -> str:
 
 # ── list‑only short‑circuit (now placed after all needed defs) ──
 if args.list_ids_only:
-    region = args.region or os.getenv("REGION", "eu")
+    region = args.region
     keys: set[str] = set()
     char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
