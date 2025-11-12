@@ -329,9 +329,25 @@ jobs:
               exit 1
             fi
             rm -rf "$dl"
-            # Merge just this shard into the accumulator DB in /tmp, then delete it.
+            # Merge this shard into the accumulator DB
             ONE_SHARD="$dst" python sync_pvp.py --mode finalize
-            rm -f "$dst"
+            
+            # Prune: keep every 5th shard for export inspection, delete the rest once merged
+            # EU ≈107 shards → keeps ~22 small sqlite files ≈<10 GB total
+            if (( n % 5 != 0 )); then
+              rm -f "$dst"
+            else
+              echo "🧩 Keeping shard $n for export dataset (periodic retention)"
+            fi
+            
+            # If total partial_outputs exceeds 60 GB, prune oldest retained sqlite files
+            total_size=$(du -sk "$outdir" | awk '{print $1}')
+            max_size_kb=$((60 * 1024 * 1024))
+            if (( total_size > max_size_kb )); then
+              echo "⚠️ partial_outputs >60 GB; pruning oldest retained shard(s)..."
+              ls -t "$outdir"/achdb_${region}_b*.sqlite | tail -n +6 | xargs -r rm -f
+            fi
+            
             disk_report "$n"
           done
 
