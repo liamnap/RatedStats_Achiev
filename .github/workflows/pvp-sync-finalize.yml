@@ -85,8 +85,11 @@ jobs:
             if [[ "$CUR" == "$TOT" ]]; then
               echo "is_final=true"  >>"$GITHUB_OUTPUT"
               echo "✅ Detected final batch ($CUR/$TOT) for $REGION"
-              # Try to discover group id from THIS completed run's artifacts
+              # Derive group_id for region
               rid="${{ github.event.workflow_run.id }}"
+              GROUP_ID="${REGION}-${rid}"
+              echo "group_id=${GROUP_ID}" >>"$GITHUB_OUTPUT"
+              echo "🔎 Using group_id: ${GROUP_ID}"
               repo="${GITHUB_REPOSITORY:-${{ github.repository }}}"
               gid="$(gh api repos/"$repo"/actions/runs/"$rid"/artifacts \
                        --jq '.artifacts[].name
