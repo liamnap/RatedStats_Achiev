@@ -113,6 +113,7 @@ local function GetPvpAchievementSummary(entry)
     local summary = {}
     local highestRank = nil
     local highestRankIndex = 0
+    local highestPrefix = nil
 
     for _, col in ipairs(PvpRankColumns) do
         summary[col.key] = 0
@@ -128,6 +129,7 @@ local function GetPvpAchievementSummary(entry)
                     if i > highestRankIndex then
                         highestRank = val  -- ✅ store actual match string
                         highestRankIndex = i
+                        highestPrefix = col.prefix
                     end
                 elseif col.r1 then
                     for _, r1 in ipairs(R1Titles) do
@@ -136,6 +138,7 @@ local function GetPvpAchievementSummary(entry)
                             if i > highestRankIndex then
                                 highestRank = r1
                                 highestRankIndex = i
+                                highestPrefix = "Rank 1"
                             end
                         end
                     end
@@ -146,6 +149,7 @@ local function GetPvpAchievementSummary(entry)
                             if i > highestRankIndex then
                                 highestRank = hero
                                 highestRankIndex = i
+                                highestPrefix = "Hero"
                             end
                         end
                     end
@@ -154,7 +158,7 @@ local function GetPvpAchievementSummary(entry)
         end
     end
 
-    return { summary = summary, highest = highestRank }
+    return { summary = summary, highest = highestRank, prefix = highestPrefix }
 end
 
 local function centerIcon(iconTag, width)
@@ -666,8 +670,8 @@ local function PrintPartyAchievements()
                 end
             end
 
-            local highest = cached and cached.highest or "Not Seen in Bracket"
-            SendChatMessage(" - " .. name .. ": " .. highest, channel)
+            local prefix = cached and cached.prefix or "Not Seen in Bracket"
+            SendChatMessage(" - " .. ": " .. prefix, channel)
         end
     end
 end
@@ -740,8 +744,8 @@ local function PostPvPTeamSummary()
                         achievementCache[fullName] = cached
                     end
                 end
-                local highest = cached and cached.highest or "Not Seen in Bracket"
-                table.insert(target, string.format("%s - %s", name, highest))
+                local prefix = cached and cached.prefix or "Not Seen in Bracket"
+                table.insert(target, prefix)
             end
         end
     end
@@ -773,8 +777,8 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local highest = cached and cached.highest or "Not Seen in Bracket"
-        table.insert(myTeam, 1, string.format("%s - %s", name, highest))
+        local prefix = cached and cached.prefix or "Not Seen in Bracket"
+        table.insert(myTeam, 1, prefix)
     end
 
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
@@ -793,8 +797,8 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local highest = cached and cached.highest or "Not Seen in Bracket"
-        table.insert(enemyTeam, string.format("%s-%s - %s", name, realm, highest))
+        local prefix = cached and cached.prefix or "Not Seen in Bracket"
+        table.insert(enemyTeam, prefix)
     end
 
     -- Prefer nameplates, but fall back to arena enemies if available
