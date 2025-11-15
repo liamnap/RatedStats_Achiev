@@ -822,6 +822,7 @@ local function PostPvPTeamSummary()
     end
 end
 
+local queueState = { "none", "none", "none" }
 local instanceWatcher = CreateFrame("Frame")
 instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 instanceWatcher:RegisterEvent("PVP_MATCH_ACTIVE")
