@@ -672,7 +672,7 @@ local function PrintPartyAchievements()
             end
 
             local prefix = cached and cached.prefix or "Not Seen in Bracket"
-            SendChatMessage(" - " .. ": " .. prefix, channel)
+            SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
         end
     end
 end
@@ -699,11 +699,16 @@ queueWatcher:SetScript("OnEvent", function(_, event)
     -- Check all PvP queues
     for i = 1, 3 do
         local status = select(1, GetBattlefieldStatus(i))
-        if status == "queued" then
+        -- Fire only when transitioning into queued
+        if status == "queued" and queueState[i] ~= "queued" then
+            queueState[i] = "queued"
             lastQueued = now
             C_Timer.After(1.0, PrintPartyAchievements)
             return
         end
+
+        -- Update state (must always run)
+        queueState[i] = status
     end
 
     -- Fallback: LFG queues (Rated Shuffle / Blitz)
