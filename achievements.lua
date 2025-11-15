@@ -377,17 +377,31 @@ f:SetScript("OnEvent", function(_, event)
 		end)
 
 		-- Hook CompactUnitFrame mouseovers (used by modern party/raid/enemy frames)
-		hooksecurefunc("CompactUnitFrame_OnEnter", function(self)
-			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
-			local name, realm = UnitFullName(self.unit)
-			realm = realm or GetRealmName()
-		
-			C_Timer.After(0.5, function()
-				if GameTooltip:IsShown() then
-					AddAchievementInfoToTooltip(GameTooltip, name, realm)
+		if TooltipDataProcessor then
+			TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip, data)
+				if not tooltip or not data or not data.unit then return end
+				if not UnitIsPlayer(data.unit) then return end
+				local name, realm = UnitFullName(data.unit)
+				realm = realm or GetRealmName()
+				if name and realm then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
 				end
 			end)
-		end)
+		else
+			-- Fallback: use general GameTooltip::SetUnit hook if TooltipDataProcessor unavailable
+			hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+				local _, unit = tooltip:GetUnit()
+				if unit and UnitIsPlayer(unit) then
+					local name, realm = UnitFullName(unit)
+					realm = realm or GetRealmName()
+					C_Timer.After(0.05, function()
+						if tooltip:IsShown() then
+							AddAchievementInfoToTooltip(tooltip, name, realm)
+						end
+					end)
+				end
+			end)
+		end
 
         -- Hook LFG tooltips
         hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", function(tooltip, resultID)
