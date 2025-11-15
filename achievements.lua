@@ -876,7 +876,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
-                        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+                        SendChatMessage(centerText(left, 25) .. baseName .. " || " .. baseName .. centerText(right, 25), "INSTANCE_CHAT")
                     end
                 end
             end)
