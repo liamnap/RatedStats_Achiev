@@ -84,14 +84,14 @@ local HeroTitles = {
 }
 
 local PvpRankColumns = {
-    { key = "a", label = "Co-I",   prefix = "Combatant I:,  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
+    { key = "a", label = "Co-I",   prefix = "Combatant I:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
     { key = "b", label = "Co-II",  prefix = "Combatant II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
     { key = "c", label = "Ch-I",   prefix = "Challenger I:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
     { key = "d", label = "Ch-II",  prefix = "Challenger II:",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
     { key = "e", label = "R-I",    prefix = "Rival I:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
     { key = "f", label = "R-II",   prefix = "Rival II:",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
     { key = "g", label = "Duel",   prefix = "Duelist",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
-    { key = "h", label = "Elite",  prefix = "Elite:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
+    { key = "h", label = "Elite",  prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
     { key = "i", label = "Glad",   prefix = "Gladiator:",   icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
     { key = "j", label = "Legend", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
     { key = "k", label = "Rank 1", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
