@@ -650,8 +650,8 @@ local function PrintPartyAchievements()
         channel = "PARTY"          -- /p for normal parties
     end
 
-    --SendChatMessage("Rated Stats - Achievements for Group", channel)
-    print("Rated Stats - Achievements for Group")
+    SendChatMessage("Rated Stats - Achievements for Group", channel)
+--    print("Rated Stats - Achievements for Group")
 
     for i = 1, GetNumGroupMembers() do
         local name = GetRaidRosterInfo(i)
@@ -672,8 +672,8 @@ local function PrintPartyAchievements()
             end
 
             local prefix = cached and cached.prefix or "Not Seen in Bracket"
-            --SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
-            print(" - " .. baseName .. ": " .. prefix)
+            SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
+--            print(" - " .. baseName .. ": " .. prefix)
         end
     end
 end
