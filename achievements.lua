@@ -813,12 +813,12 @@ local function PostPvPTeamSummary()
 
     -- Prefer nameplates, but fall back to arena enemies if available
     for i = 1, 20 do addEnemy("nameplate" .. i) end
-    for i = 1, 5 do addEnemy("arena" .. i) end
+    for i = 1, 6 do addEnemy("arena" .. i) end
 
---    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
---    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
-    print("=== Rated Stats - Achievements PvP Summary ===")
-    print(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25))
+    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
+    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+--    print("=== Rated Stats - Achievements PvP Summary ===")
+--    print(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25))
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
