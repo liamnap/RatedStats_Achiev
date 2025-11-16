@@ -884,7 +884,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
                         --SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
-                        print(centerText(left, 25) .. " || " .. centerText(right, 25))
+                        print(string.format("%-25s || %-25s", left, right))
                     end
                 end
             end)
