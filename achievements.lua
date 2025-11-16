@@ -677,6 +677,7 @@ local function PrintPartyAchievements()
 end
 
 -- === Queue watcher: fires once per queue start ===
+local queueState = { "none", "none", "none" }
 local queueWatcher = CreateFrame("Frame")
 queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
 queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
@@ -823,7 +824,6 @@ local function PostPvPTeamSummary()
     end
 end
 
-local queueState = { "none", "none", "none" }
 local instanceWatcher = CreateFrame("Frame")
 instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 instanceWatcher:RegisterEvent("PVP_MATCH_ACTIVE")
