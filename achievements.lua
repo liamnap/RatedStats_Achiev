@@ -345,7 +345,7 @@ f:SetScript("OnEvent", function(_, event)
 			realm = realm or GetRealmName()
 		
 			-- Target/focus sometimes need a slight delay for text lines to exist
-			local delay = (unit == "target" or unit == "focus") and 0.15 or 0.05
+			local delay = (unit == "target" or unit == "focus") and 0.5 or 0.5
 		
 			C_Timer.After(delay, function()
 				if tooltip:IsShown() and UnitIsPlayer(unit) then
@@ -399,7 +399,7 @@ f:SetScript("OnEvent", function(_, event)
 				if unit and UnitIsPlayer(unit) then
 					local name, realm = UnitFullName(unit)
 					realm = realm or GetRealmName()
-					C_Timer.After(0.05, function()
+					C_Timer.After(0.5, function()
 						if tooltip:IsShown() then
 							AddAchievementInfoToTooltip(tooltip, name, realm)
 						end
@@ -604,7 +604,7 @@ do
         realm = (realm or (info and info.leaderRealm) or GetRealmName()):gsub("%s+", "")
 
         -- Let Blizzard/other addons build their lines first, then append ours.
-        C_Timer.After(0.05, function()
+        C_Timer.After(0.5, function()
             if tooltip:IsShown() then
                 AddAchievementInfoToTooltip(tooltip, baseName, realm)
             end
@@ -624,7 +624,7 @@ do
     waiter:SetScript("OnEvent", function(self)
         local function poll()
             if not TryHook() then
-                C_Timer.After(0.25, poll)
+                C_Timer.After(0.5, poll)
             else
                 self:UnregisterAllEvents()
             end
@@ -834,7 +834,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
         if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
-            C_Timer.After(10, function()
+            C_Timer.After(20, function()
                 -- collect both teams based on battlefield score API
                 local numScores = GetNumBattlefieldScores()
                 if numScores and numScores > 0 then
