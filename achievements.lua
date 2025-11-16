@@ -840,7 +840,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
         if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
-            C_Timer.After(20, function()
+            C_Timer.After(30, function()
                 -- collect both teams based on battlefield score API
                 local numScores = GetNumBattlefieldScores()
                 if numScores and numScores > 0 then
