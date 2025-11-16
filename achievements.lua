@@ -94,9 +94,8 @@ local PvpRankColumns = {
     { key = "h", label = "Elite",  prefix = "Gladiator",    icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
     { key = "i", label = "Glad",   prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
     { key = "j", label = "Legend", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "k", label = "Three's Company", prefix = "3s Company:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l", label = "Rank 1", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "m", label = "HotX",   hero = true,             icons = {
+    { key = "k", label = "Rank 1", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "l", label = "HotX",   hero = true,             icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
     }},
@@ -672,7 +671,7 @@ local function PrintPartyAchievements()
             end
 
             local prefix = cached and cached.prefix or "Not Seen in Bracket"
-            SendChatMessage(" - " .. name .. ": " .. prefix, channel)
+            SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
         end
     end
 end
@@ -784,7 +783,8 @@ local function PostPvPTeamSummary()
             end
         end
         local prefix = cached and cached.prefix or "Not Seen in Bracket"
-        table.insert(myTeam, 1, prefix)
+        local baseName = name
+        table.insert(myTeam, 1, baseName .. " - " .. prefix)
     end
 
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
@@ -804,7 +804,8 @@ local function PostPvPTeamSummary()
             end
         end
         local prefix = cached and cached.prefix or "Not Seen in Bracket"
-        table.insert(enemyTeam, prefix)
+        local baseName = name
+        table.insert(enemyTeam, baseName .. " - " .. prefix)
     end
 
     -- Prefer nameplates, but fall back to arena enemies if available
@@ -812,13 +813,13 @@ local function PostPvPTeamSummary()
     for i = 1, 5 do addEnemy("arena" .. i) end
 
     SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
-    SendChatMessage(centerText("My Team", 25) .. name .. " || " .. name .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        SendChatMessage(centerText(left, 25) .. name .. " || " .. name .. centerText(right, 25), "INSTANCE_CHAT")
+        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
     end
 end
 
@@ -862,21 +863,21 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 								end
 							end
 					
-							local highest = cached and cached.highest or "Not Seen in Bracket"
+							local prefix = cached and cached.prefix or "Not Seen in Bracket"
 							if isEnemy then
-								table.insert(enemyTeam, string.format("%s - %s", name, highest))
+								table.insert(enemyTeam, string.format("%s - %s", baseName, prefix))
 							else
-								table.insert(myTeam, string.format("%s - %s", name, highest))
+								table.insert(myTeam, string.format("%s - %s", baseName, prefix))
 							end
 						end
 					end
 
-                    SendChatMessage("=== Rated Stats - Achievements (Battleground) ===", "INSTANCE_CHAT")
+                    SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
                     local maxRows = math.max(#myTeam, #enemyTeam)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
-                        SendChatMessage(centerText(left, 25) .. name .. " || " .. name .. centerText(right, 25), "INSTANCE_CHAT")
+                        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
                     end
                 end
             end)
