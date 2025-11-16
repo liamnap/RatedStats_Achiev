@@ -764,7 +764,7 @@ local function PostPvPTeamSummary()
     end
     
     -- Only add yourself manually if you weren’t included by party/raid units
-    local name, realm  UnitFullName("player")
+    local name, realm = UnitFullName("player")
     realm = realm or GetRealmName()
     local fullName = (name .. "-" .. realm):lower()
     local foundSelf = false
