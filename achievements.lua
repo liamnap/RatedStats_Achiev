@@ -753,7 +753,7 @@ local function PostPvPTeamSummary()
                     end
                 end
                 local prefix = cached and cached.prefix or "Not Seen in Bracket"
-                table.insert(target, prefix)
+                table.insert(target, name .. " - " .. prefix)
             end
         end
     end
