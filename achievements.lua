@@ -650,7 +650,8 @@ local function PrintPartyAchievements()
         channel = "PARTY"          -- /p for normal parties
     end
 
-    SendChatMessage("Rated Stats - Achievements for Group", channel)
+    --SendChatMessage("Rated Stats - Achievements for Group", channel)
+    print("Rated Stats - Achievements for Group")
 
     for i = 1, GetNumGroupMembers() do
         local name = GetRaidRosterInfo(i)
@@ -671,7 +672,8 @@ local function PrintPartyAchievements()
             end
 
             local prefix = cached and cached.prefix or "Not Seen in Bracket"
-            SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
+            --SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
+            print(" - " .. baseName .. ": " .. prefix)
         end
     end
 end
@@ -813,14 +815,17 @@ local function PostPvPTeamSummary()
     for i = 1, 20 do addEnemy("nameplate" .. i) end
     for i = 1, 5 do addEnemy("arena" .. i) end
 
-    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
-    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+--    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
+--    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+    print("=== Rated Stats - Achievements PvP Summary ===")
+    print(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25))
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+--        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+        print(centerText(left, 25) .. " || " .. centerText(right, 25))
     end
 end
 
@@ -872,12 +877,14 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 						end
 					end
 
-                    SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
+                    --SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
+                    print("=== Rated Stats - Achievements ===")
                     local maxRows = math.max(#myTeam, #enemyTeam)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
-                        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+                        --SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+                        print(centerText(left, 25) .. " || " .. centerText(right, 25))
                     end
                 end
             end)
