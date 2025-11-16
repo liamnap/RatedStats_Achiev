@@ -824,8 +824,8 @@ local function PostPvPTeamSummary()
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
---        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
-        print(centerText(left, 25) .. " || " .. centerText(right, 25))
+        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+--        print(centerText(left, 25) .. " || " .. centerText(right, 25))
     end
 end
 
