@@ -672,7 +672,7 @@ local function PrintPartyAchievements()
             end
 
             local prefix = cached and cached.prefix or "Not Seen in Bracket"
-            SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
+            SendChatMessage(" - " .. name .. ": " .. prefix, channel)
         end
     end
 end
@@ -764,7 +764,7 @@ local function PostPvPTeamSummary()
     end
     
     -- Only add yourself manually if you weren’t included by party/raid units
-    local name, realm = UnitFullName("player")
+    local name, realm  UnitFullName("player")
     realm = realm or GetRealmName()
     local fullName = (name .. "-" .. realm):lower()
     local foundSelf = false
@@ -812,13 +812,13 @@ local function PostPvPTeamSummary()
     for i = 1, 5 do addEnemy("arena" .. i) end
 
     SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
-    SendChatMessage(centerText("My Team", 25) .. baseName .. " || " .. baseName .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+    SendChatMessage(centerText("My Team", 25) .. name .. " || " .. name .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        SendChatMessage(centerText(left, 25) .. baseName .. " || " .. baseName .. centerText(right, 25), "INSTANCE_CHAT")
+        SendChatMessage(centerText(left, 25) .. name .. " || " .. name .. centerText(right, 25), "INSTANCE_CHAT")
     end
 end
 
@@ -876,7 +876,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
-                        SendChatMessage(centerText(left, 25) .. baseName .. " || " .. baseName .. centerText(right, 25), "INSTANCE_CHAT")
+                        SendChatMessage(centerText(left, 25) .. name .. " || " .. name .. centerText(right, 25), "INSTANCE_CHAT")
                     end
                 end
             end)
