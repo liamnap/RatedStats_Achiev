@@ -133,7 +133,7 @@ local function GetPvpAchievementSummary(entry)
                     end
                 elseif col.r1 then
                     for _, r1 in ipairs(R1Titles) do
-                        if name:find(r1:lower(), 1, true) then
+                        if name == r1:lower() then
                             summary[col.key] = summary[col.key] + 1
                             if i > highestRankIndex then
                                 highestRank = r1
