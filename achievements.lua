@@ -369,6 +369,7 @@ f:SetScript("OnEvent", function(_, event)
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
 			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+            if GameTooltip:IsForbidden() then return end  -- prevents blink + hide cycle
 			local name, realm = UnitFullName(self.unit)
 			realm = realm or GetRealmName()
 		
