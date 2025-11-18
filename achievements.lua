@@ -168,136 +168,117 @@ local function centerIcon(iconTag, width)
 end
 
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
-    if not tooltip then return end
+    local _, unit = tooltip:GetUnit()
+    local name, realm
 
-    -------------------------------------------------------------------
-    -- Resolve name + realm (unit → fallback → override)
-    -------------------------------------------------------------------
+    if unit and UnitIsPlayer(unit) then
+        name, realm = UnitFullName(unit)
+    else
+        name, realm = overrideName, overrideRealm
+    end
+
+    if not name then return end
+    realm = realm or GetRealmName()
+    local key = (name .. "-" .. realm):lower()
+
+    -- Avoid adding twice for same target, but allow refreshes
+    if tooltip.__RatedStatsLast == key then return end
+    tooltip.__RatedStatsLast = key
+
+    tooltip:HookScript("OnHide", function(tip)
+        tip.__RatedStatsLast = nil
+    end)
+    -- look up our per-char database and bail out if Achiev is off
+    local key = UnitName("player") .. "-" .. GetRealmName()
+    local db  = RSTATS.Database[key]
+	local module = "RatedStats_Achiev"
+    if C_AddOns.GetAddOnEnableState(module, nil) == 0 then
+        return
+    end
+  
     local baseName, realm
-    local unit = nil
 
-    -- Check if tooltip was built from a unit
+    -- Use override only if tooltip:GetUnit() is not supported or not a unit tooltip
+    local unit
     if tooltip.GetUnit then
-        local ok, u = pcall(tooltip.GetUnit, tooltip)
-        if ok then _, unit = u end
+        _, unit = tooltip:GetUnit()
     end
 
     if unit and UnitIsPlayer(unit) then
         baseName, realm = UnitFullName(unit)
-        realm = realm or GetRealmName()
+    elseif overrideName then
+        baseName = overrideName
+        realm = overrideRealm or GetRealmName()
+    else
+        return -- No usable name/realm source
     end
 
-    -- Fallback (LFG / Guild / Applicant tooltips)
-    if not baseName then
-        if overrideName then
-            baseName = overrideName
-            realm = overrideRealm or GetRealmName()
-        else
-            return -- nothing to resolve; bail cleanly
+    realm = realm or GetRealmName()
+    local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
+
+    -- Cache lookup
+    if achievementCache[fullName] == nil then
+        local found = false
+        for _, entry in ipairs(regionData) do
+            if entry.character and entry.character:lower() == fullName then
+                achievementCache[fullName] = GetPvpAchievementSummary(entry)
+                found = true
+                break
+            end
+        end
+        if not found then
+            achievementCache[fullName] = { summary = {}, highest = nil }
         end
     end
 
-    -------------------------------------------------------------------
-    -- Normalize
-    -------------------------------------------------------------------
-    realm = realm:gsub("%s+", "")
-    local fullName = (baseName .. "-" .. realm):lower()
+	local result = achievementCache[fullName]
+	local summary = result.summary or {}
+	local highest = result.highest
 
-    -------------------------------------------------------------------
-    -- GUARD: Stop multiple adds from SetUnit + TooltipDataProcessor + frame hooks
-    -------------------------------------------------------------------
-    if tooltip.__RS_Adding then
-        return -- currently constructing; avoid recursion/flicker
-    end
-    tooltip.__RS_Adding = true
-
-    -- Prevent duplicate add for same name during same tooltip build
-    if tooltip.__RS_LastName == baseName and tooltip.__RS_LastRealm == realm then
-        tooltip.__RS_Adding = nil
-        return
-    end
-
-    -------------------------------------------------------------------
-    -- Full data lookup
-    -------------------------------------------------------------------
-    local result = achievementCache[fullName]
-    if not result then
-        local entry = regionLookup[fullName]
-        if entry then
-            result = GetPvpAchievementSummary(entry)
-        else
-            result = { summary = {}, highest = nil }
-        end
-        achievementCache[fullName] = result
-    end
-
-    local summary = result.summary
-    local highest = result.highest
-
-    -------------------------------------------------------------------
-    -- Tooltip lines
-    -------------------------------------------------------------------
     tooltip:AddLine("|cffffff00Rated Stats - Achievements|r")
     tooltip:AddLine("----------------------------")
 
+    local hasAnyHistory = false
+    for _, col in ipairs(PvpRankColumns) do
+        if summary[col.key] and summary[col.key] > 0 then
+            hasAnyHistory = true
+            break
+        end
+    end
+	
     if highest then
         tooltip:AddLine("|cff00ff00Highest PvP Rank:|r " .. highest)
     else
         tooltip:AddLine("|cffff0000No History / Not Seen in Bracket|r")
     end
 
-    -- Check if any icons are available
-    local hasAny = false
-    for _, col in ipairs(PvpRankColumns) do
-        if (summary[col.key] or 0) > 0 then
-            hasAny = true
-            break
-        end
-    end
-
-    -------------------------------------------------------------------
-    -- Icon rows
-    -------------------------------------------------------------------
-    if hasAny then
-        local iconRow, valueRow = "", ""
-        local iconSize = 16
-        local offsetY = 0
-
-        for _, col in ipairs(PvpRankColumns) do
-            local count = summary[col.key] or 0
-
-            if col.hero and col.icons then
-                -- 2-icon hero column
-                local combined = ""
-                for _, path in ipairs(col.icons) do
-                    combined = combined .. string.format(
-                        "|T%s:%d:%d:0:%d|t",
-                        path, iconSize, iconSize, offsetY
-                    )
-                end
-                iconRow  = iconRow  .. centerIcon(combined, 10)
-                valueRow = valueRow .. centerText(count, 12)
-            else
-                local icon = string.format(
-                    "|T%s:%d:%d:0:%d|t",
-                    col.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                    iconSize, iconSize, offsetY
-                )
-                iconRow  = iconRow  .. centerIcon(icon, 6)
-                valueRow = valueRow .. centerText(count, 6)
-            end
-        end
-
-        tooltip:AddLine(iconRow)
-        tooltip:AddLine(valueRow)
-    end
-
-    -------------------------------------------------------------------
-    -- Finalize guard values and show tooltip
-    -------------------------------------------------------------------
-    tooltip.__RS_LastName  = baseName
-    tooltip.__RS_LastRealm = realm
-    tooltip.__RS_Adding = nil
+	if hasAnyHistory then
+		local iconRow, valueRow = "", ""
+		local iconSize = 16
+		local iconOffsetY = 0
+	
+		for _, col in ipairs(PvpRankColumns) do
+			local count = summary[col.key] or 0
+	
+			-- Handle HotX (double icon column)
+			if col.hero and col.icons then
+				local icons = ""
+				for _, iconPath in ipairs(col.icons) do
+					icons = icons .. string.format("|T%s:%d:%d:0:%d|t", iconPath, iconSize, iconSize, iconOffsetY)
+				end
+				iconRow = iconRow .. centerIcon(icons, 10)
+				valueRow = valueRow .. centerText(count, 12)
+	
+			else
+				local iconTag = string.format("|T%s:%d:%d:0:%d|t", col.icon or "Interface\\Icons\\inv_misc_questionmark", iconSize, iconSize, iconOffsetY)
+				iconRow = iconRow .. centerIcon(iconTag, 6)
+				valueRow = valueRow .. centerText(count, 6)
+			end
+		end
+	
+		tooltip:AddLine(iconRow)
+		tooltip:AddLine(valueRow)
+	end
 
     tooltip:Show()
 end
@@ -333,10 +314,6 @@ f:RegisterEvent("PLAYER_FOCUS_CHANGED")
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 
-        GameTooltip:HookScript("OnTooltipCleared", function(self)
-            self.__RatedStatsAdded = nil
-        end)
-
         -- Table to cache the most recent applicant names for use in tooltips
         local recentApplicants = {}
 
@@ -361,12 +338,6 @@ f:SetScript("OnEvent", function(_, event)
 		-- Hook 1: General player units (includes mouseover, target, focus)
 		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
 			local _, unit = tooltip:GetUnit()
-            if not unit then return end
-
-            -- Force refresh for player unit
-            if unit == "player" then
-                tooltip.__RatedStatsLast = nil
-            end
 			if not unit or not UnitIsPlayer(unit) then return end
 		
 			local name, realm = UnitFullName(unit)
@@ -382,18 +353,18 @@ f:SetScript("OnEvent", function(_, event)
 			end)
 		end)
 		
---		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
---		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
---			local _, unit = tooltip:GetUnit()
---			if unit == "player" then
---				local name, realm = UnitFullName("player")
---				realm = realm or GetRealmName()
---				tooltip.__RatedStatsLast = nil -- force refresh
---				if tooltip:IsShown() then
---					AddAchievementInfoToTooltip(tooltip, name, realm)
---				end
---			end
---		end)
+		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if unit == "player" then
+				local name, realm = UnitFullName("player")
+				realm = realm or GetRealmName()
+				tooltip.__RatedStatsLast = nil -- force refresh
+				if tooltip:IsShown() then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end
+		end)
 
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
