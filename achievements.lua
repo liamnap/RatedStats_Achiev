@@ -576,7 +576,6 @@ f:SetScript("OnEvent", function(_, event)
             realm = realm or GetRealmName()
             AddAchievementInfoToTooltip(GameTooltip, name, realm)
         end
-    end
 --
 --    elseif event == "PLAYER_TARGET_CHANGED" then
 --        if UnitExists("target") and UnitIsPlayer("target") then
