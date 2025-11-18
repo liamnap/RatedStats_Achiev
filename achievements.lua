@@ -182,8 +182,8 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     local key = (name .. "-" .. realm):lower()
 
     -- Avoid adding twice for same target, but allow refreshes
---    if tooltip.__RatedStatsLast == key then return end
---    tooltip.__RatedStatsLast = key
+    if tooltip.__RatedStatsLast == key then return end
+    tooltip.__RatedStatsLast = key
 
 --    tooltip:HookScript("OnHide", function(tip)
 --        tip.__RatedStatsLast = nil
@@ -314,6 +314,14 @@ f:RegisterEvent("PLAYER_FOCUS_CHANGED")
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 
+        -- === GLOBAL ONCE-ONLY TOOLTIP CLEANUP ===
+        GameTooltip:HookScript("OnHide", function(self)
+            C_Timer.After(10, function()
+                self.__RatedStatsLast = nil
+                self.__RatedStatsLastUnit = nil
+            end)
+        end)
+
         -- Table to cache the most recent applicant names for use in tooltips
         local recentApplicants = {}
 
@@ -341,9 +349,9 @@ f:SetScript("OnEvent", function(_, event)
             if not unit then return end
 
             -- Force refresh for player unit
---            if unit == "player" then
---                tooltip.__RatedStatsLast = nil
---            end
+            if unit == "player" then
+                tooltip.__RatedStatsLast = nil
+            end
 			if not unit or not UnitIsPlayer(unit) then return end
 		
 			local name, realm = UnitFullName(unit)
