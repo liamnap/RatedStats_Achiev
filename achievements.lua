@@ -182,8 +182,8 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     local key = (name .. "-" .. realm):lower()
 
     -- Avoid adding twice for same target, but allow refreshes
-    if tooltip.__RatedStatsLast == key then return end
-    tooltip.__RatedStatsLast = key
+--    if tooltip.__RatedStatsLast == key then return end
+--    tooltip.__RatedStatsLast = key
 
 --    tooltip:HookScript("OnHide", function(tip)
 --        tip.__RatedStatsLast = nil
