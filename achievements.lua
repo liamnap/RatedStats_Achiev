@@ -560,21 +560,21 @@ f:SetScript("OnEvent", function(_, event)
 
         C_Timer.After(0.5, HookApplicantFrames)
 
-    elseif event == "UPDATE_MOUSEOVER_UNIT" then
-        if UnitIsPlayer("mouseover") then
-            GameTooltip:SetUnit("mouseover")
-        end
-
-    elseif event == "PLAYER_TARGET_CHANGED" then
-        if UnitExists("target") and UnitIsPlayer("target") then
-            GameTooltip:SetUnit("target")
-        end
-
-    elseif event == "PLAYER_FOCUS_CHANGED" then
-        if UnitExists("focus") and UnitIsPlayer("focus") then
-            GameTooltip:SetUnit("focus")
-        end
-    end
+--    elseif event == "UPDATE_MOUSEOVER_UNIT" then
+--        if UnitIsPlayer("mouseover") then
+--            GameTooltip:SetUnit("mouseover")
+--        end
+--
+--    elseif event == "PLAYER_TARGET_CHANGED" then
+--        if UnitExists("target") and UnitIsPlayer("target") then
+--            GameTooltip:SetUnit("target")
+--        end
+--
+--    elseif event == "PLAYER_FOCUS_CHANGED" then
+--        if UnitExists("focus") and UnitIsPlayer("focus") then
+--            GameTooltip:SetUnit("focus")
+--        end
+--    end
 end) -- closes f:SetScript
 
 -- === RatedStats: LFG Search Popout (Leader) → Append Achievements ===
