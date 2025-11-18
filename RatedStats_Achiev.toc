@@ -17,6 +17,7 @@ region_eu_part8.lua
 region_eu_part9.lua
 region_eu_part10.lua
 region_eu_part11.lua
+region_eu_part12.lua
 region_us_part1.lua
 region_us_part2.lua
 region_us_part3.lua
