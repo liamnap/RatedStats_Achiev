@@ -289,7 +289,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         tooltip:AddLine(valueRow)
     end
 
-    tooltip:Show()
+--    tooltip:Show()
 end
 
 -- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
