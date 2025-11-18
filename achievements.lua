@@ -560,22 +560,26 @@ f:SetScript("OnEvent", function(_, event)
 
         C_Timer.After(0.5, HookApplicantFrames)
 
-    elseif event == "UPDATE_MOUSEOVER_UNIT" then
-        if not UnitExists("mouseover") or not UnitIsPlayer("mouseover") then
-            return
-        end
-
-        -- Prevent double/triple injections on UI unitframes
-        local mf = GetMouseFocus()
-        if mf and (mf.unit or mf.displayedUnit or (mf.GetUnit and mf:GetUnit())) then
-            return
-        end
-
-        if GameTooltip:IsShown() then
-            local name, realm = UnitFullName("mouseover")
-            realm = realm or GetRealmName()
-            AddAchievementInfoToTooltip(GameTooltip, name, realm)
-        end
+	elseif event == "UPDATE_MOUSEOVER_UNIT" then
+		if not UnitExists("mouseover") or not UnitIsPlayer("mouseover") then
+			return
+		end
+	
+		-- Safely get mouse focus for all modern WoW versions
+		local mf = GetMouseFocus and GetMouseFocus()
+			or (UIParent and UIParent.GetMouseFocus and UIParent:GetMouseFocus())
+			or TheMouseFocus
+	
+		-- Prevent double/triple injections on unitframes (party/raid/arena/nameplate)
+		if mf and (mf.unit or mf.displayedUnit or (mf.GetUnit and mf:GetUnit())) then
+			return
+		end
+	
+		if GameTooltip:IsShown() then
+			local name, realm = UnitFullName("mouseover")
+			realm = realm or GetRealmName()
+			AddAchievementInfoToTooltip(GameTooltip, name, realm)
+		end
 --
 --    elseif event == "PLAYER_TARGET_CHANGED" then
 --        if UnitExists("target") and UnitIsPlayer("target") then
