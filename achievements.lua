@@ -335,63 +335,50 @@ f:SetScript("OnEvent", function(_, event)
             end
         end)
 
-        -- Single unified hook for all player-unit tooltips
-        if TooltipDataProcessor then
-            TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip, data)
-                if not tooltip or not data or not data.unit then return end
-                if not UnitIsPlayer(data.unit) then return end
+		-- Hook 1: General player units (includes mouseover, target, focus)
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if not unit or not UnitIsPlayer(unit) then return end
+		
+			local name, realm = UnitFullName(unit)
+			realm = realm or GetRealmName()
+		
+			-- Target/focus sometimes need a slight delay for text lines to exist
+			local delay = (unit == "target" or unit == "focus") and 0.5 or 0.5
+		
+			C_Timer.After(delay, function()
+				if tooltip:IsShown() and UnitIsPlayer(unit) then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end)
+		end)
+		
+		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+			local _, unit = tooltip:GetUnit()
+			if unit == "player" then
+				local name, realm = UnitFullName("player")
+				realm = realm or GetRealmName()
+				tooltip.__RatedStatsLast = nil -- force refresh
+				if tooltip:IsShown() then
+					AddAchievementInfoToTooltip(tooltip, name, realm)
+				end
+			end
+		end)
 
-                local name, realm = UnitFullName(data.unit)
-                realm = realm or GetRealmName()
-
-                AddAchievementInfoToTooltip(tooltip, name, realm)
-            end)
-        end
-
---		-- Hook 1: General player units (includes mouseover, target, focus)
---		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
---			local _, unit = tooltip:GetUnit()
---			if not unit or not UnitIsPlayer(unit) then return end
---		
---			local name, realm = UnitFullName(unit)
---			realm = realm or GetRealmName()
---		
---			-- Target/focus sometimes need a slight delay for text lines to exist
---			local delay = (unit == "target" or unit == "focus") and 0.5 or 0.5
---		
---			C_Timer.After(delay, function()
---				if tooltip:IsShown() and UnitIsPlayer(unit) then
---					AddAchievementInfoToTooltip(tooltip, name, realm)
---				end
---			end)
---		end)
---		
---		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
---		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
---			local _, unit = tooltip:GetUnit()
---			if unit == "player" then
---				local name, realm = UnitFullName("player")
---				realm = realm or GetRealmName()
---				tooltip.__RatedStatsLast = nil -- force refresh
---				if tooltip:IsShown() then
---					AddAchievementInfoToTooltip(tooltip, name, realm)
---				end
---			end
---		end)
---
---		-- Hook UnitFrame mouseovers (party/raid frames etc.)
---		hooksecurefunc("UnitFrame_OnEnter", function(self)
---			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
---			local name, realm = UnitFullName(self.unit)
---			realm = realm or GetRealmName()
---		
---			-- Delay a touch to ensure tooltip lines are added
---			C_Timer.After(0.5, function()
---				if GameTooltip:IsShown() then
---					AddAchievementInfoToTooltip(GameTooltip, name, realm)
---				end
---			end)
---		end)
+		-- Hook UnitFrame mouseovers (party/raid frames etc.)
+		hooksecurefunc("UnitFrame_OnEnter", function(self)
+			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+			local name, realm = UnitFullName(self.unit)
+			realm = realm or GetRealmName()
+		
+			-- Delay a touch to ensure tooltip lines are added
+			C_Timer.After(0.5, function()
+				if GameTooltip:IsShown() then
+					AddAchievementInfoToTooltip(GameTooltip, name, realm)
+				end
+			end)
+		end)
 
 		-- Hook CompactUnitFrame mouseovers (used by modern party/raid/enemy frames)
 		if TooltipDataProcessor then
