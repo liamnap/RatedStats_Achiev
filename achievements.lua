@@ -359,7 +359,7 @@ f:SetScript("OnEvent", function(_, event)
 			if unit == "player" then
 				local name, realm = UnitFullName("player")
 				realm = realm or GetRealmName()
-				tooltip.__RatedStatsLast = nil -- force refresh
+--				tooltip.__RatedStatsLast = nil -- force refresh
 				if tooltip:IsShown() then
 					AddAchievementInfoToTooltip(tooltip, name, realm)
 				end
@@ -373,11 +373,11 @@ f:SetScript("OnEvent", function(_, event)
 			realm = realm or GetRealmName()
 		
 			-- Delay a touch to ensure tooltip lines are added
-			C_Timer.After(0.5, function()
+--			C_Timer.After(0.5, function()
 				if GameTooltip:IsShown() then
 					AddAchievementInfoToTooltip(GameTooltip, name, realm)
 				end
-			end)
+--			end)
 		end)
 
 		-- Hook CompactUnitFrame mouseovers (used by modern party/raid/enemy frames)
