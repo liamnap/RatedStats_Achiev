@@ -574,7 +574,7 @@ f:SetScript("OnEvent", function(_, event)
 --        if UnitExists("focus") and UnitIsPlayer("focus") then
 --            GameTooltip:SetUnit("focus")
 --        end
---    end
+    end
 end) -- closes f:SetScript
 
 -- === RatedStats: LFG Search Popout (Leader) → Append Achievements ===
