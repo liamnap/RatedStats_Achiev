@@ -370,6 +370,14 @@ f:SetScript("OnEvent", function(_, event)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
 			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
             if GameTooltip:IsForbidden() then return end  -- prevents blink + hide cycle
+
+           -- Blizzard suppresses CompactUnitFrame tooltips depending on UI settings.
+           -- Force the tooltip to exist so our addon can append lines.
+           if not GameTooltip:IsShown() then
+               GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+               GameTooltip:SetUnit(self.unit)
+           end
+
 			local name, realm = UnitFullName(self.unit)
 			realm = realm or GetRealmName()
 		
