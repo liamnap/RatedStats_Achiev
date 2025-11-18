@@ -341,9 +341,9 @@ f:SetScript("OnEvent", function(_, event)
             if not unit then return end
 
             -- Force refresh for player unit
-            if unit == "player" then
-                tooltip.__RatedStatsLast = nil
-            end
+--            if unit == "player" then
+--                tooltip.__RatedStatsLast = nil
+--            end
 			if not unit or not UnitIsPlayer(unit) then return end
 		
 			local name, realm = UnitFullName(unit)
