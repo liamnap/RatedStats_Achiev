@@ -560,10 +560,14 @@ f:SetScript("OnEvent", function(_, event)
 
         C_Timer.After(0.5, HookApplicantFrames)
 
---    elseif event == "UPDATE_MOUSEOVER_UNIT" then
---        if UnitIsPlayer("mouseover") then
---            GameTooltip:SetUnit("mouseover")
---        end
+    elseif event == "UPDATE_MOUSEOVER_UNIT" then
+        if UnitExists("mouseover") and UnitIsPlayer("mouseover") then
+            if GameTooltip:IsShown() then
+                local name, realm = UnitFullName("mouseover")
+                realm = realm or GetRealmName()
+                AddAchievementInfoToTooltip(GameTooltip, name, realm)
+            end
+        end
 --
 --    elseif event == "PLAYER_TARGET_CHANGED" then
 --        if UnitExists("target") and UnitIsPlayer("target") then
