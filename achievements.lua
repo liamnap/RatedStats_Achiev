@@ -170,22 +170,13 @@ end
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     if not tooltip then return end
 
-    -- Prevent double-add only within one render cycle.
-    if tooltip.__RatedStatsAdded then return end
-    tooltip.__RatedStatsAdded = true
-
-    -- Blizzard sometimes skips OnTooltipCleared on some frames,
-    -- OnHide is the only universally-firing reset.
-    tooltip:HookScript("OnHide", function(t)
-        t.__RatedStatsAdded = nil
-    end)
-
-    ---------------------------------------------------------
-    -- 1. PRIMARY: REAL UNIT LOOKUP
-    ---------------------------------------------------------
+    -------------------------------------------------------------------
+    -- Resolve name + realm (unit → fallback → override)
+    -------------------------------------------------------------------
     local baseName, realm
     local unit = nil
 
+    -- Check if tooltip was built from a unit
     if tooltip.GetUnit then
         local ok, u = pcall(tooltip.GetUnit, tooltip)
         if ok then _, unit = u end
@@ -193,32 +184,42 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 
     if unit and UnitIsPlayer(unit) then
         baseName, realm = UnitFullName(unit)
-        if baseName then
-            realm = realm or GetRealmName()
-        end
+        realm = realm or GetRealmName()
     end
 
-    ---------------------------------------------------------
-    -- 2. FALLBACK: LFG/GUILD/APPLICANT OVERRIDES
-    ---------------------------------------------------------
+    -- Fallback (LFG / Guild / Applicant tooltips)
     if not baseName then
         if overrideName then
             baseName = overrideName
             realm = overrideRealm or GetRealmName()
         else
-            return -- cannot resolve player name
+            return -- nothing to resolve; bail cleanly
         end
     end
 
-    ---------------------------------------------------------
-    -- 3. NORMALISE
-    ---------------------------------------------------------
+    -------------------------------------------------------------------
+    -- Normalize
+    -------------------------------------------------------------------
     realm = realm:gsub("%s+", "")
     local fullName = (baseName .. "-" .. realm):lower()
 
-    ---------------------------------------------------------
-    -- 4. CACHE LOOKUP
-    ---------------------------------------------------------
+    -------------------------------------------------------------------
+    -- GUARD: Stop multiple adds from SetUnit + TooltipDataProcessor + frame hooks
+    -------------------------------------------------------------------
+    if tooltip.__RS_Adding then
+        return -- currently constructing; avoid recursion/flicker
+    end
+    tooltip.__RS_Adding = true
+
+    -- Prevent duplicate add for same name during same tooltip build
+    if tooltip.__RS_LastName == baseName and tooltip.__RS_LastRealm == realm then
+        tooltip.__RS_Adding = nil
+        return
+    end
+
+    -------------------------------------------------------------------
+    -- Full data lookup
+    -------------------------------------------------------------------
     local result = achievementCache[fullName]
     if not result then
         local entry = regionLookup[fullName]
@@ -230,56 +231,58 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         achievementCache[fullName] = result
     end
 
-    local summary = result.summary or {}
+    local summary = result.summary
     local highest = result.highest
 
-    ---------------------------------------------------------
-    -- 5. HEADER
-    ---------------------------------------------------------
+    -------------------------------------------------------------------
+    -- Tooltip lines
+    -------------------------------------------------------------------
     tooltip:AddLine("|cffffff00Rated Stats - Achievements|r")
     tooltip:AddLine("----------------------------")
 
-    ---------------------------------------------------------
-    -- 6. HIGHEST RANK
-    ---------------------------------------------------------
     if highest then
         tooltip:AddLine("|cff00ff00Highest PvP Rank:|r " .. highest)
     else
         tooltip:AddLine("|cffff0000No History / Not Seen in Bracket|r")
     end
 
-    ---------------------------------------------------------
-    -- 7. ICON GRID (only if history exists)
-    ---------------------------------------------------------
-    local any = false
+    -- Check if any icons are available
+    local hasAny = false
     for _, col in ipairs(PvpRankColumns) do
         if (summary[col.key] or 0) > 0 then
-            any = true
+            hasAny = true
             break
         end
     end
 
-    if any then
+    -------------------------------------------------------------------
+    -- Icon rows
+    -------------------------------------------------------------------
+    if hasAny then
         local iconRow, valueRow = "", ""
-        local iconSize, iconOffsetY = 16, 0
+        local iconSize = 16
+        local offsetY = 0
 
         for _, col in ipairs(PvpRankColumns) do
             local count = summary[col.key] or 0
 
             if col.hero and col.icons then
-                -- Two icons (Hero)
-                local icons = ""
+                -- 2-icon hero column
+                local combined = ""
                 for _, path in ipairs(col.icons) do
-                    icons = icons .. string.format("|T%s:%d:%d:0:%d|t",
-                        path, iconSize, iconSize, iconOffsetY)
+                    combined = combined .. string.format(
+                        "|T%s:%d:%d:0:%d|t",
+                        path, iconSize, iconSize, offsetY
+                    )
                 end
-                iconRow  = iconRow  .. centerIcon(icons, 10)
+                iconRow  = iconRow  .. centerIcon(combined, 10)
                 valueRow = valueRow .. centerText(count, 12)
             else
-                -- One icon
-                local icon = string.format("|T%s:%d:%d:0:%d|t",
+                local icon = string.format(
+                    "|T%s:%d:%d:0:%d|t",
                     col.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
-                    iconSize, iconSize, iconOffsetY)
+                    iconSize, iconSize, offsetY
+                )
                 iconRow  = iconRow  .. centerIcon(icon, 6)
                 valueRow = valueRow .. centerText(count, 6)
             end
@@ -289,7 +292,14 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         tooltip:AddLine(valueRow)
     end
 
---    tooltip:Show()
+    -------------------------------------------------------------------
+    -- Finalize guard values and show tooltip
+    -------------------------------------------------------------------
+    tooltip.__RS_LastName  = baseName
+    tooltip.__RS_LastRealm = realm
+    tooltip.__RS_Adding = nil
+
+    tooltip:Show()
 end
 
 -- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
