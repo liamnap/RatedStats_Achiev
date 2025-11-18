@@ -338,6 +338,12 @@ f:SetScript("OnEvent", function(_, event)
 		-- Hook 1: General player units (includes mouseover, target, focus)
 		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
 			local _, unit = tooltip:GetUnit()
+            if not unit then return end
+
+            -- Force refresh for player unit
+            if unit == "player" then
+                tooltip.__RatedStatsLast = nil
+            end
 			if not unit or not UnitIsPlayer(unit) then return end
 		
 			local name, realm = UnitFullName(unit)
@@ -353,18 +359,18 @@ f:SetScript("OnEvent", function(_, event)
 			end)
 		end)
 		
-		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
-		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-			local _, unit = tooltip:GetUnit()
-			if unit == "player" then
-				local name, realm = UnitFullName("player")
-				realm = realm or GetRealmName()
-				tooltip.__RatedStatsLast = nil -- force refresh
-				if tooltip:IsShown() then
-					AddAchievementInfoToTooltip(tooltip, name, realm)
-				end
-			end
-		end)
+--		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
+--		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
+--			local _, unit = tooltip:GetUnit()
+--			if unit == "player" then
+--				local name, realm = UnitFullName("player")
+--				realm = realm or GetRealmName()
+--				tooltip.__RatedStatsLast = nil -- force refresh
+--				if tooltip:IsShown() then
+--					AddAchievementInfoToTooltip(tooltip, name, realm)
+--				end
+--			end
+--		end)
 
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
