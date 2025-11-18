@@ -168,117 +168,126 @@ local function centerIcon(iconTag, width)
 end
 
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
-    local _, unit = tooltip:GetUnit()
-    local name, realm
+    if not tooltip then return end
 
-    -- prevent multiple repeats *during the same render*, not per key
+    -- Prevent double-add only within one render cycle.
     if tooltip.__RatedStatsAdded then return end
     tooltip.__RatedStatsAdded = true
 
-    if unit and UnitIsPlayer(unit) then
-        name, realm = UnitFullName(unit)
-    else
-        name, realm = overrideName, overrideRealm
-    end
-
-    if not name then return end
-    realm = realm or GetRealmName()
-    local key = (name .. "-" .. realm):lower()
-
-    tooltip:HookScript("OnHide", function(tip)
-        tip.__RatedStatsLast = nil
+    -- Blizzard sometimes skips OnTooltipCleared on some frames,
+    -- OnHide is the only universally-firing reset.
+    tooltip:HookScript("OnHide", function(t)
+        t.__RatedStatsAdded = nil
     end)
-    -- look up our per-char database and bail out if Achiev is off
-    local key = UnitName("player") .. "-" .. GetRealmName()
-    local db  = RSTATS.Database[key]
-	local module = "RatedStats_Achiev"
-    if C_AddOns.GetAddOnEnableState(module, nil) == 0 then
-        return
-    end
-  
-    local baseName, realm
 
-    -- Use override only if tooltip:GetUnit() is not supported or not a unit tooltip
-    local unit
+    ---------------------------------------------------------
+    -- 1. PRIMARY: REAL UNIT LOOKUP
+    ---------------------------------------------------------
+    local baseName, realm
+    local unit = nil
+
     if tooltip.GetUnit then
-        _, unit = tooltip:GetUnit()
+        local ok, u = pcall(tooltip.GetUnit, tooltip)
+        if ok then _, unit = u end
     end
 
     if unit and UnitIsPlayer(unit) then
         baseName, realm = UnitFullName(unit)
-    elseif overrideName then
-        baseName = overrideName
-        realm = overrideRealm or GetRealmName()
-    else
-        return -- No usable name/realm source
-    end
-
-    realm = realm or GetRealmName()
-    local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
-
-    -- Cache lookup
-    if achievementCache[fullName] == nil then
-        local found = false
-        for _, entry in ipairs(regionData) do
-            if entry.character and entry.character:lower() == fullName then
-                achievementCache[fullName] = GetPvpAchievementSummary(entry)
-                found = true
-                break
-            end
-        end
-        if not found then
-            achievementCache[fullName] = { summary = {}, highest = nil }
+        if baseName then
+            realm = realm or GetRealmName()
         end
     end
 
-	local result = achievementCache[fullName]
-	local summary = result.summary or {}
-	local highest = result.highest
+    ---------------------------------------------------------
+    -- 2. FALLBACK: LFG/GUILD/APPLICANT OVERRIDES
+    ---------------------------------------------------------
+    if not baseName then
+        if overrideName then
+            baseName = overrideName
+            realm = overrideRealm or GetRealmName()
+        else
+            return -- cannot resolve player name
+        end
+    end
 
+    ---------------------------------------------------------
+    -- 3. NORMALISE
+    ---------------------------------------------------------
+    realm = realm:gsub("%s+", "")
+    local fullName = (baseName .. "-" .. realm):lower()
+
+    ---------------------------------------------------------
+    -- 4. CACHE LOOKUP
+    ---------------------------------------------------------
+    local result = achievementCache[fullName]
+    if not result then
+        local entry = regionLookup[fullName]
+        if entry then
+            result = GetPvpAchievementSummary(entry)
+        else
+            result = { summary = {}, highest = nil }
+        end
+        achievementCache[fullName] = result
+    end
+
+    local summary = result.summary or {}
+    local highest = result.highest
+
+    ---------------------------------------------------------
+    -- 5. HEADER
+    ---------------------------------------------------------
     tooltip:AddLine("|cffffff00Rated Stats - Achievements|r")
     tooltip:AddLine("----------------------------")
 
-    local hasAnyHistory = false
-    for _, col in ipairs(PvpRankColumns) do
-        if summary[col.key] and summary[col.key] > 0 then
-            hasAnyHistory = true
-            break
-        end
-    end
-	
+    ---------------------------------------------------------
+    -- 6. HIGHEST RANK
+    ---------------------------------------------------------
     if highest then
         tooltip:AddLine("|cff00ff00Highest PvP Rank:|r " .. highest)
     else
         tooltip:AddLine("|cffff0000No History / Not Seen in Bracket|r")
     end
 
-	if hasAnyHistory then
-		local iconRow, valueRow = "", ""
-		local iconSize = 16
-		local iconOffsetY = 0
-	
-		for _, col in ipairs(PvpRankColumns) do
-			local count = summary[col.key] or 0
-	
-			-- Handle HotX (double icon column)
-			if col.hero and col.icons then
-				local icons = ""
-				for _, iconPath in ipairs(col.icons) do
-					icons = icons .. string.format("|T%s:%d:%d:0:%d|t", iconPath, iconSize, iconSize, iconOffsetY)
-				end
-				iconRow = iconRow .. centerIcon(icons, 10)
-				valueRow = valueRow .. centerText(count, 12)
-	
-			else
-				local iconTag = string.format("|T%s:%d:%d:0:%d|t", col.icon or "Interface\\Icons\\inv_misc_questionmark", iconSize, iconSize, iconOffsetY)
-				iconRow = iconRow .. centerIcon(iconTag, 6)
-				valueRow = valueRow .. centerText(count, 6)
-			end
-		end
-	
-		tooltip:AddLine(iconRow)
-		tooltip:AddLine(valueRow)
-	end
+    ---------------------------------------------------------
+    -- 7. ICON GRID (only if history exists)
+    ---------------------------------------------------------
+    local any = false
+    for _, col in ipairs(PvpRankColumns) do
+        if (summary[col.key] or 0) > 0 then
+            any = true
+            break
+        end
+    end
+
+    if any then
+        local iconRow, valueRow = "", ""
+        local iconSize, iconOffsetY = 16, 0
+
+        for _, col in ipairs(PvpRankColumns) do
+            local count = summary[col.key] or 0
+
+            if col.hero and col.icons then
+                -- Two icons (Hero)
+                local icons = ""
+                for _, path in ipairs(col.icons) do
+                    icons = icons .. string.format("|T%s:%d:%d:0:%d|t",
+                        path, iconSize, iconSize, iconOffsetY)
+                end
+                iconRow  = iconRow  .. centerIcon(icons, 10)
+                valueRow = valueRow .. centerText(count, 12)
+            else
+                -- One icon
+                local icon = string.format("|T%s:%d:%d:0:%d|t",
+                    col.icon or "Interface\\Icons\\INV_Misc_QuestionMark",
+                    iconSize, iconSize, iconOffsetY)
+                iconRow  = iconRow  .. centerIcon(icon, 6)
+                valueRow = valueRow .. centerText(count, 6)
+            end
+        end
+
+        tooltip:AddLine(iconRow)
+        tooltip:AddLine(valueRow)
+    end
 
     tooltip:Show()
 end
