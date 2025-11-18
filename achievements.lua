@@ -561,13 +561,22 @@ f:SetScript("OnEvent", function(_, event)
         C_Timer.After(0.5, HookApplicantFrames)
 
     elseif event == "UPDATE_MOUSEOVER_UNIT" then
-        if UnitExists("mouseover") and UnitIsPlayer("mouseover") then
-            if GameTooltip:IsShown() then
-                local name, realm = UnitFullName("mouseover")
-                realm = realm or GetRealmName()
-                AddAchievementInfoToTooltip(GameTooltip, name, realm)
-            end
+        if not UnitExists("mouseover") or not UnitIsPlayer("mouseover") then
+            return
         end
+
+        -- Prevent double/triple injections on UI unitframes
+        local mf = GetMouseFocus()
+        if mf and (mf.unit or mf.displayedUnit or (mf.GetUnit and mf:GetUnit())) then
+            return
+        end
+
+        if GameTooltip:IsShown() then
+            local name, realm = UnitFullName("mouseover")
+            realm = realm or GetRealmName()
+            AddAchievementInfoToTooltip(GameTooltip, name, realm)
+        end
+    end
 --
 --    elseif event == "PLAYER_TARGET_CHANGED" then
 --        if UnitExists("target") and UnitIsPlayer("target") then
