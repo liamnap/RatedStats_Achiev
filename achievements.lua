@@ -340,13 +340,6 @@ f:SetScript("OnEvent", function(_, event)
 			local _, unit = tooltip:GetUnit()
             if not unit then return end
 
-            -- Reset cache if switching to a different unit
-            local last = tooltip.__RatedStatsLastUnit
-            if last ~= unit then
-                tooltip.__RatedStatsLast = nil
-                tooltip.__RatedStatsLastUnit = unit
-            end
-
             -- Force refresh for player unit
             if unit == "player" then
                 tooltip.__RatedStatsLast = nil
