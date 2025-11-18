@@ -84,15 +84,15 @@ local HeroTitles = {
 }
 
 local PvpRankColumns = {
-    { key = "a", label = "Co-I",   prefix = "Combatant I",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
-    { key = "b", label = "Co-II",  prefix = "Combatant II", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
-    { key = "c", label = "Ch-I",   prefix = "Challenger I", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
-    { key = "d", label = "Ch-II",  prefix = "Challenger II",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
-    { key = "e", label = "R-I",    prefix = "Rival I",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
-    { key = "f", label = "R-II",   prefix = "Rival II",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
+    { key = "a", label = "Co-I",   prefix = "Combatant I:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
+    { key = "b", label = "Co-II",  prefix = "Combatant II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
+    { key = "c", label = "Ch-I",   prefix = "Challenger I:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
+    { key = "d", label = "Ch-II",  prefix = "Challenger II:",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
+    { key = "e", label = "R-I",    prefix = "Rival I:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
+    { key = "f", label = "R-II",   prefix = "Rival II:",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
     { key = "g", label = "Duel",   prefix = "Duelist",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
-    { key = "h", label = "Elite",  prefix = "Gladiator",    icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
-    { key = "i", label = "Glad",   prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
+    { key = "h", label = "Elite",  prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
+    { key = "i", label = "Glad",   prefix = "Gladiator:",   icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
     { key = "j", label = "Legend", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
     { key = "k", label = "Rank 1", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
     { key = "l", label = "HotX",   hero = true,             icons = {
@@ -113,6 +113,7 @@ local function GetPvpAchievementSummary(entry)
     local summary = {}
     local highestRank = nil
     local highestRankIndex = 0
+    local highestPrefix = nil
 
     for _, col in ipairs(PvpRankColumns) do
         summary[col.key] = 0
@@ -128,14 +129,16 @@ local function GetPvpAchievementSummary(entry)
                     if i > highestRankIndex then
                         highestRank = val  -- ✅ store actual match string
                         highestRankIndex = i
+                        highestPrefix = col.prefix
                     end
                 elseif col.r1 then
                     for _, r1 in ipairs(R1Titles) do
-                        if name:find(r1:lower(), 1, true) then
+                        if name == r1:lower() then
                             summary[col.key] = summary[col.key] + 1
                             if i > highestRankIndex then
                                 highestRank = r1
                                 highestRankIndex = i
+                                highestPrefix = "Rank 1"
                             end
                         end
                     end
@@ -146,6 +149,7 @@ local function GetPvpAchievementSummary(entry)
                             if i > highestRankIndex then
                                 highestRank = hero
                                 highestRankIndex = i
+                                highestPrefix = "Hero"
                             end
                         end
                     end
@@ -154,7 +158,7 @@ local function GetPvpAchievementSummary(entry)
         end
     end
 
-    return { summary = summary, highest = highestRank }
+    return { summary = summary, highest = highestRank, prefix = highestPrefix }
 end
 
 local function centerIcon(iconTag, width)
@@ -340,7 +344,7 @@ f:SetScript("OnEvent", function(_, event)
 			realm = realm or GetRealmName()
 		
 			-- Target/focus sometimes need a slight delay for text lines to exist
-			local delay = (unit == "target" or unit == "focus") and 0.15 or 0.05
+			local delay = (unit == "target" or unit == "focus") and 0.5 or 0.5
 		
 			C_Timer.After(delay, function()
 				if tooltip:IsShown() and UnitIsPlayer(unit) then
@@ -355,7 +359,7 @@ f:SetScript("OnEvent", function(_, event)
 			if unit == "player" then
 				local name, realm = UnitFullName("player")
 				realm = realm or GetRealmName()
-				tooltip.__RatedStatsLast = nil -- force refresh
+--				tooltip.__RatedStatsLast = nil -- force refresh
 				if tooltip:IsShown() then
 					AddAchievementInfoToTooltip(tooltip, name, realm)
 				end
@@ -365,15 +369,24 @@ f:SetScript("OnEvent", function(_, event)
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
 			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+            if GameTooltip:IsForbidden() then return end  -- prevents blink + hide cycle
+
+           -- Blizzard suppresses CompactUnitFrame tooltips depending on UI settings.
+           -- Force the tooltip to exist so our addon can append lines.
+           if not GameTooltip:IsShown() then
+               GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+               GameTooltip:SetUnit(self.unit)
+           end
+
 			local name, realm = UnitFullName(self.unit)
 			realm = realm or GetRealmName()
 		
 			-- Delay a touch to ensure tooltip lines are added
-			C_Timer.After(0.5, function()
+--			C_Timer.After(0.5, function()
 				if GameTooltip:IsShown() then
 					AddAchievementInfoToTooltip(GameTooltip, name, realm)
 				end
-			end)
+--			end)
 		end)
 
 		-- Hook CompactUnitFrame mouseovers (used by modern party/raid/enemy frames)
@@ -394,7 +407,7 @@ f:SetScript("OnEvent", function(_, event)
 				if unit and UnitIsPlayer(unit) then
 					local name, realm = UnitFullName(unit)
 					realm = realm or GetRealmName()
-					C_Timer.After(0.05, function()
+					C_Timer.After(0.5, function()
 						if tooltip:IsShown() then
 							AddAchievementInfoToTooltip(tooltip, name, realm)
 						end
@@ -556,20 +569,36 @@ f:SetScript("OnEvent", function(_, event)
 
         C_Timer.After(0.5, HookApplicantFrames)
 
-    elseif event == "UPDATE_MOUSEOVER_UNIT" then
-        if UnitIsPlayer("mouseover") then
-            GameTooltip:SetUnit("mouseover")
-        end
-
-    elseif event == "PLAYER_TARGET_CHANGED" then
-        if UnitExists("target") and UnitIsPlayer("target") then
-            GameTooltip:SetUnit("target")
-        end
-
-    elseif event == "PLAYER_FOCUS_CHANGED" then
-        if UnitExists("focus") and UnitIsPlayer("focus") then
-            GameTooltip:SetUnit("focus")
-        end
+	elseif event == "UPDATE_MOUSEOVER_UNIT" then
+		if not UnitExists("mouseover") or not UnitIsPlayer("mouseover") then
+			return
+		end
+	
+		-- Safely get mouse focus for all modern WoW versions
+		local mf = GetMouseFocus and GetMouseFocus()
+			or (UIParent and UIParent.GetMouseFocus and UIParent:GetMouseFocus())
+			or TheMouseFocus
+	
+		-- Prevent double/triple injections on unitframes (party/raid/arena/nameplate)
+		if mf and (mf.unit or mf.displayedUnit or (mf.GetUnit and mf:GetUnit())) then
+			return
+		end
+	
+		if GameTooltip:IsShown() then
+			local name, realm = UnitFullName("mouseover")
+			realm = realm or GetRealmName()
+			AddAchievementInfoToTooltip(GameTooltip, name, realm)
+		end
+--
+--    elseif event == "PLAYER_TARGET_CHANGED" then
+--        if UnitExists("target") and UnitIsPlayer("target") then
+--            GameTooltip:SetUnit("target")
+--        end
+--
+--    elseif event == "PLAYER_FOCUS_CHANGED" then
+--        if UnitExists("focus") and UnitIsPlayer("focus") then
+--            GameTooltip:SetUnit("focus")
+--        end
     end
 end) -- closes f:SetScript
 
@@ -599,7 +628,7 @@ do
         realm = (realm or (info and info.leaderRealm) or GetRealmName()):gsub("%s+", "")
 
         -- Let Blizzard/other addons build their lines first, then append ours.
-        C_Timer.After(0.05, function()
+        C_Timer.After(0.5, function()
             if tooltip:IsShown() then
                 AddAchievementInfoToTooltip(tooltip, baseName, realm)
             end
@@ -619,7 +648,7 @@ do
     waiter:SetScript("OnEvent", function(self)
         local function poll()
             if not TryHook() then
-                C_Timer.After(0.25, poll)
+                C_Timer.After(0.5, poll)
             else
                 self:UnregisterAllEvents()
             end
@@ -647,6 +676,7 @@ local function PrintPartyAchievements()
     end
 
     SendChatMessage("Rated Stats - Achievements for Group", channel)
+--    print("Rated Stats - Achievements for Group")
 
     for i = 1, GetNumGroupMembers() do
         local name = GetRaidRosterInfo(i)
@@ -666,13 +696,15 @@ local function PrintPartyAchievements()
                 end
             end
 
-            local highest = cached and cached.highest or "Not Seen in Bracket"
-            SendChatMessage(" - " .. name .. ": " .. highest, channel)
+            local prefix = cached and cached.prefix or "Not Seen in Bracket"
+            SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
+--            print(" - " .. baseName .. ": " .. prefix)
         end
     end
 end
 
 -- === Queue watcher: fires once per queue start ===
+local queueState = { "none", "none", "none" }
 local queueWatcher = CreateFrame("Frame")
 queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
 queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
@@ -694,11 +726,16 @@ queueWatcher:SetScript("OnEvent", function(_, event)
     -- Check all PvP queues
     for i = 1, 3 do
         local status = select(1, GetBattlefieldStatus(i))
-        if status == "queued" then
+        -- Fire only when transitioning into queued
+        if status == "queued" and queueState[i] ~= "queued" then
+            queueState[i] = "queued"
             lastQueued = now
             C_Timer.After(1.0, PrintPartyAchievements)
             return
         end
+
+        -- Update state (must always run)
+        queueState[i] = status
     end
 
     -- Fallback: LFG queues (Rated Shuffle / Blitz)
@@ -740,8 +777,8 @@ local function PostPvPTeamSummary()
                         achievementCache[fullName] = cached
                     end
                 end
-                local highest = cached and cached.highest or "Not Seen in Bracket"
-                table.insert(target, string.format("%s - %s", name, highest))
+                local prefix = cached and cached.prefix or "Not Seen in Bracket"
+                table.insert(target, name .. " - " .. prefix)
             end
         end
     end
@@ -773,8 +810,9 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local highest = cached and cached.highest or "Not Seen in Bracket"
-        table.insert(myTeam, 1, string.format("%s - %s", name, highest))
+        local prefix = cached and cached.prefix or "Not Seen in Bracket"
+        local baseName = name
+        table.insert(myTeam, 1, baseName .. " - " .. prefix)
     end
 
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
@@ -793,22 +831,26 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local highest = cached and cached.highest or "Not Seen in Bracket"
-        table.insert(enemyTeam, string.format("%s-%s - %s", name, realm, highest))
+        local prefix = cached and cached.prefix or "Not Seen in Bracket"
+        local baseName = name
+        table.insert(enemyTeam, baseName .. " - " .. prefix)
     end
 
     -- Prefer nameplates, but fall back to arena enemies if available
     for i = 1, 20 do addEnemy("nameplate" .. i) end
-    for i = 1, 5 do addEnemy("arena" .. i) end
+    for i = 1, 6 do addEnemy("arena" .. i) end
 
     SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
     SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+--    print("=== Rated Stats - Achievements PvP Summary ===")
+--    print(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25))
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
         SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+--        print(centerText(left, 25) .. " || " .. centerText(right, 25))
     end
 end
 
@@ -823,7 +865,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
         if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
-            C_Timer.After(10, function()
+            C_Timer.After(30, function()
                 -- collect both teams based on battlefield score API
                 local numScores = GetNumBattlefieldScores()
                 if numScores and numScores > 0 then
@@ -851,21 +893,23 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 								end
 							end
 					
-							local highest = cached and cached.highest or "Not Seen in Bracket"
+							local prefix = cached and cached.prefix or "Not Seen in Bracket"
 							if isEnemy then
-								table.insert(enemyTeam, string.format("%s - %s", name, highest))
+								table.insert(enemyTeam, string.format("%s - %s", baseName, prefix))
 							else
-								table.insert(myTeam, string.format("%s - %s", name, highest))
+								table.insert(myTeam, string.format("%s - %s", baseName, prefix))
 							end
 						end
 					end
 
-                    SendChatMessage("=== Rated Stats - Achievements (Battleground) ===", "INSTANCE_CHAT")
+                    --SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
+                    print("=== Rated Stats - Achievements ===")
                     local maxRows = math.max(#myTeam, #enemyTeam)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
-                        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+                        --SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
+                        print(string.format("%-25s || %-25s", left, right))
                     end
                 end
             end)
