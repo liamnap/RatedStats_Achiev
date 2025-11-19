@@ -173,6 +173,14 @@ local function centerIcon(iconTag, width)
 end
 
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
+    -- Only hook OnHide once per tooltip to avoid stacking thousands of handlers
+    if not tooltip.__RatedStatsOnHideHooked then
+        tooltip.__RatedStatsOnHideHooked = true
+        tooltip:HookScript("OnHide", function(tip)
+            tip.__RatedStatsLast = nil
+        end)
+    end
+
     local _, unit = tooltip:GetUnit()
     local name, realm
 
@@ -190,9 +198,6 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     if tooltip.__RatedStatsLast == key then return end
     tooltip.__RatedStatsLast = key
 
-    tooltip:HookScript("OnHide", function(tip)
-        tip.__RatedStatsLast = nil
-    end)
     -- look up our per-char database and bail out if Achiev is off
     local key = UnitName("player") .. "-" .. GetRealmName()
     local db  = RSTATS.Database[key]
