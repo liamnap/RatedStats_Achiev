@@ -201,7 +201,7 @@ jobs:
       - name: Fire off the first batch per region
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.Rated_Stats_Achiev_liamnap_secret }}
+          github-token: ${{ secrets.RATEDSTATS_ACHIEV_LIAMNAP_SECRET }}
           script: |
             const matrix = JSON.parse(process.env.MATRIX);
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
