@@ -251,7 +251,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 	local summary = result.summary or {}
 	local highest = result.highest
 
-    tooltip:AddLine("|cffffff00Rated Stats - Achievements|r")
+    tooltip:AddLine("|cffb69e86Rated Stats - Achievements|r")
     tooltip:AddLine("----------------------------")
 
     local hasAnyHistory = false
@@ -926,7 +926,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 					end
 
                     --SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
-                    print("=== Rated Stats - Achievements ===")
+                    print("|cffb69e86=== Rated Stats - Achievements ===")
                     local maxRows = math.max(#myTeam, #enemyTeam)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
