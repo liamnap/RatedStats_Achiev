@@ -719,12 +719,6 @@ async def get_pvp_achievements(session, headers):
         {"type": "exact", "value": "Lieutenant Commander"},
         {"type": "exact", "value": "Lieutenant General"},
         {"type": "exact", "value": "Commander"},
-        {"type": "exact", "value": "General"},
-        {"type": "exact", "value": "Marshal"},
-        {"type": "exact", "value": "Warlord"},
-        {"type": "exact", "value": "Field Marshal"},
-        {"type": "exact", "value": "High Warlord"},
-        {"type": "exact", "value": "Grand Marshal"},
         # Rated PvP Season Tiers
         {"type": "prefix", "value": "Combatant I"},
         {"type": "prefix", "value": "Combatant II"},
@@ -733,6 +727,14 @@ async def get_pvp_achievements(session, headers):
         {"type": "prefix", "value": "Rival I"},
         {"type": "prefix", "value": "Rival II"},
         {"type": "prefix", "value": "Duelist"},
+        # 2200 - 2400 frommain achievements
+        {"type": "exact", "value": "General"},
+        {"type": "exact", "value": "Marshal"},
+        {"type": "exact", "value": "Warlord"},
+        {"type": "exact", "value": "Field Marshal"},
+        {"type": "exact", "value": "High Warlord"},
+        {"type": "exact", "value": "Grand Marshal"},
+        # Return to Rated PvP Season Tiers
         {"type": "prefix", "value": "Elite:"},
         {"type": "prefix", "value": "Gladiator:"},
         {"type": "prefix", "value": "Legend:"},
