@@ -85,18 +85,24 @@ local HeroTitles = {
 }
 
 local PvpRankColumns = {
-    { key = "a", label = "Combat (1400)",   prefix = "Combatant I:",   icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
-    { key = "b", label = "Combat (1500)",   prefix = "Combatant II:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
-    { key = "c", label = "Chall (1600)",    prefix = "Challenger I:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
-    { key = "d", label = "Chall (1700)",    prefix = "Challenger II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
-    { key = "e", label = "Rival (1800)",    prefix = "Rival I:",       icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
-    { key = "f", label = "Rival (1950)",    prefix = "Rival II:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
-    { key = "g", label = "Duelist (2100)",  prefix = "Duelist",        icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
-    { key = "h", label = "Elite (2400)",    prefix = "Elite",          icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
-    { key = "i", label = "Glad (2400)",     prefix = "Gladiator:",     icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
-    { key = "j", label = "Legend (2400)",   prefix = "Legend:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "k", label = "Rank 1 (0.1%)",   r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l", label = "Hero (0.5%)",     hero = true,               icons = {
+    { key = "a",  label = "Combat (1400)",         prefix = "Combatant I:",   icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
+    { key = "b",  label = "Combat (1500)",         prefix = "Combatant II:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
+    { key = "c",  label = "Chall (1600)",          prefix = "Challenger I:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
+    { key = "d",  label = "Chall (1700)",          prefix = "Challenger II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
+    { key = "e",  label = "Rival (1800)",          prefix = "Rival I:",       icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
+    { key = "f",  label = "Rival (1950)",          prefix = "Rival II:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
+    { key = "g",  label = "Duelist (2100)",        prefix = "Duelist",        icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
+    { key = "h1", label = "General (2200)",        prefix = "General",        hidden = true },
+    { key = "h2", label = "Marshal (2200)",        prefix = "Marshal",        hidden = true },
+    { key = "h3", label = "Warlord (2300)",        prefix = "Warlord",        hidden = true },
+    { key = "h4", label = "Field Marshal (2300)",  prefix = "Field Marshal",  hidden = true },
+    { key = "h5", label = "High Warlord (2400)",   prefix = "High Warlord",   hidden = true },
+    { key = "h6", label = "Grand Marshal (2400)",  prefix = "Grand Marshal",  hidden = true },
+    { key = "i",  label = "Elite (2400)",          prefix = "Elite",          icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
+    { key = "j",  label = "Glad (2400)",           prefix = "Gladiator:",     icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
+    { key = "k",  label = "Legend (2400)",         prefix = "Legend:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "l",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "m",  label = "Hero (0.5%)",           hero = true,               icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
     }},
@@ -250,9 +256,11 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 
     local hasAnyHistory = false
     for _, col in ipairs(PvpRankColumns) do
-        if summary[col.key] and summary[col.key] > 0 then
-            hasAnyHistory = true
-            break
+        if not col.hidden then
+            if summary[col.key] and summary[col.key] > 0 then
+                hasAnyHistory = true
+                break
+            end
         end
     end
 	
@@ -267,22 +275,27 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 		local iconSize = 16
 		local iconOffsetY = 0
 	
-		for _, col in ipairs(PvpRankColumns) do
-			local count = summary[col.key] or 0
-	
-			-- Handle HotX (double icon column)
-			if col.hero and col.icons then
-				local icons = ""
-				for _, iconPath in ipairs(col.icons) do
-					icons = icons .. string.format("|T%s:%d:%d:0:%d|t", iconPath, iconSize, iconSize, iconOffsetY)
-				end
-				iconRow = iconRow .. centerIcon(icons, 10)
-				valueRow = valueRow .. centerText(count, 12)
-	
-			else
-				local iconTag = string.format("|T%s:%d:%d:0:%d|t", col.icon or "Interface\\Icons\\inv_misc_questionmark", iconSize, iconSize, iconOffsetY)
-				iconRow = iconRow .. centerIcon(iconTag, 6)
-				valueRow = valueRow .. centerText(count, 6)
+        for _, col in ipairs(PvpRankColumns) do
+            if not col.hidden then
+                local count = summary[col.key] or 0
+
+                -- Hero: two icons
+                if col.hero and col.icons then
+                    local icons = ""
+                    for _, iconPath in ipairs(col.icons) do
+                        icons = icons .. string.format("|T%s:%d:%d:0:%d|t", iconPath, iconSize, iconSize, iconOffsetY)
+                    end
+                    iconRow  = iconRow  .. centerIcon(icons, 10)
+                    valueRow = valueRow .. centerText(count, 12)
+
+                else
+                    -- Normal single-icon column
+                    local iconTag = string.format("|T%s:%d:%d:0:%d|t",
+                        col.icon or "Interface\\Icons\\inv_misc_questionmark",
+                        iconSize, iconSize, iconOffsetY)
+                    iconRow  = iconRow  .. centerIcon(iconTag, 6)
+                    valueRow = valueRow .. centerText(count, 6)
+                end
 			end
 		end
 	
