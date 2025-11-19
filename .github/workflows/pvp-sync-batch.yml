@@ -281,7 +281,7 @@ jobs:
       - name: Trigger Finalize PvP Sync (only on last batch)
         if: ${{ inputs.batch_num == inputs.total_batches && inputs.region != '' }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RATEDSTATS_ACHIEV_LIAMNAP_SECRET }}
         run: |
           gh workflow run "Finalize PvP Sync" \
             --ref "${{ github.ref_name }}" \
