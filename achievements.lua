@@ -75,7 +75,8 @@ local R1Titles = {
     "Cosmic Gladiator", "Eternal Gladiator", "Crimson Gladiator",
     "Obsidian Gladiator", "Draconic Gladiator", "Seasoned Gladiator",
     "Forged Warlord", "Forged Marshal", "Forged Legend", "Forged Gladiator",
-    "Prized Warlord", "Prized Marshal", "Prized Legend", "Prized Gladiator"
+    "Prized Warlord", "Prized Marshal", "Prized Legend", "Prized Gladiator",
+    "Astral Warlord", "Astral Marshal", "Astral Legend", "Astral Gladiator"
 }
 
 local HeroTitles = {
@@ -84,18 +85,24 @@ local HeroTitles = {
 }
 
 local PvpRankColumns = {
-    { key = "a", label = "Co-I",   prefix = "Combatant I:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
-    { key = "b", label = "Co-II",  prefix = "Combatant II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
-    { key = "c", label = "Ch-I",   prefix = "Challenger I:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
-    { key = "d", label = "Ch-II",  prefix = "Challenger II:",icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
-    { key = "e", label = "R-I",    prefix = "Rival I:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
-    { key = "f", label = "R-II",   prefix = "Rival II:",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
-    { key = "g", label = "Duel",   prefix = "Duelist",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
-    { key = "h", label = "Elite",  prefix = "Elite",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
-    { key = "i", label = "Glad",   prefix = "Gladiator:",   icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
-    { key = "j", label = "Legend", prefix = "Legend:",      icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "k", label = "Rank 1", r1 = true,               icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l", label = "HotX",   hero = true,             icons = {
+    { key = "a",  label = "Combat (1400)",         prefix = "Combatant I:",   icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
+    { key = "b",  label = "Combat (1500)",         prefix = "Combatant II:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
+    { key = "c",  label = "Chall (1600)",          prefix = "Challenger I:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
+    { key = "d",  label = "Chall (1700)",          prefix = "Challenger II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
+    { key = "e",  label = "Rival (1800)",          prefix = "Rival I:",       icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
+    { key = "f",  label = "Rival (1950)",          prefix = "Rival II:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
+    { key = "g",  label = "Duelist (2100)",        prefix = "Duelist",        icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
+    { key = "h1", label = "General (2200)",        prefix = "General",        hidden = true },
+    { key = "h2", label = "Marshal (2200)",        prefix = "Marshal",        hidden = true },
+    { key = "h3", label = "Warlord (2300)",        prefix = "Warlord",        hidden = true },
+    { key = "h4", label = "Field Marshal (2300)",  prefix = "Field Marshal",  hidden = true },
+    { key = "h5", label = "High Warlord (2400)",   prefix = "High Warlord",   hidden = true },
+    { key = "h6", label = "Grand Marshal (2400)",  prefix = "Grand Marshal",  hidden = true },
+    { key = "i",  label = "Elite (2400)",          prefix = "Elite",          icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
+    { key = "j",  label = "Glad (2400)",           prefix = "Gladiator:",     icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
+    { key = "k",  label = "Legend (2400)",         prefix = "Legend:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "l",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "m",  label = "Hero (0.5%)",           hero = true,               icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
     }},
@@ -114,6 +121,7 @@ local function GetPvpAchievementSummary(entry)
     local highestRank = nil
     local highestRankIndex = 0
     local highestPrefix = nil
+    local highestLabel  = nil
 
     for _, col in ipairs(PvpRankColumns) do
         summary[col.key] = 0
@@ -130,6 +138,7 @@ local function GetPvpAchievementSummary(entry)
                         highestRank = val  -- ✅ store actual match string
                         highestRankIndex = i
                         highestPrefix = col.prefix
+                        highestLabel  = col.label
                     end
                 elseif col.r1 then
                     for _, r1 in ipairs(R1Titles) do
@@ -139,6 +148,7 @@ local function GetPvpAchievementSummary(entry)
                                 highestRank = r1
                                 highestRankIndex = i
                                 highestPrefix = "Rank 1"
+                                highestLabel  = col.label
                             end
                         end
                     end
@@ -150,6 +160,7 @@ local function GetPvpAchievementSummary(entry)
                                 highestRank = hero
                                 highestRankIndex = i
                                 highestPrefix = "Hero"
+                                highestLabel  = col.label
                             end
                         end
                     end
@@ -158,7 +169,7 @@ local function GetPvpAchievementSummary(entry)
         end
     end
 
-    return { summary = summary, highest = highestRank, prefix = highestPrefix }
+    return { summary = summary, highest = highestRank, prefix = highestPrefix, label = highestLabel }
 end
 
 local function centerIcon(iconTag, width)
@@ -168,6 +179,14 @@ local function centerIcon(iconTag, width)
 end
 
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
+    -- Only hook OnHide once per tooltip to avoid stacking thousands of handlers
+    if not tooltip.__RatedStatsOnHideHooked then
+        tooltip.__RatedStatsOnHideHooked = true
+        tooltip:HookScript("OnHide", function(tip)
+            tip.__RatedStatsLast = nil
+        end)
+    end
+
     local _, unit = tooltip:GetUnit()
     local name, realm
 
@@ -185,9 +204,6 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     if tooltip.__RatedStatsLast == key then return end
     tooltip.__RatedStatsLast = key
 
-    tooltip:HookScript("OnHide", function(tip)
-        tip.__RatedStatsLast = nil
-    end)
     -- look up our per-char database and bail out if Achiev is off
     local key = UnitName("player") .. "-" .. GetRealmName()
     local db  = RSTATS.Database[key]
@@ -235,14 +251,16 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 	local summary = result.summary or {}
 	local highest = result.highest
 
-    tooltip:AddLine("|cffffff00Rated Stats - Achievements|r")
+    tooltip:AddLine("|cffb69e86Rated Stats - Achievements|r")
     tooltip:AddLine("----------------------------")
 
     local hasAnyHistory = false
     for _, col in ipairs(PvpRankColumns) do
-        if summary[col.key] and summary[col.key] > 0 then
-            hasAnyHistory = true
-            break
+        if not col.hidden then
+            if summary[col.key] and summary[col.key] > 0 then
+                hasAnyHistory = true
+                break
+            end
         end
     end
 	
@@ -257,22 +275,27 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 		local iconSize = 16
 		local iconOffsetY = 0
 	
-		for _, col in ipairs(PvpRankColumns) do
-			local count = summary[col.key] or 0
-	
-			-- Handle HotX (double icon column)
-			if col.hero and col.icons then
-				local icons = ""
-				for _, iconPath in ipairs(col.icons) do
-					icons = icons .. string.format("|T%s:%d:%d:0:%d|t", iconPath, iconSize, iconSize, iconOffsetY)
-				end
-				iconRow = iconRow .. centerIcon(icons, 10)
-				valueRow = valueRow .. centerText(count, 12)
-	
-			else
-				local iconTag = string.format("|T%s:%d:%d:0:%d|t", col.icon or "Interface\\Icons\\inv_misc_questionmark", iconSize, iconSize, iconOffsetY)
-				iconRow = iconRow .. centerIcon(iconTag, 6)
-				valueRow = valueRow .. centerText(count, 6)
+        for _, col in ipairs(PvpRankColumns) do
+            if not col.hidden then
+                local count = summary[col.key] or 0
+
+                -- Hero: two icons
+                if col.hero and col.icons then
+                    local icons = ""
+                    for _, iconPath in ipairs(col.icons) do
+                        icons = icons .. string.format("|T%s:%d:%d:0:%d|t", iconPath, iconSize, iconSize, iconOffsetY)
+                    end
+                    iconRow  = iconRow  .. centerIcon(icons, 10)
+                    valueRow = valueRow .. centerText(count, 12)
+
+                else
+                    -- Normal single-icon column
+                    local iconTag = string.format("|T%s:%d:%d:0:%d|t",
+                        col.icon or "Interface\\Icons\\inv_misc_questionmark",
+                        iconSize, iconSize, iconOffsetY)
+                    iconRow  = iconRow  .. centerIcon(iconTag, 6)
+                    valueRow = valueRow .. centerText(count, 6)
+                end
 			end
 		end
 	
@@ -696,9 +719,9 @@ local function PrintPartyAchievements()
                 end
             end
 
-            local prefix = cached and cached.prefix or "Not Seen in Bracket"
-            SendChatMessage(" - " .. baseName .. ": " .. prefix, channel)
---            print(" - " .. baseName .. ": " .. prefix)
+            local label = cached and cached.label or "Not Seen in Bracket"
+            SendChatMessage(" - " .. baseName .. ": " .. label, channel)
+--            print(" - " .. baseName .. ": " .. label)
         end
     end
 end
@@ -777,8 +800,8 @@ local function PostPvPTeamSummary()
                         achievementCache[fullName] = cached
                     end
                 end
-                local prefix = cached and cached.prefix or "Not Seen in Bracket"
-                table.insert(target, name .. " - " .. prefix)
+                local label = cached and cached.label or "Not Seen in Bracket"
+                table.insert(target, name .. " - " .. label)
             end
         end
     end
@@ -810,9 +833,9 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local prefix = cached and cached.prefix or "Not Seen in Bracket"
+        local label = cached and cached.label or "Not Seen in Bracket"
         local baseName = name
-        table.insert(myTeam, 1, baseName .. " - " .. prefix)
+        table.insert(myTeam, 1, baseName .. " - " .. label)
     end
 
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
@@ -831,9 +854,9 @@ local function PostPvPTeamSummary()
                 achievementCache[fullName] = cached
             end
         end
-        local prefix = cached and cached.prefix or "Not Seen in Bracket"
+        local label = cached and cached.label or "Not Seen in Bracket"
         local baseName = name
-        table.insert(enemyTeam, baseName .. " - " .. prefix)
+        table.insert(enemyTeam, baseName .. " - " .. label)
     end
 
     -- Prefer nameplates, but fall back to arena enemies if available
@@ -841,16 +864,16 @@ local function PostPvPTeamSummary()
     for i = 1, 6 do addEnemy("arena" .. i) end
 
     SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
-    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+    SendChatMessage(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), "INSTANCE_CHAT")
 --    print("=== Rated Stats - Achievements PvP Summary ===")
---    print(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25))
+--    print(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45))
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
---        print(centerText(left, 25) .. " || " .. centerText(right, 25))
+        SendChatMessage(centerText(left, 45) .. " || " .. centerText(right, 45), "INSTANCE_CHAT")
+--        print(centerText(left, 45) .. " || " .. centerText(right, 45))
     end
 end
 
@@ -893,23 +916,34 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 								end
 							end
 					
-							local prefix = cached and cached.prefix or "Not Seen in Bracket"
+							local label = cached and cached.label or "Not Seen in Bracket"
 							if isEnemy then
-								table.insert(enemyTeam, string.format("%s - %s", baseName, prefix))
+								table.insert(enemyTeam, string.format("%s - %s", baseName, label))
 							else
-								table.insert(myTeam, string.format("%s - %s", baseName, prefix))
+								table.insert(myTeam, string.format("%s - %s", baseName, label))
 							end
 						end
 					end
 
                     --SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
-                    print("=== Rated Stats - Achievements ===")
+                    print("|cffb69e86=== Rated Stats - Achievements ===")
                     local maxRows = math.max(#myTeam, #enemyTeam)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
-                        --SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
-                        print(string.format("%-25s || %-25s", left, right))
+                        if myFaction == "Horde" then
+                            -- apply colors
+                            local myTeam  = "|cFFFF3333" .. left .. "|r"
+                            local enemyTeam = "|cFF3366FF" .. right .. "|r"
+                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
+                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                        else
+                            -- apply colors
+                            local myTeam  = "|cFF3366FF" .. left .. "|r"
+                            local enemyTeam = "|cFFFF3333" .. right .. "|r"
+                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
+                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                        end
                     end
                 end
             end)
