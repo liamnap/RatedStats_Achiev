@@ -228,7 +228,7 @@ jobs:
       - name: Dispatch next batch in this region (if any)
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.Rated_Stats_Achiev_liamnap_secret }}
           script: |
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             const region   = process.env.REGION;
