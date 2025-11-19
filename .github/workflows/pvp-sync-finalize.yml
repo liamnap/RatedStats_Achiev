@@ -353,7 +353,7 @@ jobs:
 
           # All shards have been consumed and deleted; only the accumulator DB remains in /tmp.
 
-      - name: Export final Lua (same job, same workspace)
+      - name: Export final Lua and print number of characters
         env:
           REGION: ${{ needs.guard.outputs.region }}
           BATCH_SIZE: "1"
