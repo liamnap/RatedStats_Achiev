@@ -1117,6 +1117,15 @@ async def process_characters(characters: dict, leaderboard_keys: set):
     rows_map = {k: (g, ach) for k, g, ach in db_iter_rows()}
 
     if MODE == "finalize" and os.getenv("EXPORT_ONLY", "") == "1":
+        total_mains = len(groups)                          # one main per group
+        total_chars = sum(len(comp) for comp in groups)    # mains + alts
+        total_alts = total_chars - total_mains
+        print(
+            f"[STATS] Region={REGION} finalize: mains={total_mains}, "
+            f"alts={total_alts}, total_characters={total_chars}",
+            flush=True,
+        )
+        
         entry_lines = []
         for comp in groups:
             real_leaders = [m for m in comp if m in leaderboard_keys]
