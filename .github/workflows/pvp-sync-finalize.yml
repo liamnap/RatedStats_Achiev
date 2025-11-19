@@ -3,9 +3,6 @@ run-name: Finalize PvP Sync for ${{ inputs.region }}
 
 # Trigger whenever the "PvP Sync Batch" workflow finishes on dev
 on:
-  workflow_run:
-    workflows: ["PvP Sync Batch"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       region:
