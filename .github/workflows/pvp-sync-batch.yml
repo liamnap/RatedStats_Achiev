@@ -279,7 +279,7 @@ jobs:
           CRED_SPACING:  ${{ inputs.cred_spacing }}
 
       - name: Trigger Finalize PvP Sync (only on last batch)
-        if: ${{ inputs.batch_num == inputs.total_batches }}
+        if: ${{ inputs.batch_num == inputs.total_batches && inputs.region != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
