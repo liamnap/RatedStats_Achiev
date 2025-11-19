@@ -159,7 +159,7 @@ jobs:
           else
             echo "✅ Seeded $have_real region Lua file(s) from $FALLBACK_REF."
           fi
-      - name: Build batch matrix
+      - name: Build batch matrix and print characters/alts/bracket numbers
         id: matrix
         shell: bash
         run: |
