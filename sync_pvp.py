@@ -770,6 +770,10 @@ async def get_pvp_achievements(session, headers):
         {"type": "prefix", "value": "Prized Marshal:"},
         {"type": "prefix", "value": "Prized Legend:"},
         {"type": "prefix", "value": "Prized Gladiator:"},
+        {"type": "prefix", "value": "Astral Warlord:"},
+        {"type": "prefix", "value": "Astral Marshal:"},
+        {"type": "prefix", "value": "Astral Legend:"},
+        {"type": "prefix", "value": "Astral Gladiator:"},
     ]
 
     matches = {}
@@ -1061,7 +1065,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
     # build fingerprints & alt_map
     fingerprints = {
         k: {
-            (aid, info["ts"]) for aid, info in ach.items() if info.get("ts") is not None
+            (aid, info.get("ts") or 0) for aid, info in ach.items()
         }
         for k, _, ach in db_iter_rows()
     }
