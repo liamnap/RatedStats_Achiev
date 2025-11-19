@@ -851,16 +851,16 @@ local function PostPvPTeamSummary()
     for i = 1, 6 do addEnemy("arena" .. i) end
 
     SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
-    SendChatMessage(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25), "INSTANCE_CHAT")
+    SendChatMessage(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), "INSTANCE_CHAT")
 --    print("=== Rated Stats - Achievements PvP Summary ===")
---    print(centerText("My Team", 25) .. " || " .. centerText("Enemy Team", 25))
+--    print(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45))
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
---        print(centerText(left, 25) .. " || " .. centerText(right, 25))
+        SendChatMessage(centerText(left, 45) .. " || " .. centerText(right, 45), "INSTANCE_CHAT")
+--        print(centerText(left, 45) .. " || " .. centerText(right, 45))
     end
 end
 
@@ -918,8 +918,19 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
                         local right = enemyTeam[i] or ""
-                        --SendChatMessage(centerText(left, 25) .. " || " .. centerText(right, 25), "INSTANCE_CHAT")
-                        print(string.format("%-25s || %-25s", left, right))
+                        if myFaction == "Horde" then
+                            -- apply colors
+                            local myTeam  = "|cFFFF3333" .. left .. "|r"
+                            local enemyTeam = "|cFF3366FF" .. right .. "|r"
+                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
+                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                        else
+                            -- apply colors
+                            local myTeam  = "|cFF3366FF" .. left .. "|r"
+                            local enemyTeam = "|cFFFF3333" .. right .. "|r"
+                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
+                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                        end
                     end
                 end
             end)
