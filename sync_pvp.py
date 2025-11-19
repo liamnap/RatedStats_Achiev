@@ -454,11 +454,15 @@ def get_latest_static_namespace(region: str) -> str:
         pass
     return fallback
 
-
-# ── list‑only short‑circuit (now placed after all needed defs) ──
+# ── list-only short-circuit (now placed after all needed defs) ──
 if args.list_ids_only:
     region = args.region
     keys: set[str] = set()
+
+    # Track leaders vs alts separately for stats
+    lua_leaders: set[str] = set()
+    lua_alts: set[str] = set()
+
     char_rx = re.compile(r'character\s*=\s*"([^"]+)"')
     alts_rx = re.compile(r"alts\s*=\s*\{\s*([^}]*)\s*\}")
 
@@ -468,28 +472,111 @@ if args.list_ids_only:
             text = p.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
+
+        # leaders
         for m in char_rx.finditer(text):
-            keys.add(m.group(1).lower())
+            k = m.group(1).lower()
+            lua_leaders.add(k)
+            keys.add(k)
+
+        # alts
         for m in alts_rx.finditer(text):
             for alt in m.group(1).split(","):
-                keys.add(alt.strip().strip('"').lower())
+                altk = alt.strip().strip('"').lower()
+                if not altk:
+                    continue
+                lua_alts.add(altk)
+                keys.add(altk)
 
-    # 2) union with bracket “seen” (best-effort)
+    # 2) union with bracket “seen” (best-effort), with per-bracket stats
+    bracket_counts: dict[str, int] = {}
+    api_chars: dict[int, dict] = {}
     try:
         season_id = get_current_pvp_season_id(region)
         brackets = get_available_brackets(region, season_id)
         token = get_access_token(region)
         headers = {"Authorization": f"Bearer {token}"}
-        api_chars = get_characters_from_leaderboards(
-            region, headers, season_id, brackets
-        )
+
+        for bracket in brackets:
+            url = (
+                f"https://{region}.api.blizzard.com/"
+                f"data/wow/pvp-season/{season_id}/pvp-leaderboard/{bracket}"
+                f"?namespace=dynamic-{region}&locale={LOCALE}"
+            )
+            resp = requests.get(url, headers=headers)
+            if resp.status_code != 200:
+                print(
+                    f"[WARN] list-ids-only: failed leaderboard {bracket}: {resp.status_code}",
+                    file=sys.stderr,
+                )
+                continue
+
+            data = resp.json()
+            entries = data.get("entries", [])
+            bracket_counts[bracket] = len(entries)
+
+            for entry in entries:
+                c = entry.get("character")
+                if not c:
+                    continue
+                cid = c["id"]
+                if cid in api_chars:
+                    continue
+                api_chars[cid] = {
+                    "name": c["name"],
+                    "realm": c["realm"]["slug"],
+                }
+
+        # Update union of keys with bracket chars (name-realm)
         keys.update(
             f"{c['name'].lower()}-{c['realm'].lower()}" for c in api_chars.values()
         )
+
     except Exception as e:
         print(f"[WARN] list-ids-only: bracket union skipped: {e}", file=sys.stderr)
+        bracket_counts = {}
 
-    # 3) print merged + deduped keys
+    # 3) stats to STDERR (so wc -l only sees the raw key list)
+    lua_leader_count = len(lua_leaders)
+    lua_alt_count = len(lua_alts)
+    lua_total = len(lua_leaders | lua_alts)
+    bracket_union_count = len(api_chars)
+    bracket_raw_sum = sum(bracket_counts.values())
+    total_to_process = len(keys)
+
+    print(
+        f"[STATS] Region={region} | Lua leaders={lua_leader_count}",
+        file=sys.stderr,
+    )
+    print(
+        f"[STATS] Region={region} | Lua alts={lua_alt_count}",
+        file=sys.stderr,
+    )
+    print(
+        f"[STATS] Region={region} | Lua total (leaders+alts)={lua_total}",
+        file=sys.stderr,
+    )
+
+    for b in sorted(bracket_counts):
+        print(
+            f"[STATS] Region={region} | Bracket {b}: {bracket_counts[b]} characters (raw entries)",
+            file=sys.stderr,
+        )
+
+    print(
+        f"[STATS] Region={region} | Bracket raw sum (entries across all brackets)={bracket_raw_sum}",
+        file=sys.stderr,
+    )
+    print(
+        f"[STATS] Region={region} | Bracket union (unique chars across all brackets)={bracket_union_count}",
+        file=sys.stderr,
+    )
+    print(
+        f"[STATS] Region={region} | TOTAL chars to process (Lua ∪ brackets)={total_to_process}",
+        file=sys.stderr,
+    )
+
+    # 4) print merged + deduped keys to STDOUT (this is what wc -l counts)
     for k in sorted(keys):
         print(k)
     sys.exit(0)
