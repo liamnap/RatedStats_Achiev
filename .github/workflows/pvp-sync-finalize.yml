@@ -458,8 +458,8 @@ jobs:
           REGION="${{ needs.guard.outputs.region }}"
           TZ="Europe/London" ; export TZ
           DATE="$(date +%F)"  # YYYY-MM-DD
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
+          git config user.name "liamnap"
+          git config user.email "liampe@hotmail.co.uk"
           # Override LFS filters so actual Lua content is committed, not pointer
           git -c filter.lfs.clean=cat \
               -c filter.lfs.smudge=cat \
