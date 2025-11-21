@@ -101,8 +101,9 @@ local PvpRankColumns = {
     { key = "i",  label = "Elite (2400)",          prefix = "Elite",          icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
     { key = "j",  label = "Glad (2400)",           prefix = "Gladiator:",     icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
     { key = "k",  label = "Legend (2400)",         prefix = "Legend:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "m",  label = "Hero (0.5%)",           hero = true,               icons = {
+    { key = "l1", label = "Three's Company (2700)",prefix = "Three's Company",hidden = true },
+    { key = "m",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "n",  label = "Hero (0.5%)",           hero = true,               icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
     }},
