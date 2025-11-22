@@ -127,12 +127,112 @@ def main():
         sys.exit(1)
     name, realm = char_realm.split("-", 1)
 
-    baseline = seed_from_lua_for_character(region, char_realm)
+    baseline_full = seed_from_lua_for_character(region, char_realm)
+    # filter baseline to the same KEYWORDS list
+    KEYWORDS =
+        # Main Achievements
+        {"type": "exact", "value": "Scout"},
+        {"type": "exact", "value": "Private"},
+        {"type": "exact", "value": "Grunt"},
+        {"type": "exact", "value": "Corporal"},
+        {"type": "exact", "value": "Sergeant"},
+        {"type": "exact", "value": "Senior Sergeant"},
+        {"type": "exact", "value": "Master Sergeant"},
+        {"type": "exact", "value": "First Sergeant"},
+        {"type": "exact", "value": "Sergeant Major"},
+        {"type": "exact", "value": "Stone Guard"},
+        {"type": "exact", "value": "Knight"},
+        {"type": "exact", "value": "Blood Guard"},
+        {"type": "exact", "value": "Knight-Lieutenant"},
+        {"type": "exact", "value": "Legionnaire"},
+        {"type": "exact", "value": "Knight-Captain"},
+        {"type": "exact", "value": "Centurion"},
+        {"type": "exact", "value": "Knight-Champion"},
+        {"type": "exact", "value": "Champion"},
+        {"type": "exact", "value": "Lieutenant Commander"},
+        {"type": "exact", "value": "Lieutenant General"},
+        {"type": "exact", "value": "Commander"},
+        # Rated PvP Season Tiers
+        {"type": "prefix", "value": "Combatant I"},
+        {"type": "prefix", "value": "Combatant II"},
+        {"type": "prefix", "value": "Challenger I"},
+        {"type": "prefix", "value": "Challenger II"},
+        {"type": "prefix", "value": "Rival I"},
+        {"type": "prefix", "value": "Rival II"},
+        {"type": "prefix", "value": "Duelist"},
+        # 2200 - 2400 frommain achievements
+        {"type": "exact", "value": "General"},
+        {"type": "exact", "value": "Marshal"},
+        {"type": "exact", "value": "Warlord"},
+        {"type": "exact", "value": "Field Marshal"},
+        {"type": "exact", "value": "High Warlord"},
+        {"type": "exact", "value": "Grand Marshal"},
+        # Return to Rated PvP Season Tiers
+        {"type": "prefix", "value": "Elite:"},
+        {"type": "prefix", "value": "Gladiator:"},
+        {"type": "prefix", "value": "Legend:"},
+        # Special Achievements
+        {"type": "prefix", "value": "Three's Company: 2700"},
+        # R1 Titles
+        {"type": "prefix", "value": "Hero of the Horde"},
+        {"type": "prefix", "value": "Hero of the Alliance"},
+        {"type": "prefix", "value": "Primal Gladiator"},
+        {"type": "prefix", "value": "Wild Gladiator"},
+        {"type": "prefix", "value": "Warmongering Gladiator"},
+        {"type": "prefix", "value": "Vindictive Gladiator"},
+        {"type": "prefix", "value": "Fearless Gladiator"},
+        {"type": "prefix", "value": "Cruel Gladiator"},
+        {"type": "prefix", "value": "Ferocious Gladiator"},
+        {"type": "prefix", "value": "Fierce Gladiator"},
+        {"type": "prefix", "value": "Demonic Gladiator"},
+        {"type": "prefix", "value": "Dread Gladiator"},
+        {"type": "prefix", "value": "Sinister Gladiator"},
+        {"type": "prefix", "value": "Notorious Gladiator"},
+        {"type": "prefix", "value": "Corrupted Gladiator"},
+        {"type": "prefix", "value": "Sinful Gladiator"},
+        {"type": "prefix", "value": "Unchained Gladiator"},
+        {"type": "prefix", "value": "Cosmic Gladiator"},
+        {"type": "prefix", "value": "Eternal Gladiator"},
+        {"type": "prefix", "value": "Crimson Gladiator"},
+        {"type": "prefix", "value": "Obsidian Gladiator"},
+        {"type": "prefix", "value": "Draconic Gladiator"},
+        {"type": "prefix", "value": "Seasoned Gladiator"},
+        {"type": "prefix", "value": "Forged Warlord:"},
+        {"type": "prefix", "value": "Forged Marshal:"},
+        {"type": "prefix", "value": "Forged Legend:"},
+        {"type": "prefix", "value": "Forged Gladiator:"},
+        {"type": "prefix", "value": "Prized Warlord:"},
+        {"type": "prefix", "value": "Prized Marshal:"},
+        {"type": "prefix", "value": "Prized Legend:"},
+        {"type": "prefix", "value": "Prized Gladiator:"},
+        {"type": "prefix", "value": "Astral Warlord:"},
+        {"type": "prefix", "value": "Astral Marshal:"},
+        {"type": "prefix", "value": "Astral Legend:"},
+        {"type": "prefix", "value": "Astral Gladiator:"},
+    ]
+
+    baseline = {}
+    for aid, info in baseline_full.items():
+        for kw in KEYWORDS:
+            if (kw["type"] == "exact" and info["name"] == kw["value"]) or \
+               (kw["type"] == "prefix" and info["name"].startswith(kw["value"])):
+                baseline[aid] = info
+                break
+
     print("=== Lua Baseline ===")
     for aid, info in sorted(baseline.items()):
         print(f"{aid}\t{info['name']}\t{info.get('ts')}")
 
-    api_map = fetch_character_pvp_achievements(region, name, realm)
+    api_map_full = fetch_character_pvp_achievements(region, name, realm)
+    # filter API results to KEYWORDS
+    api_map = {}
+    for aid, info in api_map_full.items():
+        for kw in KEYWORDS:
+            if (kw["type"] == "exact" and info["name"] == kw["value"]) or \
+               (kw["type"] == "prefix" and info["name"].startswith(kw["value"])):
+                api_map[aid] = info
+                break
+
     print("\n=== API Scan ===")
     for aid, info in sorted(api_map.items()):
         print(f"{aid}\t{info['name']}\t{info.get('ts')}")
