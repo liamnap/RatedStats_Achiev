@@ -746,7 +746,7 @@ queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
 queueWatcher:RegisterEvent("CHAT_MSG_SYSTEM")
 
 local lastQueued = 0
-queueWatcher:SetScript("OnEvent", function(_, event)
+queueWatcher:SetScript("OnEvent", function(_, event, ...)
     local now = GetTime()
 
     -- System message check: only fire on exact PvP queue names
