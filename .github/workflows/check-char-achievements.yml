@@ -33,8 +33,8 @@ jobs:
         env:
           REGION: ${{ inputs.region }}
           CHARACTER_REALM: ${{ inputs.character_realm }}
-          BLIZZARD_CLIENT_ID_US_1: ${{ secrets.CHAR_PVP_ACHIEVEMENTS_ID }}
-          BLIZZARD_CLIENT_SECRET_US_1: ${{ secrets.CHAR_PVP_ACHIEVEMENTS_SECRET }}
+          CHAR_PVP_ACHIEVEMENTS_ID: ${{ secrets.CHAR_PVP_ACHIEVEMENTS_ID }}
+          CHAR_PVP_ACHIEVEMENTS_SECRET: ${{ secrets.CHAR_PVP_ACHIEVEMENTS_SECRET }}
           # (Add similar envs for other regions if needed)
         run: |
           python ./check_character_pvp.py --region $REGION --character-realm $CHARACTER_REALM
