@@ -56,8 +56,8 @@ def seed_from_lua_for_character(region: str, character_key: str):
 
 def get_access_token(region: str):
     region_upper = region.upper()
-    cid_var = f"BLIZZARD_CLIENT_ID_{region_upper}_1"
-    cs_var = f"BLIZZARD_CLIENT_SECRET_{region_upper}_1"
+    cid_var = f"CHAR_PVP_ACHIEVEMENTS_ID"
+    cs_var = f"CHAR_PVP_ACHIEVEMENTS_SECRET"
     cid = os.getenv(cid_var)
     cs = os.getenv(cs_var)
     if not cid or not cs:
