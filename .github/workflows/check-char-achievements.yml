@@ -1,0 +1,40 @@
+name: Check PvP Achievements for Character
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Region code (us, eu, kr, tw)'
+        required: true
+        default: 'us'
+      character_realm:
+        description: 'Character name-realm (e.g., MyChar-MyRealm)'
+        required: true
+        default: ''
+
+jobs:
+  check-character:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install aiohttp requests
+
+      - name: Run character achievement check
+        env:
+          REGION: ${{ inputs.region }}
+          CHARACTER_REALM: ${{ inputs.character_realm }}
+          BLIZZARD_CLIENT_ID_US_1: ${{ secrets.CHAR_PVP_ACHIEVEMENTS_ID }}
+          BLIZZARD_CLIENT_SECRET_US_1: ${{ secrets.CHAR_PVP_ACHIEVEMENTS_SECRET }}
+          # (Add similar envs for other regions if needed)
+        run: |
+          python ./check_character_pvp.py --region $REGION --character-realm $CHARACTER_REALM
