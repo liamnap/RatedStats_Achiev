@@ -221,7 +221,7 @@ def main():
 
     print("=== Lua Baseline ===")
     for aid, info in sorted(baseline.items()):
-        print(f"{aid}\t{info['name']}\t{info.get('ts')}")
+        print(f"{aid}\t{info['name']}")
 
     api_map_full = fetch_character_pvp_achievements(region, name, realm)
     # filter API results to KEYWORDS
