@@ -1262,13 +1262,28 @@ async def process_characters(characters: dict, leaderboard_keys: set):
 # ─────────────────────────────────────────────────────────────────────────────
 # Main entrypoint: seed + fetch + merge + batching loop + finalize
 # ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Main entrypoint: seed + fetch + merge + batching loop + finalize
+# ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # 1) seed from any existing region Lua files (mono or split)
-    old_chars = seed_db_from_lua_paths(find_region_lua_paths(REGION))
+    # Decide early if this is a streaming shard-merge or an export-only finalize.
+    one_shard = os.getenv("ONE_SHARD", "").strip()
+    export_only = os.getenv("EXPORT_ONLY", "") == "1"
+
+    # 1) Seed from any existing region Lua files (mono or split),
+    #    but DO NOT do this in EXPORT_ONLY finalize.
+    #
+    # In CI:
+    #   - shard merges (ONE_SHARD set) run first and build up /tmp/achiev_{REGION}.db
+    #   - the EXPORT_ONLY finalize pass should *only* read that DB, not re-seed
+    #     from old region_*.lua (which would overwrite fresh API data).
+    if not export_only:
+        old_chars = seed_db_from_lua_paths(find_region_lua_paths(REGION))
+    else:
+        old_chars = {}
 
     if MODE == "finalize":
         # Optional fast-path: consume exactly one shard, then exit (used by CI streaming merge).
-        one_shard = os.getenv("ONE_SHARD", "").strip()
         if one_shard:
             merged = merge_one_shard(Path(one_shard))
             db.close()
@@ -1345,13 +1360,27 @@ if __name__ == "__main__":
         sys.exit(0)
 
     elif MODE == "finalize":
-        # only finalize (no re-fetch): merge all shards, then write full Lua
+        # Only finalize (no re-fetch): merge shards when running "offline",
+        # but in CI streaming mode (EXPORT_ONLY=1) we *already* merged all shards
+        # into /tmp/achiev_{REGION}.db via ONE_SHARD passes.
         print(f"[INFO] Finalizing region {REGION}")
-        # make any downloaded shards visible
-        merged_rows, shard_count = merge_db_shards(Path("partial_outputs"))
-        if shard_count == 0 or merged_rows == 0:
-            # No shards? That's okay — we already seeded from any region_*.lua above.
-            print("⚠️ No DB shards merged; finalizing from existing region_*.lua seed.")
+
+        if not export_only:
+            # Offline / local finalize: look for shards in OUTDIR if provided,
+            # otherwise fall back to ./partial_outputs.
+            shard_root = Path(os.getenv("OUTDIR", "partial_outputs"))
+            merged_rows, shard_count = merge_db_shards(shard_root)
+            if shard_count == 0 or merged_rows == 0:
+                # No shards? That's okay — we already seeded from any region_*.lua above.
+                print("⚠️ No DB shards merged; finalizing from existing region_*.lua seed.")
+        else:
+            # In CI EXPORT_ONLY run:
+            # - /tmp/achiev_{REGION}.db already contains the union of all shards
+            #   (merged by earlier ONE_SHARD calls).
+            # - We deliberately skip merge_db_shards and also skipped Lua seeding,
+            #   so we write exactly what the DB contains.
+            print("[INFO] EXPORT_ONLY finalize: using pre-merged SQLite DB; skipping shard scan & Lua seeding.")
+
         # In streaming CI, export is run in a separate pass with EXPORT_ONLY=1.
         asyncio.run(process_characters({}, leaderboard_keys))
         db.close()
