@@ -129,7 +129,7 @@ def main():
 
     baseline_full = seed_from_lua_for_character(region, char_realm)
     # filter baseline to the same KEYWORDS list
-    KEYWORDS =
+    KEYWORDS = [
         # Main Achievements
         {"type": "exact", "value": "Scout"},
         {"type": "exact", "value": "Private"},
