@@ -4,9 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: 'Region code (us, eu, kr, tw)'
+        description: 'Region code'
         required: true
-        default: 'us'
+        type: choice
+        default: 'eu'
+        options:
+          - us
+          - eu
+          - kr
+          - tw
       character_realm:
         description: 'Character name-realm (e.g., MyChar-MyRealm)'
         required: true
