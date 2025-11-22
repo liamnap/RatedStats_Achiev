@@ -727,16 +727,38 @@ local function PrintPartyAchievements()
     end
 end
 
+-- Only announce for these queue messages
+local RatedQueueTriggers = {
+    ["Your group has joined the queue for Random Battleground."] = true,
+    ["Your group has joined the queue for Arena Skirmish."] = true,
+    ["Your group has joined the queue for 2v2."] = true,
+    ["Your group has joined the queue for 3v3."] = true,
+    ["Your group has joined the queue for Rated Battleground."] = true,
+    ["Your group has joined the queue for Rated Battleground Blitz."] = true,
+}
+
 -- === Queue watcher: fires once per queue start ===
 local queueState = { "none", "none", "none" }
 local queueWatcher = CreateFrame("Frame")
 queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
 queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
 queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
+queueWatcher:RegisterEvent("CHAT_MSG_SYSTEM")
 
 local lastQueued = 0
-queueWatcher:SetScript("OnEvent", function(_, event)
+queueWatcher:SetScript("OnEvent", function(_, event, ...)
     local now = GetTime()
+
+    -- System message check: only fire on exact PvP queue names
+    if event == "CHAT_MSG_SYSTEM" then
+        local msg = ...
+        if RatedQueueTriggers[msg] then
+            lastQueued = now
+            C_Timer.After(1.0, PrintPartyAchievements)
+        end
+        return
+    end
+
     -- Skip if still cooling down from last queue trigger
     if (now - lastQueued) < 10 then return end
 
