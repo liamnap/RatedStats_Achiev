@@ -23,9 +23,9 @@ on:
         default: ''
       check_alts:
         description: 'Also scan merged DB for alt candidates?'
-        required: false
+        required: true
         type: boolean
-        default: true
+        default: false
 
 jobs:
   check-character:
