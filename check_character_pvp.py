@@ -259,8 +259,14 @@ def main():
                         help="Character name-realm (e.g., MyChar-MyRealm)")
     parser.add_argument("--guid", type=int, default=0,
                         help="Optionally supply guid if known")
+    parser.add_argument(
+        "--check-alts",
+        dest="check_alts",
+        action="store_true",
+        help="Also scan merged DB for alt candidates"
+    )
     args = parser.parse_args()
-
+    
     region = args.region.lower()
     char_realm = args.character_realm.lower()
     if "-" not in char_realm:
@@ -394,8 +400,9 @@ def main():
     snippet = generate_lua_snippet(char_realm, args.guid, api_map)
     print(snippet)
 
-    # Alt detection using merged SQLite DB (if available)
-    run_alt_detection(region, char_realm)
+    # Alt detection using merged SQLite DB (if requested and available)
+    if args.check_alts:
+        run_alt_detection(region, char_realm)
     
     sys.exit(0)
 
