@@ -366,6 +366,16 @@ jobs:
           echo "Exporting final region_${REGION}.lua from accumulator…"
           EXPORT_ONLY=1 python sync_pvp.py --mode finalize --region "$REGION"
 
+      - name: Upload merged SQLite DB
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pvp-merged-${{ needs.guard.outputs.region }}-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          path: /tmp/achiev_${{ needs.guard.outputs.region }}.db
+          if-no-files-found: ignore
+          # Keep it short; this is only for debugging / offline analysis
+          retention-days: 2
+
       - name: Check disk usage
         run: df -h
 
