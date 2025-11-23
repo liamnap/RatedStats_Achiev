@@ -1,5 +1,9 @@
 name: Check PvP Achievements for Character
 
+permissions:
+  contents: read
+  actions: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -34,6 +38,53 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install aiohttp requests
+
+      - name: Download latest merged DB for region
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGION: ${{ inputs.region }}
+        run: |
+          set -euo pipefail
+
+          region="${REGION}"
+          wf="Finalize PvP Sync"
+          branch="main"
+          repo="${GITHUB_REPOSITORY:-${{ github.repository }}}"
+
+          echo "Looking for latest successful '${wf}' run on ${branch} for region=${region}..."
+          run_id="$(gh run list \
+            --workflow "$wf" \
+            --branch "$branch" \
+            --status success \
+            --json databaseId,displayTitle \
+            --jq '[ .[] | select(.displayTitle | endswith(" for '"$region"'")) ][0].databaseId' || true)"
+
+          if [[ -z "$run_id" ]]; then
+            echo "⚠️ No successful '${wf}' run found for region=${region} on branch=${branch}"
+            exit 0
+          fi
+
+          # Adjust this name to whatever you used in the finalizer upload step
+          art_name="$(gh api repos/"$repo"/actions/runs/"$run_id"/artifacts \
+            --jq '.artifacts[].name | select(startswith("pvp-merged-'"$region"'"))' | head -n1 || true)"
+
+          if [[ -z "$art_name" ]]; then
+            echo "⚠️ No merged DB artifact found for run_id=${run_id} region=${region}"
+            exit 0
+          fi
+
+          echo "Downloading artifact '${art_name}' from run_id=${run_id}..."
+          gh run download "$run_id" --name "$art_name" --dir .
+
+          db_path="$(find . -maxdepth 5 -type f -name "achiev_${region}.db" | head -n1 || true)"
+          if [[ -z "$db_path" ]]; then
+            echo "⚠️ Downloaded artifact but could not locate achiev_${region}.db"
+            find . -maxdepth 5 -type f -print
+            exit 0
+          fi
+
+          mv "$db_path" "./achiev_${region}.db"
+          echo "MERGED_DB_PATH=./achiev_${region}.db" >> "$GITHUB_ENV"
 
       - name: Run character achievement check
         env:
