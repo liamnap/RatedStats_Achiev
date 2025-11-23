@@ -826,20 +826,61 @@ def db_iter_rows():
     for k, g, j in cur:
         yield k, g, json.loads(j)
 
+def _merge_ach_json(existing_json: str | None, incoming_json: str) -> str:
+    """
+    Merge two ach_json blobs (both are JSON dicts: aid -> {name, ts}).
+    - Any ID only in incoming is added.
+    - For IDs in both:
+        * Prefer the one with a non-null ts.
+        * If both have ts, prefer the later timestamp.
+    This prevents stale Lua/old shards (ts=None, missing IDs) from
+    overwriting fresher API data.
+    """
+    try:
+        incoming = json.loads(incoming_json) if incoming_json else {}
+    except Exception:
+        incoming = {}
+    try:
+        existing = json.loads(existing_json) if existing_json else {}
+    except Exception:
+        existing = {}
 
-def merge_db_shards(dirpath: Path) -> tuple[int, int]:
-    """Merge rows from all sqlite shards into the working DB.
-    Returns (merged_row_upserts, shard_count)."""
-    # Discover shards both in the flattened folder and any subdirs.
-    shards = sorted(
-        set(
-            list(dirpath.glob(f"achdb_{REGION}_b*.sqlite"))
-            + list(dirpath.glob(f"**/achdb_{REGION}_b*.sqlite"))
-        )
-    )
-    if not shards:
-        print(f"[ERROR] No sqlite shards under {dirpath}/achdb_{REGION}_b*.sqlite")
-        return (0, 0)
+    # Start with existing; layer incoming on top with the rules above.
+    merged = dict(existing)
+
+    for aid_str, info_new in incoming.items():
+        info_old = merged.get(aid_str)
+        if info_old is None:
+            # Entirely new achievement
+            merged[aid_str] = info_new
+            continue
+
+        ts_old = info_old.get("ts")
+        ts_new = info_new.get("ts")
+
+        # If new has a real timestamp and old doesn't, take new.
+        if ts_old is None and ts_new is not None:
+            merged[aid_str] = info_new
+            continue
+
+        # If new has no timestamp but old does, keep old.
+        if ts_new is None and ts_old is not None:
+            continue
+
+        # Both None -> arbitrary, but keep existing.
+        if ts_old is None and ts_new is None:
+            continue
+
+        # Both have timestamps: prefer the later one (best effort).
+        try:
+            if int(ts_new) >= int(ts_old):
+                merged[aid_str] = info_new
+        except Exception:
+            # If we can't compare, just favour incoming.
+            merged[aid_str] = info_new
+
+    return json.dumps(merged, separators=(",", ":"))
+
     merged = 0
     for s in shards:
         try:
@@ -847,10 +888,24 @@ def merge_db_shards(dirpath: Path) -> tuple[int, int]:
                 cnt = src.execute("SELECT COUNT(*) FROM char_data").fetchone()[0]
                 print(f"[DEBUG] shard {s.name}: {cnt} rows")
                 for k, g, j in src.execute("SELECT key,guid,ach_json FROM char_data"):
-                    db.execute(
-                        "INSERT OR REPLACE INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
-                        (k, g, j),
+                    # Look for an existing row so we can merge achievements instead
+                    # of letting this shard blindly overwrite fresher data.
+                    cur = db.execute(
+                        "SELECT guid,ach_json FROM char_data WHERE key=?", (k,)
                     )
+                    row = cur.fetchone()
+                    if row is None:
+                        db.execute(
+                            "INSERT INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
+                            (k, g, j),
+                        )
+                    else:
+                        existing_guid, existing_json = row
+                        merged_json = _merge_ach_json(existing_json, j)
+                        db.execute(
+                            "UPDATE char_data SET guid=?, ach_json=? WHERE key=?",
+                            (existing_guid or g, merged_json, k),
+                        )
                     merged += 1
         except Exception as e:
             print(f"[WARN] failed to merge shard {s}: {e}")
@@ -858,8 +913,11 @@ def merge_db_shards(dirpath: Path) -> tuple[int, int]:
     print(f"[DEBUG] merged {merged} row upserts from {len(shards)} shard(s)")
     return (merged, len(shards))
 
-def merge_one_shard(shard_path: Path) -> int:
-    """Merge rows from exactly one sqlite shard into the working DB. Returns upsert count."""
+    """Merge rows from exactly one sqlite shard into the working DB.
+    Returns upsert count.
+    Uses _merge_ach_json so that newer API data is never clobbered by
+    stale Lua/old shard content.
+    """
     if not shard_path.exists():
         print(f"[ERROR] Shard not found: {shard_path}")
         return 0
@@ -869,10 +927,22 @@ def merge_one_shard(shard_path: Path) -> int:
             cnt = src.execute("SELECT COUNT(*) FROM char_data").fetchone()[0]
             print(f"[DEBUG] shard {shard_path.name}: {cnt} rows")
             for k, g, j in src.execute("SELECT key,guid,ach_json FROM char_data"):
-                db.execute(
-                    "INSERT OR REPLACE INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
-                    (k, g, j),
+                cur = db.execute(
+                    "SELECT guid,ach_json FROM char_data WHERE key=?", (k,)
                 )
+                row = cur.fetchone()
+                if row is None:
+                    db.execute(
+                        "INSERT INTO char_data (key,guid,ach_json) VALUES (?,?,?)",
+                        (k, g, j),
+                    )
+                else:
+                    existing_guid, existing_json = row
+                    merged_json = _merge_ach_json(existing_json, j)
+                    db.execute(
+                        "UPDATE char_data SET guid=?, ach_json=? WHERE key=?",
+                        (existing_guid or g, merged_json, k),
+                    )
                 merged += 1
         db.commit()
         print(f"[DEBUG] merged {merged} row upserts from 1 shard")
