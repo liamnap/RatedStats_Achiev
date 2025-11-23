@@ -1,4 +1,5 @@
 name: Check PvP Achievements for Character
+run-name: Checking PvP Achievements for ${{ inputs.character_realm }}
 
 permissions:
   contents: read
