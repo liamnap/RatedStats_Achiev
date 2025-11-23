@@ -913,7 +913,7 @@ def _merge_ach_json(existing_json: str | None, incoming_json: str) -> str:
     print(f"[DEBUG] merged {merged} row upserts from {len(shards)} shard(s)")
     return (merged, len(shards))
 
- def merge_one_shard(shard_path: Path) -> int:
+def merge_one_shard(shard_path: Path) -> int:
     """Merge rows from exactly one sqlite shard into the working DB.
     Returns upsert count.
     Uses _merge_ach_json so that newer API data is never clobbered by
