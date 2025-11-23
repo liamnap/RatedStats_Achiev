@@ -188,6 +188,63 @@ def _build_tokens(ach: dict[int, dict]) -> set[tuple[int, int]]:
         tokens.add((aid, ts_int))
     return tokens
 
+def load_sqlite_snapshot_for_character(region: str, char_realm: str):
+    """
+    Load a single character's achievement map from the merged DB:
+      { aid: { "name": str, "ts": int|None }, ... }
+    Returns None if DB missing or char not present.
+    """
+    conn = _load_merged_db(region)
+    if conn is None:
+        return None
+
+    key = char_realm.lower()
+    try:
+        cur = conn.execute(
+            "SELECT guid, ach_json FROM char_data WHERE key = ?", (key,)
+        )
+        row = cur.fetchone()
+    except Exception as e:
+        print(
+            f"\n[WARN] Failed to query merged DB for {key}: {e}",
+            file=sys.stderr,
+        )
+        conn.close()
+        return None
+
+    conn.close()
+
+    if row is None:
+        print(
+            f"\n[INFO] Character {key} not found in merged DB; skipping SQLite comparison.",
+            file=sys.stderr,
+        )
+        return None
+
+    guid, ach_json = row
+    try:
+        raw = json.loads(ach_json)
+    except Exception as e:
+        print(
+            f"\n[WARN] Failed to decode ach_json for {key} from merged DB: {e}",
+            file=sys.stderr,
+        )
+        return None
+
+    ach_map: dict[int, dict] = {}
+    if isinstance(raw, dict):
+        for aid_str, info in raw.items():
+            try:
+                aid = int(aid_str)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(info, dict):
+                continue
+            name = info.get("name", "")
+            ts = info.get("ts")
+            ach_map[aid] = {"name": name, "ts": ts}
+
+    return {"guid": guid, "ach": ach_map}
 
 def run_alt_detection(region: str, char_realm: str):
     """
@@ -400,6 +457,37 @@ def main():
     snippet = generate_lua_snippet(char_realm, args.guid, api_map)
     print(snippet)
 
+    # SQLite comparison using merged DB (if available)
+    sqlite_snapshot = load_sqlite_snapshot_for_character(region, char_realm)
+    if sqlite_snapshot is not None:
+        sqlite_full = sqlite_snapshot["ach"]
+        sqlite_map: dict[int, dict] = {}
+        for aid, info in sqlite_full.items():
+            for kw in KEYWORDS:
+                if (kw["type"] == "exact" and info["name"] == kw["value"]) or \
+                   (kw["type"] == "prefix" and info["name"].startswith(kw["value"])):
+                    sqlite_map[aid] = info
+                    break
+
+        print("\n=== SQLite Snapshot (merged DB) ===")
+        for aid, info in sorted(sqlite_map.items()):
+            print(f"{aid}\t{info['name']}\t{info.get('ts')}")
+
+        sqlite_diff = diff_baseline_vs_api(sqlite_map, api_map)
+        print("\n=== Differences vs merged SQLite (DB → API) ===")
+        print("Missing in SQLite DB (API only):")
+        for aid in sqlite_diff["missing_in_lua"]:
+            print(f"{aid}\t{api_map[aid]['name']}")
+        print("\nMissing in API (SQLite DB only):")
+        for aid in sqlite_diff["missing_in_api"]:
+            print(f"{aid}\t{sqlite_map[aid]['name']}")
+        print("\nTimestamp changed (SQLite DB vs API):")
+        for aid in sqlite_diff["timestamp_changed"]:
+            print(
+                f"{aid}\t{sqlite_map[aid]['name']}"
+                f"\tDBTS={sqlite_map[aid]['ts']}\tAPITS={api_map[aid]['ts']}"
+            )
+    
     # Alt detection using merged SQLite DB (if requested and available)
     if args.check_alts:
         run_alt_detection(region, char_realm)
