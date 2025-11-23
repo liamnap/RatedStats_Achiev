@@ -4,6 +4,7 @@ import sys
 import json
 import argparse
 import re
+import sqlite3
 import requests
 from pathlib import Path
 
@@ -110,6 +111,146 @@ def generate_lua_snippet(character_key: str, guid: int, ach_map: dict):
         parts.append(f"id{i}={aid}")
         parts.append(f'name{i}="{esc}"')
     return "{ " + ", ".join(parts) + " }"
+
+# ---------------------------------------------------------------------------
+# Alt-detection from merged SQLite DB (achiev_<region>.db)
+# ---------------------------------------------------------------------------
+
+ALT_SHARED_THRESHOLD = 5  # min shared (aid, timestamp) pairs to consider a candidate
+
+
+def _load_merged_db(region: str) -> sqlite3.Connection | None:
+    region = region.lower()
+    db_path = os.environ.get("MERGED_DB_PATH") or f"./achiev_{region}.db"
+    p = Path(db_path)
+    if not p.exists():
+        print(f"\n[INFO] No merged DB found at {p}; skipping alt detection.", file=sys.stderr)
+        return None
+    try:
+        conn = sqlite3.connect(str(p))
+    except Exception as e:
+        print(f"\n[WARN] Failed to open merged DB {p}: {e}", file=sys.stderr)
+        return None
+    return conn
+
+
+def _load_char_rows(conn: sqlite3.Connection) -> dict:
+    """
+    Return:
+      rows = {
+        "name-realm": {
+           "guid": int,
+           "ach": { aid: {"name": str, "ts": int|None}, ... }
+        },
+        ...
+      }
+    """
+    rows = {}
+    cur = conn.execute("SELECT key, guid, ach_json FROM char_data")
+    for key, guid, ach_json in cur:
+        k = (key or "").lower()
+        if not k:
+            continue
+        try:
+            raw = json.loads(ach_json)
+        except Exception:
+            continue
+        ach_map = {}
+        if isinstance(raw, dict):
+            for aid_str, info in raw.items():
+                try:
+                    aid = int(aid_str)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(info, dict):
+                    continue
+                name = info.get("name", "")
+                ts = info.get("ts")
+                ach_map[aid] = {"name": name, "ts": ts}
+        rows[k] = {"guid": guid, "ach": ach_map}
+    return rows
+
+
+def _build_tokens(ach: dict[int, dict]) -> set[tuple[int, int]]:
+    """
+    Build a set of (achievement_id, completed_timestamp) tokens.
+    Only entries with a non-null, integer timestamp are included.
+    """
+    tokens: set[tuple[int, int]] = set()
+    for aid, info in ach.items():
+        ts = info.get("ts")
+        if ts is None:
+            continue
+        try:
+            ts_int = int(ts)
+        except (TypeError, ValueError):
+            continue
+        tokens.add((aid, ts_int))
+    return tokens
+
+
+def run_alt_detection(region: str, char_realm: str):
+    """
+    Uses merged DB (achiev_<region>.db) to find alt candidates for char_realm
+    by matching identical (achievement_id, completed_timestamp) pairs.
+    """
+    conn = _load_merged_db(region)
+    if conn is None:
+        return
+
+    try:
+        rows = _load_char_rows(conn)
+    finally:
+        conn.close()
+
+    target_key = char_realm.lower()
+    if target_key not in rows:
+        print(f"\n[WARN] Character {target_key} not found in merged DB; no alt analysis.", file=sys.stderr)
+        return
+
+    target = rows[target_key]
+    target_tokens = _build_tokens(target["ach"])
+    if not target_tokens:
+        print(f"\n[WARN] Character {target_key} has no timestamped PvP achievements in merged DB.", file=sys.stderr)
+        return
+
+    candidates = []
+    for key, row in rows.items():
+        if key == target_key:
+            continue
+        tokens = _build_tokens(row["ach"])
+        if not tokens:
+            continue
+        shared = target_tokens & tokens
+        shared_count = len(shared)
+        if shared_count >= ALT_SHARED_THRESHOLD:
+            candidates.append(
+                {
+                    "key": key,
+                    "guid": row["guid"],
+                    "shared": shared_count,
+                    "total_main": len(target_tokens),
+                    "total_other": len(tokens),
+                }
+            )
+
+    candidates.sort(key=lambda c: c["shared"], reverse=True)
+
+    print(f"\n=== Alt candidates from merged DB for {target_key} (region={region}) ===")
+    print(f"Main GUID: {target['guid']}")
+    print(f"Timestamped PvP achievements on main: {len(target_tokens)}")
+    print()
+
+    if not candidates:
+        print(f"No alt candidates met threshold (shared timestamped achievements ≥ {ALT_SHARED_THRESHOLD}).")
+        return
+
+    print("candidate_key\tguid\tshared_pairs\tmain_pairs\tcandidate_pairs")
+    for c in candidates:
+        print(
+            f"{c['key']}\t{c['guid']}\t"
+            f"{c['shared']}\t{c['total_main']}\t{c['total_other']}"
+        )
 
 def main():
     parser = argparse.ArgumentParser(description="Check single character PvP achievements")
@@ -253,6 +394,9 @@ def main():
     snippet = generate_lua_snippet(char_realm, args.guid, api_map)
     print(snippet)
 
+    # Alt detection using merged SQLite DB (if available)
+    run_alt_detection(region, char_realm)
+    
     sys.exit(0)
 
 if __name__ == "__main__":
