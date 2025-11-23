@@ -89,7 +89,13 @@ jobs:
             exit 0
           fi
 
-          mv "$db_path" "./achiev_${region}.db"
+          # If the artifact already unpacked to ./achiev_<region>.db, don't try to move it
+          if [[ "$db_path" != "./achiev_${region}.db" ]]; then
+            mv "$db_path" "./achiev_${region}.db"
+          else
+            echo "Found merged DB already at ./achiev_${region}.db; no move needed."
+          fi
+          
           echo "MERGED_DB_PATH=./achiev_${region}.db" >> "$GITHUB_ENV"
 
       - name: Run character achievement check
