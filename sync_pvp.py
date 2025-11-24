@@ -1165,7 +1165,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                     pair_counts[(ai, bj)] += 1
                 else:
                     pair_counts[(bj, ai)] += 1
-    THRESH = 5
+    THRESH = 10
     for (a, b), cnt in pair_counts.items():
         if cnt >= THRESH:
             alt_map[a].append(b)
