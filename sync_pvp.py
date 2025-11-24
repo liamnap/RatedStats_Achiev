@@ -1342,13 +1342,15 @@ if __name__ == "__main__":
     export_only = os.getenv("EXPORT_ONLY", "") == "1"
 
     # 1) Seed from any existing region Lua files (mono or split),
-    #    but DO NOT do this in EXPORT_ONLY finalize.
+    #    but DO NOT do this in:
+    #      - EXPORT_ONLY finalize (final pass in CI), or
+    #      - streaming shard merges (ONE_SHARD set), which build up
+    #        /tmp/achiev_{REGION}.db incrementally.
     #
     # In CI:
-    #   - shard merges (ONE_SHARD set) run first and build up /tmp/achiev_{REGION}.db
-    #   - the EXPORT_ONLY finalize pass should *only* read that DB, not re-seed
-    #     from old region_*.lua (which would overwrite fresh API data).
-    if not export_only:
+    #   - shard merges:  ONE_SHARD is set  → skip seeding, just merge shard.
+    #   - EXPORT_ONLY:   export_only=True  → skip seeding/shard scan, just export DB.
+    if (not export_only) and (not one_shard):
         old_chars = seed_db_from_lua_paths(find_region_lua_paths(REGION))
     else:
         old_chars = {}
