@@ -1202,19 +1202,27 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             f"alts={total_alts}, total_characters={total_chars}",
             flush=True,
         )
-        
+
         entry_lines = []
+        used_chars: set[str] = set()
+
         for comp in groups:
             real_leaders = [m for m in comp if m in leaderboard_keys]
             root = real_leaders[0] if real_leaders else comp[0]
             alts = [m for m in comp if m != root]
+
+            # If this character was already emitted earlier (either as a main
+            # or as an alt in another cluster), do not give it a second
+            # top-level entry. This prevents "alt + its own line" duplicates.
+            if root in used_chars:
+                continue
+
+            used_chars.add(root)
+            used_chars.update(alts)
+
             guid, ach_map = rows_map[root]
             alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
             parts = [f'character="{root}"', f"alts={alts_str}", f"guid={guid}"]
-            for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
-                esc = info["name"].replace('"', '\\"')
-                parts += [f"id{i}={aid}", f'name{i}="{esc}"']
-            entry_lines.append("    { " + ", ".join(parts) + " },\n")
 
         MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(49 * 1024 * 1024)))
         part_index = 1
