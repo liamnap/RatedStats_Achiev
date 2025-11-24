@@ -114,15 +114,12 @@ jobs:
         (github.event_name == 'workflow_dispatch')
       )
     needs: guard
-  concurrency:
-    # TW/KR share a lane; EU/US get their own lanes (per SHA)
-    group: ${{ (
-       needs.guard.outputs.region == 'tw' || needs.guard.outputs.region == 'kr'
-      )
-      && format('finalize-asia-{0}', github.event.workflow_run.head_sha || inputs.sha || github.sha)
-      || format('finalize-{0}-{1}', needs.guard.outputs.region, github.event.workflow_run.head_sha || inputs.sha || github.sha)
-    }}
-    cancel-in-progress: false
+    concurrency:
+      # TW/KR share a lane; EU/US get their own lanes (per SHA)
+      group: ${{ (needs.guard.outputs.region == 'tw' || needs.guard.outputs.region == 'kr')
+        && format('finalize-asia-{0}', github.event.workflow_run.head_sha || inputs.sha || github.sha)
+        || format('finalize-{0}-{1}', needs.guard.outputs.region, github.event.workflow_run.head_sha || inputs.sha || github.sha) }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
