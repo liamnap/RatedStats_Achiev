@@ -49,12 +49,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REGION: ${{ inputs.region }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
           region="${REGION}"
           wf="Finalize PvP Sync"
-          branch="main"
+          branch="${BRANCH}"
           repo="${GITHUB_REPOSITORY:-${{ github.repository }}}"
 
           echo "Looking for latest successful '${wf}' run on ${branch} for region=${region}..."
