@@ -1232,6 +1232,12 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             # finally emit a Lua row for this main+alts cluster
             entry_lines.append("    { " + ", ".join(parts) + " },\n")
 
+        # ---- initialise chunking state for EXPORT_ONLY finalize ----
+        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(49 * 1024 * 1024)))
+        part_index = 1
+        current_lines: list[str] = []
+        out_files: list[Path] = []
+
         def write_chunk(part_idx, lines, is_single_file):
             region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
 
