@@ -116,7 +116,7 @@ def generate_lua_snippet(character_key: str, guid: int, ach_map: dict):
 # Alt-detection from merged SQLite DB (achiev_<region>.db)
 # ---------------------------------------------------------------------------
 
-ALT_SHARED_THRESHOLD = 5  # min shared (aid, timestamp) pairs to consider a candidate
+ALT_SHARED_THRESHOLD = 10  # min shared (aid, timestamp) pairs to consider a candidate
 
 
 def _load_merged_db(region: str) -> sqlite3.Connection | None:
