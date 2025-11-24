@@ -54,7 +54,7 @@ jobs:
 
           region="${REGION}"
           wf="Finalize PvP Sync"
-          branch="dev"
+          branch="main"
           repo="${GITHUB_REPOSITORY:-${{ github.repository }}}"
 
           echo "Looking for latest successful '${wf}' run on ${branch} for region=${region}..."
