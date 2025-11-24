@@ -288,6 +288,8 @@ def run_alt_detection(region: str, char_realm: str):
                     "shared": shared_count,
                     "total_main": len(target_tokens),
                     "total_other": len(tokens),
+                    # keep the actual shared (aid, ts) pairs so we can print them later
+                    "shared_tokens": shared,
                 }
             )
 
@@ -302,12 +304,51 @@ def run_alt_detection(region: str, char_realm: str):
         print(f"No alt candidates met threshold (shared timestamped achievements ≥ {ALT_SHARED_THRESHOLD}).")
         return
 
-    print("candidate_key\tguid\tshared_pairs\tmain_pairs\tcandidate_pairs")
-    for c in candidates:
-        print(
-            f"{c['key']}\t{c['guid']}\t"
-            f"{c['shared']}\t{c['total_main']}\t{c['total_other']}"
+    # Compact, aligned summary table
+    headers = ["candidate_key", "guid", "shared_pairs", "main_pairs", "candidate_pairs"]
+    rows_out = [
+        [
+            c["key"],
+            str(c["guid"]),
+            str(c["shared"]),
+            str(c["total_main"]),
+            str(c["total_other"]),
+        ]
+        for c in candidates
+    ]
+    col_widths = [
+        max(len(h), *(len(row[i]) for row in rows_out))
+        for i, h in enumerate(headers)
+    ]
+
+    def _fmt_row(row: list[str]) -> str:
+        return "  ".join(
+            cell.ljust(col_widths[i]) for i, cell in enumerate(row)
         )
+
+    print("candidate summary:")
+    print(_fmt_row(headers))
+    for row in rows_out:
+        print(_fmt_row(row))
+
+    # Detailed breakdown of shared achievements per candidate
+    print("\n=== Shared timestamped achievements per candidate ===")
+    for c in candidates:
+        key = c["key"]
+        shared_tokens = sorted(c["shared_tokens"])
+        print(
+            f"\n-- {key} -- shared={len(shared_tokens)} "
+            f"(main={c['total_main']}, candidate={c['total_other']})"
+        )
+        print("id\tname\tmain_ts\tcandidate_ts")
+        for aid, ts in shared_tokens:
+            main_info = rows[target_key]["ach"].get(aid, {})
+            cand_info = rows[key]["ach"].get(aid, {})
+            name = main_info.get("name") or cand_info.get("name") or ""
+            print(
+                f"{aid}\t{name}\t"
+                f"{main_info.get('ts')}\t{cand_info.get('ts')}"
+            )
 
 def main():
     parser = argparse.ArgumentParser(description="Check single character PvP achievements")
