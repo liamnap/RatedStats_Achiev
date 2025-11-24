@@ -1224,10 +1224,13 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
             parts = [f'character="{root}"', f"alts={alts_str}", f"guid={guid}"]
 
-        MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(49 * 1024 * 1024)))
-        part_index = 1
-        current_lines = []
-        out_files = []
+            # add all achievements for this root into the entry
+            for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
+                esc = info["name"].replace('"', '\\"')
+                parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+
+            # finally emit a Lua row for this main+alts cluster
+            entry_lines.append("    { " + ", ".join(parts) + " },\n")
 
         def write_chunk(part_idx, lines, is_single_file):
             region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
