@@ -61,8 +61,17 @@ local achievementCache = {}
 -- 🔹 Build fast lookup index for character → entry
 local regionLookup = {}
 for _, entry in ipairs(regionData) do
+    -- main character key
     if entry.character then
         regionLookup[entry.character:lower()] = entry
+    end
+    -- alt keys: point each alt at the same entry as the main
+    if entry.alts and type(entry.alts) == "table" then
+        for _, altName in ipairs(entry.alts) do
+            if type(altName) == "string" and altName ~= "" then
+                regionLookup[altName:lower()] = entry
+            end
+        end
     end
 end
 
@@ -233,17 +242,12 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     realm = realm or GetRealmName()
     local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
 
-    -- Cache lookup
+    -- Cache lookup using regionLookup (main OR alt)
     if achievementCache[fullName] == nil then
-        local found = false
-        for _, entry in ipairs(regionData) do
-            if entry.character and entry.character:lower() == fullName then
-                achievementCache[fullName] = GetPvpAchievementSummary(entry)
-                found = true
-                break
-            end
-        end
-        if not found then
+        local entry = regionLookup[fullName]
+        if entry then
+            achievementCache[fullName] = GetPvpAchievementSummary(entry)
+        else
             achievementCache[fullName] = { summary = {}, highest = nil }
         end
     end
