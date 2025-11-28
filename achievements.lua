@@ -40,11 +40,6 @@ local function NormalizeRealmSlug(realm)
         realm = GetRealmName() or ""
     end
 
-    -- Fix cases like "Twilight'sHammer" → "Twilight's Hammer"
-    -- i.e. "'s" immediately followed by an uppercase letter.
-    -- Do this *before* lowercasing so we can detect %u properly.
-    realm = realm:gsub("(%l's)(%u)", "%1 %2")
-
     realm = realm:lower()
 
     -- remove apostrophes and similar
