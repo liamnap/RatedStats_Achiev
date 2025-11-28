@@ -7,6 +7,14 @@ import re
 import sqlite3
 import requests
 from pathlib import Path
+from urllib.parse import urlparse
+
+LOCALE_MAP = {
+    "us": "en_US",
+    "eu": "en_GB",
+    "kr": "ko_KR",
+    "tw": "zh_TW",
+}
 
 def is_lfs_pointer(path: Path) -> bool:
     try:
@@ -74,8 +82,7 @@ def get_access_token(region: str):
 
 def fetch_character_pvp_achievements(region: str, name: str, realm: str):
     region_lower = region.lower()
-    locale_map = {"us": "en_US", "eu": "en_GB", "kr": "ko_KR", "tw": "zh_TW"}
-    locale = locale_map.get(region_lower, "en_US")
+    locale = LOCALE_MAP.get(region_lower, "en_US")
     api_host = f"{region_lower}.api.blizzard.com"
     namespace = f"profile-{region_lower}"
     token = get_access_token(region_lower)
@@ -90,6 +97,168 @@ def fetch_character_pvp_achievements(region: str, name: str, realm: str):
         ts = ach.get("completed_timestamp")
         achievements[aid] = {"name": ach["achievement"]["name"], "ts": ts}
     return achievements
+
+def get_current_pvp_season_id(region: str) -> int:
+    """
+    Synchronous copy of the daily runner's logic:
+    hit the PvP season index for this region and take the latest season id.
+    """
+    region_lower = region.lower()
+    api_host = f"{region_lower}.api.blizzard.com"
+    url = (
+        f"https://{api_host}/data/wow/pvp-season/index"
+        f"?namespace=dynamic-{region_lower}&locale=en_US"
+    )
+    token = get_access_token(region_lower)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    seasons = resp.json().get("seasons") or []
+    if not seasons:
+        raise RuntimeError(f"No PvP seasons returned for region={region_lower}")
+    return seasons[-1]["id"]
+
+def get_available_brackets(region: str, season_id: int) -> list[str]:
+    """
+    Mirror of the daily sync behaviour: list all PvP leaderboards for the
+    current season and keep only the brackets we actually care about.
+    """
+    region_lower = region.lower()
+    api_host = f"{region_lower}.api.blizzard.com"
+    locale = LOCALE_MAP.get(region_lower, "en_US")
+    url = (
+        f"https://{api_host}/data/wow/pvp-season/{season_id}/pvp-leaderboard/index"
+        f"?namespace=dynamic-{region_lower}&locale={locale}"
+    )
+    token = get_access_token(region_lower)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    lbs = resp.json().get("leaderboards", []) or []
+
+    prefixes = ("2v2", "3v3", "rbg", "shuffle-", "blitz-")
+    brackets: list[str] = []
+    for entry in lbs:
+        href = entry.get("key", {}).get("href") or ""
+        if not href:
+            continue
+        try:
+            path = urlparse(href).path
+        except Exception:
+            continue
+        b = path.rstrip("/").split("/")[-1]
+        if b.startswith(prefixes):
+            brackets.append(b)
+    return brackets
+
+def inspect_character_brackets(region: str, name: str, realm: str):
+    """
+    For the current season and the same bracket set the daily runner uses,
+    check whether this character is present and, if so, at what rating/rank.
+
+    This uses *current* leaderboards, so if you run it long after the daily
+    job the membership might have changed – but the logic is identical.
+    """
+    region_lower = region.lower()
+    locale = LOCALE_MAP.get(region_lower, "en_US")
+
+    try:
+        season_id = get_current_pvp_season_id(region_lower)
+        brackets = get_available_brackets(region_lower, season_id)
+    except Exception as e:
+        print(
+            f"\n[WARN] Failed to initialise PvP leaderboards for region={region_lower}: {e}",
+            file=sys.stderr,
+        )
+        return
+
+    if not brackets:
+        print(
+            f"\n[INFO] No PvP brackets discovered for region={region_lower}; "
+            "skipping leaderboard presence check."
+        )
+        return
+
+    token = get_access_token(region_lower)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    target_name = name.lower()
+    target_realm = realm.lower()
+    matches = []
+
+    for bracket in brackets:
+        url = (
+            f"https://{region_lower}.api.blizzard.com/"
+            f"data/wow/pvp-season/{season_id}/pvp-leaderboard/{bracket}"
+            f"?namespace=dynamic-{region_lower}&locale={locale}"
+        )
+        try:
+            resp = requests.get(url, headers=headers)
+            if resp.status_code != 200:
+                print(
+                    f"[WARN] Leaderboard fetch failed for {bracket}: {resp.status_code}; skipping.",
+                    file=sys.stderr,
+                )
+                continue
+            data = resp.json()
+        except Exception as e:
+            print(f"[WARN] Error reading leaderboard {bracket}: {e}", file=sys.stderr)
+            continue
+
+        entries = data.get("entries", []) or []
+        if not entries:
+            continue
+
+        found = None
+        for idx, entry in enumerate(entries, start=1):
+            c = entry.get("character") or {}
+            cname = (c.get("name") or "").lower()
+            crealm = (c.get("realm", {}).get("slug") or "").lower()
+
+            if cname == target_name and crealm == target_realm:
+                rating = entry.get("rating")
+                rank = entry.get("rank")
+                found = {
+                    "bracket": bracket,
+                    "rating": rating,
+                    "rank": rank,
+                    "index": idx,
+                }
+                break
+
+        if found:
+            matches.append(found)
+
+    print("\n=== Current PvP Leaderboard Presence (daily bracket set) ===")
+    if not matches:
+        print(
+            f"{name}-{realm} is not present in any of the tracked brackets "
+            f"for region={region_lower}."
+        )
+        return
+
+    headers_row = ["bracket", "rating", "rank", "entry_index"]
+    rows = [
+        [
+            m["bracket"],
+            str(m["rating"] if m["rating"] is not None else "-"),
+            str(m["rank"] if m["rank"] is not None else "-"),
+            str(m["index"]),
+        ]
+        for m in matches
+    ]
+
+    col_widths = [
+        max(len(headers_row[i]), *(len(row[i]) for row in rows))
+        for i in range(len(headers_row))
+    ]
+
+    def _fmt_row(row: list[str]) -> str:
+        return "  ".join(cell.ljust(col_widths[i]) for i, cell in enumerate(row))
+
+    print(_fmt_row(headers_row))
+    for row in rows:
+        print(_fmt_row(row))
 
 def diff_baseline_vs_api(baseline: dict, api: dict):
     missing_in_lua = [aid for aid in api if aid not in baseline]
@@ -532,8 +701,11 @@ def main():
     # Alt detection using merged SQLite DB (if requested and available)
     if args.check_alts:
         run_alt_detection(region, char_realm)
-    
-    sys.exit(0)
 
+    # Bracket presence check using the same bracket set as the daily runner
+    inspect_character_brackets(region, name, realm)
+
+    sys.exit(0)
+    
 if __name__ == "__main__":
     main()
