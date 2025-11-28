@@ -29,6 +29,36 @@ local regionMap = {
 local regionID = GetCurrentRegion()
 local regionCode = regionMap[regionID] or "US"
 
+-- Normalize realm display names (Twilight's Hammer, Pozzo dell'Eternità, etc.)
+-- to the slug format used by the Blizzard API / our region files:
+--  - lowercase
+--  - spaces -> '-'
+--  - apostrophes removed
+--  - common accents stripped
+local function NormalizeRealmSlug(realm)
+    if not realm or realm == "" then
+        realm = GetRealmName() or ""
+    end
+
+    realm = realm:lower()
+
+    -- remove apostrophes and similar
+    realm = realm:gsub("['’`]", "")
+
+    -- spaces become hyphens
+    realm = realm:gsub("%s+", "-")
+
+    -- strip common Latin-1 accents
+    realm = realm
+        :gsub("[àáâä]", "a")
+        :gsub("[èéêë]", "e")
+        :gsub("[ìíîï]", "i")
+        :gsub("[òóôö]", "o")
+        :gsub("[ùúûü]", "u")
+
+    return realm
+end
+
 -- Merge monolithic or chunked achievement files into one table
 local function mergeRegionParts(region)
     local merged = {}
@@ -240,7 +270,8 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     end
 
     realm = realm or GetRealmName()
-    local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
+    local normRealm = NormalizeRealmSlug(realm)
+    local fullName  = (baseName .. "-" .. normRealm):lower()
 
     -- Cache lookup using regionLookup (main OR alt)
     if achievementCache[fullName] == nil then
@@ -711,7 +742,8 @@ local function PrintPartyAchievements()
         if name then
             local baseName, realm = strsplit("-", name)
             realm = realm or GetRealmName()
-            local fullName = (baseName .. "-" .. realm:gsub("%s+", "")):lower()
+            local normRealm = NormalizeRealmSlug(realm)
+            local fullName  = (baseName .. "-" .. normRealm):lower()
 
             local cached = achievementCache[fullName]
             if not cached then
@@ -818,7 +850,8 @@ local function PostPvPTeamSummary()
             if UnitExists(unit) and UnitIsPlayer(unit) and not UnitIsUnit(unit, "player") then
                 local name, realm = UnitFullName(unit)
                 realm = realm or GetRealmName()
-                local fullName = (name .. "-" .. realm):lower()
+                local normRealm = NormalizeRealmSlug(realm)
+                local fullName  = (name .. "-" .. normRealm):lower()
                 local cached = achievementCache[fullName]
                 if not cached then
                     local entry = regionLookup[fullName]
@@ -843,7 +876,8 @@ local function PostPvPTeamSummary()
     -- Only add yourself manually if you weren’t included by party/raid units
     local name, realm = UnitFullName("player")
     realm = realm or GetRealmName()
-    local fullName = (name .. "-" .. realm):lower()
+    local normRealm = NormalizeRealmSlug(realm)
+    local fullName  = (name .. "-" .. normRealm):lower()
     local foundSelf = false
     for _, member in ipairs(myTeam) do
         if member:lower():find(fullName, 1, true) then
@@ -870,7 +904,8 @@ local function PostPvPTeamSummary()
         if not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsFriend("player", unit) then return end
         local name, realm = UnitFullName(unit)
         realm = realm or GetRealmName()
-        local fullName = (name .. "-" .. realm):lower()
+        local normRealm = NormalizeRealmSlug(realm)
+        local fullName  = (name .. "-" .. normRealm):lower()
         local cached = achievementCache[fullName]
         if seenEnemies[fullName] then return end  -- skip duplicates
         seenEnemies[fullName] = true
@@ -932,7 +967,8 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 					
 							local baseName, realm = strsplit("-", name)
 							realm = realm or GetRealmName()
-							local fullName = (baseName .. "-" .. realm):lower()
+							local normRealm = NormalizeRealmSlug(realm)
+                            local fullName  = (baseName .. "-" .. normRealm):lower()
 					
 							local cached = achievementCache[fullName]
 							if not cached then
