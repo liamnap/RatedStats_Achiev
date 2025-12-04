@@ -46,21 +46,47 @@ def find_region_lua_paths(region: str):
 
 def seed_from_lua_for_character(region: str, character_key: str):
     paths = find_region_lua_paths(region)
-    row_rx = re.compile(r'\{(?:[^{}]|\{[^{}]*\})*?character\s*=\s*"([^"]+)"(?:[^{}]|\{[^{}]*\})*?\}', re.S)
+    # Match full character blocks that contain a character="..." field.
+    row_rx = re.compile(
+        r'\{(?:[^{}]|\{[^{}]*\})*?character\s*=\s*"([^"]+)"(?:[^{}]|\{[^{}]*\})*?\}',
+        re.S,
+    )
+    # Match idN / nameN pairs inside a block.
     ach_rx = re.compile(r'id(\d+)\s*=\s*(\d+),\s*name\1\s*=\s*"([^"]+)"')
+    # Optionally match alts={ "alt1","alt2",... } inside a block.
+    alt_rx = re.compile(r'alts\s*=\s*\{([^}]*)\}')
+
+    target = character_key.lower()
+
     for lua_path in paths:
         try:
             txt = lua_path.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
+
         for m in row_rx.finditer(txt):
             block = m.group(0)
-            key = m.group(1).lower()
-            if key != character_key:
+            main_key = m.group(1).lower()
+
+            # Collect any alt names defined on this row.
+            alt_keys = []
+            alt_m = alt_rx.search(block)
+            if alt_m:
+                alt_body = alt_m.group(1)
+                alt_keys = [s.lower() for s in re.findall(r'"([^"]+)"', alt_body)]
+
+            # We treat the row as the baseline if the character is either:
+            # - the main "character=...", or
+            # - listed in alts={...}.
+            if target != main_key and target not in alt_keys:
                 continue
-            ach = {int(aid): {"name": name, "ts": None}
-                   for _, aid, name in ach_rx.findall(block)}
+
+            ach = {
+                int(aid): {"name": name, "ts": None}
+                for _, aid, name in ach_rx.findall(block)
+            }
             return ach
+
     return {}
 
 def get_access_token(region: str):
