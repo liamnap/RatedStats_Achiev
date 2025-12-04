@@ -1203,34 +1203,76 @@ async def process_characters(characters: dict, leaderboard_keys: set):
             flush=True,
         )
 
-        entry_lines = []
-        used_chars: set[str] = set()
+    entry_lines = []
+    used_chars: set[str] = set()
 
-        for comp in groups:
-            real_leaders = [m for m in comp if m in leaderboard_keys]
-            root = real_leaders[0] if real_leaders else comp[0]
-            alts = [m for m in comp if m != root]
+    # Helper: merge multiple per-character achievement maps into one,
+    # using the same timestamp rules as _merge_ach_json.
+    def _merge_ach_maps(maps: list[dict[int, dict]]) -> dict[int, dict]:
+        merged: dict[int, dict] = {}
+        for ach_map in maps:
+            for aid, info_new in ach_map.items():
+                key = int(aid)
+                info_old = merged.get(key)
+                if info_old is None:
+                    merged[key] = dict(info_new)
+                    continue
 
-            # If this character was already emitted earlier (either as a main
-            # or as an alt in another cluster), do not give it a second
-            # top-level entry. This prevents "alt + its own line" duplicates.
-            if root in used_chars:
-                continue
+                ts_old = info_old.get("ts")
+                ts_new = info_new.get("ts")
 
-            used_chars.add(root)
-            used_chars.update(alts)
+                if ts_old is None and ts_new is not None:
+                    merged[key] = dict(info_new)
+                    continue
+                if ts_new is None and ts_old is not None:
+                    continue
+                if ts_old is None and ts_new is None:
+                    continue
+                try:
+                    if int(ts_new) >= int(ts_old):
+                        merged[key] = dict(info_new)
+                except Exception:
+                    merged[key] = dict(info_new)
+        return merged
 
-            guid, ach_map = rows_map[root]
-            alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
-            parts = [f'character="{root}"', f"alts={alts_str}", f"guid={guid}"]
+    for comp in groups:
+        real_leaders = [m for m in comp if m in leaderboard_keys]
+        root = real_leaders[0] if real_leaders else comp[0]
+        alts = [m for m in comp if m != root]
 
-            # add all achievements for this root into the entry
-            for i, (aid, info) in enumerate(sorted(ach_map.items()), start=1):
-                esc = info["name"].replace('"', '\\"')
-                parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+        # If this character was already emitted earlier (either as a main
+        # or as an alt in another cluster), do not give it a second
+        # top-level entry. This prevents "alt + its own line" duplicates.
+        if root in used_chars:
+            continue
 
-            # finally emit a Lua row for this main+alts cluster
-            entry_lines.append("    { " + ", ".join(parts) + " },\n")
+        used_chars.add(root)
+        used_chars.update(alts)
+
+        # Union achievements across the entire alt cluster so that any
+        # achievement earned on any alt (e.g. Liami) appears on the
+        # cluster's main row (e.g. grommer-emeriss).
+        comp_maps: list[dict[int, dict]] = []
+        comp_guid = None
+        for k in comp:
+            g, ach_map = rows_map.get(k, (0, {}))
+            if comp_guid is None and g:
+                comp_guid = g
+            comp_maps.append(ach_map)
+
+        merged_ach = _merge_ach_maps(comp_maps)
+        guid = comp_guid or rows_map[root][0]
+
+        alts_str = "{" + ",".join(f'"{a}"' for a in alts) + "}"
+        parts = [f'character="{root}"', f"alts={alts_str}", f"guid={guid}"]
+
+        # add all (unioned) achievements for this cluster into the entry
+        for i, (aid, info) in enumerate(sorted(merged_ach.items()), start=1):
+            esc = info["name"].replace('"', '\\"')
+            parts += [f"id{i}={aid}", f'name{i}="{esc}"']
+
+        # finally emit a Lua row for this main+alts cluster
+        entry_lines.append("    { " + ", ".join(parts) + " },\n")
 
         # ---- initialise chunking state for EXPORT_ONLY finalize ----
         MAX_BYTES = int(os.getenv("MAX_LUA_PART_SIZE", str(49 * 1024 * 1024)))
