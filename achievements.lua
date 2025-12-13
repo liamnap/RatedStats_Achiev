@@ -781,7 +781,6 @@ local RatedQueueTriggers = {
 -- === Queue watcher: fires once per queue start ===
 local queueState = { "none", "none", "none" }
 local queueWatcher = CreateFrame("Frame")
-queueWatcher:RegisterEvent("LFG_QUEUE_STATUS_UPDATE")
 queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
 queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
 queueWatcher:RegisterEvent("CHAT_MSG_SYSTEM")
@@ -823,16 +822,6 @@ queueWatcher:SetScript("OnEvent", function(_, event, ...)
 
         -- Update state (must always run)
         queueState[i] = status
-    end
-
-    -- Fallback: LFG queues (Rated Shuffle / Blitz)
-    if event == "LFG_QUEUE_STATUS_UPDATE" then
-        -- Optional strict guard: skip if currently in or queued for any PvP match type
-        local activeMatchType = C_PvP.GetActiveMatchType and C_PvP.GetActiveMatchType() or 0
-        if activeMatchType and activeMatchType > 0 then return end
-
-        lastQueued = now
-        C_Timer.After(1.0, PrintPartyAchievements)
     end
 end)
 
