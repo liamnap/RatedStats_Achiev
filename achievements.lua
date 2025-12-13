@@ -786,6 +786,8 @@ queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
 queueWatcher:RegisterEvent("CHAT_MSG_SYSTEM")
 
 local lastQueued = 0
+local lastAllowedQueueMsg = 0
+
 queueWatcher:SetScript("OnEvent", function(_, event, ...)
     local now = GetTime()
 
@@ -794,6 +796,7 @@ queueWatcher:SetScript("OnEvent", function(_, event, ...)
         local msg = ...
         if RatedQueueTriggers[msg] then
             lastQueued = now
+            lastAllowedQueueMsg = now
             C_Timer.After(1.0, PrintPartyAchievements)
         end
         return
@@ -814,6 +817,11 @@ queueWatcher:SetScript("OnEvent", function(_, event, ...)
         local status = select(1, GetBattlefieldStatus(i))
         -- Fire only when transitioning into queued
         if status == "queued" and queueState[i] ~= "queued" then
+            -- Only allow battlefield-triggered prints if we *just* saw an allowed queue message
+            if (now - lastAllowedQueueMsg) > 5 then
+                queueState[i] = status
+                break
+            end
             queueState[i] = "queued"
             lastQueued = now
             C_Timer.After(1.0, PrintPartyAchievements)
