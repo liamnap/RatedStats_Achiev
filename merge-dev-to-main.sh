@@ -94,6 +94,31 @@ fi
 echo "Changed files (${#changed[@]}):"
 printf ' - %s\n' "${changed[@]}"
 
+allowed=()
+disallowed=()
+for f in "${changed[@]}"; do
+  if [[ "$f" == *.toc ]]; then
+    allowed+=("$f")
+  elif [[ "$f" == *.lua && "$f" != region_*.lua ]]; then
+    allowed+=("$f")
+  else
+    disallowed+=("$f")
+  fi
+done
+
+echo
+echo "Selective merge policy:"
+echo " - Allowed: *.lua (excluding region_*.lua), and *.toc"
+if [[ ${#allowed[@]} -eq 0 ]]; then
+  echo "Nothing allowed to merge (only region/data or non-Lua/non-TOC changes). Aborting."
+  git checkout -q "${orig_branch}"
+  exit 0
+fi
+if [[ ${#disallowed[@]} -gt 0 ]]; then
+  echo " - Disallowed (will remain as main's version):"
+  printf '   - %s\n' "${disallowed[@]}"
+fi
+
 echo
 echo "[4/7] Spam scan (prints/chat/event/ticker/onupdate)..."
 
@@ -104,7 +129,7 @@ scan_file() {
   [[ -f "$f" ]] || return 0
 
   case "$f" in
-    *.lua|*.py|*.js|*.yml|*.yaml|*.toc) ;;
+    *.lua|*.toc) ;;
     *) return 0 ;;
   esac
 
@@ -120,7 +145,7 @@ scan_file() {
   fi
 }
 
-for f in "${changed[@]}"; do
+for f in "${allowed[@]}"; do
   scan_file "$f"
 done
 
@@ -152,7 +177,44 @@ if [[ -n "${user_msg}" ]]; then
 fi
 
 git checkout -q "${main_branch}"
-git merge --no-ff "${dev_branch}" -m "${merge_msg}"
+
+# Record main HEAD before merge so we can restore disallowed paths back to it.
+pre_merge="$(git rev-parse HEAD)"
+
+# Merge but stop before committing so we can revert disallowed paths. :contentReference[oaicite:3]{index=3}
+git merge --no-ff --no-commit "${dev_branch}"
+
+# If there are conflicts, abort cleanly and bail. :contentReference[oaicite:4]{index=4}
+if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
+  echo "ERROR: Merge conflicts detected. Aborting merge."
+  git merge --abort || true
+  git checkout -q "${orig_branch}"
+  exit 1
+fi
+
+# Revert disallowed paths back to main (pre-merge), or remove them if they didn't exist on main.
+if [[ ${#disallowed[@]} -gt 0 ]]; then
+  echo
+  echo "[5b] Restoring disallowed files back to main (pre-merge) state..."
+  for p in "${disallowed[@]}"; do
+    if git cat-file -e "${pre_merge}:${p}" >/dev/null 2>&1; then
+      # Restore both index + working tree to match pre-merge main. :contentReference[oaicite:5]{index=5}
+      if git restore -h >/dev/null 2>&1; then
+        git restore --source "${pre_merge}" --staged --worktree -- "${p}"
+      else
+        git checkout "${pre_merge}" -- "${p}"
+        git add -- "${p}"
+      fi
+    else
+      # Disallowed file is new from dev; do not introduce it to main.
+      git rm -f --ignore-unmatch -- "${p}" >/dev/null 2>&1 || true
+    fi
+  done
+fi
+
+echo
+echo "[5c] Committing selective merge..."
+git commit -m "${merge_msg}"
 
 echo
 echo "[6/7] Tagging main with next version (based on latest main tag)..."
