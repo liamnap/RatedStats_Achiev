@@ -9,6 +9,7 @@ fi
 remote="origin"
 main_ref="${remote}/main"
 dev_branch="dev"
+auto_push="${RS_AUTO_PUSH_DEV:-}"
 
 orig_branch="$(git rev-parse --abbrev-ref HEAD)"
 
@@ -87,4 +88,22 @@ echo
 echo "Done. Latest commit:"
 git show --stat --oneline --no-patch HEAD || true
 echo
-echo "Next: git push ${remote} ${dev_branch}"
+if [[ "${auto_push}" != "YES" ]]; then
+  echo "Push '${dev_branch}' to '${remote}' now? Type YES to push (or Enter to skip):"
+  read -r ans || true
+  if [[ "${ans}" != "YES" ]]; then
+    echo "Skipped push. Run manually: git push ${remote} ${dev_branch}"
+    exit 0
+  fi
+else
+  echo "RS_AUTO_PUSH_DEV=YES set; auto-pushing '${dev_branch}'..."
+fi
+
+# If no upstream is set, use -u once so future 'git push' works cleanly.
+if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+  git push "${remote}" "${dev_branch}"
+else
+  git push -u "${remote}" "${dev_branch}"
+fi
+
+echo "Pushed '${dev_branch}' to '${remote}'."
