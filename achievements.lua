@@ -781,7 +781,7 @@ local RatedQueueTriggers = {
 -- === Queue watcher: fires once per queue start ===
 local queueState = { "none", "none", "none" }
 local queueWatcher = CreateFrame("Frame")
-queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
+-- queueWatcher:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
 queueWatcher:RegisterEvent("PVPQUEUE_ANYWHERE_SHOW")
 queueWatcher:RegisterEvent("CHAT_MSG_SYSTEM")
 
