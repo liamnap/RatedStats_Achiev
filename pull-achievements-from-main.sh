@@ -29,7 +29,7 @@ if [[ "${orig_branch}" != "${dev_branch}" ]]; then
 fi
 
 echo "[1/6] Fetching ${remote}..."
-git fetch --prune "${remote}"
+git fetch --prune --no-tags "${remote}"
 
 echo "[2/6] Checking ${main_ref} exists..."
 if ! git rev-parse --verify -q "${main_ref}" >/dev/null; then
@@ -38,7 +38,11 @@ if ! git rev-parse --verify -q "${main_ref}" >/dev/null; then
 fi
 
 echo "[3/6] Building region file list from ${main_ref}..."
-mapfile -t files < <(git ls-tree -r --name-only "${main_ref}" -- 'region*.lua' | tr -d '\r')
+mapfile -t files < <(
+  git ls-tree -r --name-only "${main_ref}" |
+  grep -E '^region_.*\.lua$' |
+  tr -d '\r'
+)
 if [[ ${#files[@]} -eq 0 ]]; then
   echo "ERROR: No region*.lua files found on ${main_ref}."
   exit 1
