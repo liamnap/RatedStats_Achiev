@@ -15,7 +15,7 @@ confirm_env="${RS_CONFIRM_SPAM:-}"
 
 orig_branch="$(git rev-parse --abbrev-ref HEAD)"
 
-echo "== RatedStats_Achiev: Merge ${dev_branch} -> ${main_branch} (tag main) =="
+echo "== RatedStats_Achiev: Promote ${dev_branch} -> ${main_branch} (lua/toc only; tag main) =="
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "ERROR: Working tree is dirty. Commit/stash first."
@@ -168,8 +168,8 @@ else
 fi
 
 echo
-echo "[5/7] Merging ${dev_branch} into ${main_branch}..."
-merge_msg="Merge ${dev_branch} into ${main_branch}"
+echo "[5/7] Promoting allowed files from ${dev_branch} onto ${main_branch}..."
+merge_msg="Promote ${dev_branch} -> ${main_branch} (lua/toc only)"merge_msg="Merge ${dev_branch} into ${main_branch}"
 echo "Merge commit message (enter to accept default): ${merge_msg}"
 read -r user_msg || true
 if [[ -n "${user_msg}" ]]; then
@@ -178,42 +178,32 @@ fi
 
 git checkout -q "${main_branch}"
 
-# Record main HEAD before merge so we can restore disallowed paths back to it.
-pre_merge="$(git rev-parse HEAD)"
+echo "[5b] Applying allowed files from ${remote}/${dev_branch}..."
 
-# Merge but stop before committing so we can revert disallowed paths. :contentReference[oaicite:3]{index=3}
-git merge --no-ff --no-commit "${dev_branch}"
-
-# If there are conflicts, abort cleanly and bail. :contentReference[oaicite:4]{index=4}
-if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
-  echo "ERROR: Merge conflicts detected. Aborting merge."
-  git merge --abort || true
-  git checkout -q "${orig_branch}"
-  exit 1
-fi
-
-# Revert disallowed paths back to main (pre-merge), or remove them if they didn't exist on main.
-if [[ ${#disallowed[@]} -gt 0 ]]; then
-  echo
-  echo "[5b] Restoring disallowed files back to main (pre-merge) state..."
-  for p in "${disallowed[@]}"; do
-    if git cat-file -e "${pre_merge}:${p}" >/dev/null 2>&1; then
-      # Restore both index + working tree to match pre-merge main. :contentReference[oaicite:5]{index=5}
-      if git restore -h >/dev/null 2>&1; then
-        git restore --source "${pre_merge}" --staged --worktree -- "${p}"
-      else
-        git checkout "${pre_merge}" -- "${p}"
-        git add -- "${p}"
-      fi
+# We are NOT merging. We are copying the allowed paths from dev onto main.
+# Using restore --source updates worktree and index when combined with --staged --worktree. :contentReference[oaicite:1]{index=1}
+for p in "${allowed[@]}"; do
+  if git cat-file -e "${remote}/${dev_branch}:${p}" >/dev/null 2>&1; then
+    if git restore -h >/dev/null 2>&1; then
+      git restore --source "${remote}/${dev_branch}" --staged --worktree -- "${p}"
     else
-      # Disallowed file is new from dev; do not introduce it to main.
-      git rm -f --ignore-unmatch -- "${p}" >/dev/null 2>&1 || true
+      git checkout "${remote}/${dev_branch}" -- "${p}"
+      git add -- "${p}"
     fi
-  done
+  else
+    # Allowed file was deleted on dev; reflect that on main.
+    git rm -f --ignore-unmatch -- "${p}" >/dev/null 2>&1 || true
+  fi
+done
+
+if git diff --cached --quiet; then
+  echo "Nothing staged after promotion. Exiting."
+  git checkout -q "${orig_branch}"
+  exit 0
 fi
 
 echo
-echo "[5c] Committing selective merge..."
+echo "[5c] Committing promoted changes..."
 git commit -m "${merge_msg}"
 
 echo
