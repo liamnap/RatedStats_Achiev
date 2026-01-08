@@ -771,24 +771,47 @@ local function GetAnnounceTargetForCurrentMatch()
 end
 
 local function ResolveChatChannelFromTarget(target)
-    local inInstance, instanceType = IsInInstance()
-    local inPvPInstance = inInstance and (instanceType == "pvp" or instanceType == "arena")
+    -- 0=none, 1=self, 2=party, 3=instance, 4=say, 5=yell, 6=raid, 7=party(only5)
+    if target == 0 or target == nil then
+        return nil
+    end
 
     if target == 2 then
-        if inPvPInstance then return "INSTANCE_CHAT" end
+        -- PARTY means PARTY (not instance chat), unless we're literally a raid.
         if IsInRaid() then return "RAID" end
         if IsInGroup() then return "PARTY" end
         return nil
-    elseif target == 3 then
-        if inPvPInstance then return "INSTANCE_CHAT" end
-        -- No instance chat outside an instance; fall back to group chat if possible.
+    end
+
+    if target == 3 then
+        -- INSTANCE means instance group chat when available.
+        if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then return "INSTANCE_CHAT" end
+        -- If not available, fall back to group chat if any.
         if IsInRaid() then return "RAID" end
         if IsInGroup() then return "PARTY" end
         return nil
-    elseif target == 4 then
-        return "SAY"
-    elseif target == 5 then
-        return "YELL"
+    end
+
+    if target == 4 then return "SAY" end
+    if target == 5 then return "YELL" end
+
+    if target == 6 then
+        if IsInRaid() then return "RAID" end
+        -- If someone selects RAID while not in a raid, fall back to PARTY if grouped.
+        if IsInGroup() then return "PARTY" end
+        return nil
+    end
+
+    if target == 7 then
+        -- Party (only 5): only send if we're actually a party-sized group.
+        if IsInRaid() then return nil end
+        if IsInGroup() then
+            local n = GetNumGroupMembers()
+            if n and n <= 5 then
+                return "PARTY"
+            end
+        end
+        return nil
     end
 
     return nil
@@ -796,6 +819,10 @@ end
 
 local function AnnounceLine(message, target)
     if not message or message == "" then return end
+
+    if target == 0 then
+        return
+    end
 
     if target == 1 then
         print(message)
