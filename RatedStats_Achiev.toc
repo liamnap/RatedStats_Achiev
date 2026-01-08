@@ -18,3 +18,4 @@ region_us_part5.lua
 region_tw.lua
 region_kr.lua
 achievements.lua
+settings.lua
