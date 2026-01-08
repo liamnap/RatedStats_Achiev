@@ -725,45 +725,167 @@ end
 -- RatedStats: PvP Queue and Instance Announcements
 -----------------------------------------------------------
 
-local function PrintPartyAchievements()
-    if not IsInGroup() then return end
+local function GetMySettings()
+    local key = UnitName("player") .. "-" .. GetRealmName()
+    local db = RSTATS and RSTATS.Database and RSTATS.Database[key]
+    return db and db.settings or nil
+end
 
-    local inInstance, instanceType = IsInInstance()
-    local channel
-
-    if inInstance and (instanceType == "pvp" or instanceType == "arena") then
-        channel = "INSTANCE_CHAT"  -- /i in PvP instances
-    elseif IsInRaid() then
-        channel = "RAID"           -- /raid for raid groups outside instances
-    else
-        channel = "PARTY"          -- /p for normal parties
+-- Dropdown values:
+-- 1=self (print), 2=party, 3=instance, 4=say, 5=yell
+local function GetAnnounceTargetForCurrentMatch()
+    local settings = GetMySettings()
+    if not settings then
+        return 1
     end
 
-    SendChatMessage("Rated Stats - Achievements for Group", channel)
---    print("Rated Stats - Achievements for Group")
+    if C_PvP and (
+        (C_PvP.IsRatedSoloShuffle and C_PvP.IsRatedSoloShuffle()) or
+        (C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()) or
+        (C_PvP.IsBrawlSoloShuffle and C_PvP.IsBrawlSoloShuffle())
+    ) then
+        return settings.achievAnnounceSS or 3
+    end
 
-    for i = 1, GetNumGroupMembers() do
-        local name = GetRaidRosterInfo(i)
-        if name then
-            local baseName, realm = strsplit("-", name)
-            realm = realm or GetRealmName()
-            local normRealm = NormalizeRealmSlug(realm)
-            local fullName  = (baseName .. "-" .. normRealm):lower()
+    local inInstance, instanceType = IsInInstance()
+    if inInstance and instanceType == "arena" then
+        local enemyCount = (GetNumArenaOpponentSpecs and GetNumArenaOpponentSpecs()) or 0
+        if enemyCount == 2 then
+            return settings.achievAnnounce2v2 or 2
+        elseif enemyCount == 3 then
+            return settings.achievAnnounce3v3 or 2
+        end
+        return settings.achievAnnounce3v3 or settings.achievAnnounce2v2 or 2
+    end
 
-            local cached = achievementCache[fullName]
-            if not cached then
-                for _, entry in ipairs(regionData) do
-                    if entry.character and entry.character:lower() == fullName then
-                        cached = GetPvpAchievementSummary(entry)
-                        achievementCache[fullName] = cached
-                        break
-                    end
-                end
+    if C_PvP and (C_PvP.IsRatedBattleground and C_PvP.IsRatedBattleground()) then
+        return settings.achievAnnounceRBG or 1
+    end
+
+    if C_PvP and (C_PvP.IsSoloRBG and C_PvP.IsSoloRBG()) then
+        return settings.achievAnnounceRBGB or 1
+    end
+
+    -- Random BG / unknown: keep it self to avoid spam.
+    return 1
+end
+
+local function ResolveChatChannelFromTarget(target)
+    local inInstance, instanceType = IsInInstance()
+    local inPvPInstance = inInstance and (instanceType == "pvp" or instanceType == "arena")
+
+    if target == 2 then
+        if inPvPInstance then return "INSTANCE_CHAT" end
+        if IsInRaid() then return "RAID" end
+        if IsInGroup() then return "PARTY" end
+        return nil
+    elseif target == 3 then
+        if inPvPInstance then return "INSTANCE_CHAT" end
+        -- No instance chat outside an instance; fall back to group chat if possible.
+        if IsInRaid() then return "RAID" end
+        if IsInGroup() then return "PARTY" end
+        return nil
+    elseif target == 4 then
+        return "SAY"
+    elseif target == 5 then
+        return "YELL"
+    end
+
+    return nil
+end
+
+local function AnnounceLine(message, target)
+    if not message or message == "" then return end
+
+    if target == 1 then
+        print(message)
+        return
+    end
+
+    local channel = ResolveChatChannelFromTarget(target)
+    if not channel then
+        print(message)
+        return
+    end
+
+    -- Chat has strict length limits; your padded formats can exceed them.
+    if #message > 250 then
+        message = message:gsub("%s%s+", " ")
+    end
+    if #message > 250 then
+        print(message)
+        return
+    end
+
+    SendChatMessage(message, channel)
+end
+
+local function PrintPartyAchievements()
+    local settings = GetMySettings()
+    if settings and settings.achievAnnounceOnQueue == false then return end
+
+    if not IsInGroup() then return end
+
+    local channel
+
+    -- Prefer instance group chat only if we actually have an instance-group channel.
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        channel = "INSTANCE_CHAT"
+    elseif IsInRaid() then
+        channel = "RAID"
+    else
+        channel = "PARTY"
+    end
+
+    if channel then
+        SendChatMessage("Rated Stats - Achievements for Group", channel)
+    else
+        print("Rated Stats - Achievements for Group")
+    end
+
+    local function AnnounceMember(baseName, realm)
+        if not baseName or baseName == "" then return end
+        realm = realm or GetRealmName()
+        local normRealm = NormalizeRealmSlug(realm)
+        local fullName  = (baseName .. "-" .. normRealm):lower()
+
+        local cached = achievementCache[fullName]
+        if not cached then
+            local entry = regionLookup[fullName]
+            if entry then
+                cached = GetPvpAchievementSummary(entry)
+                achievementCache[fullName] = cached
             end
+        end
 
-            local label = cached and cached.label or "Not Seen in Bracket"
-            SendChatMessage(" - " .. baseName .. ": " .. label, channel)
---            print(" - " .. baseName .. ": " .. label)
+        local label = cached and cached.label or "Not Seen in Bracket"
+        local msg = " - " .. baseName .. ": " .. label
+        if channel then
+            SendChatMessage(msg, channel)
+        else
+            print(msg)
+        end
+    end
+
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name = GetRaidRosterInfo(i)
+            if name then
+                local baseName, realm = strsplit("-", name)
+                AnnounceMember(baseName, realm)
+            end
+        end
+    else
+        -- In a party, iterate party units (party1..party4) + include player.
+        local myName, myRealm = UnitFullName("player")
+        AnnounceMember(myName, myRealm)
+
+        for i = 1, GetNumSubgroupMembers() do
+            local unit = "party" .. i
+            if UnitExists(unit) then
+                local baseName, realm = UnitFullName(unit)
+                AnnounceMember(baseName, realm)
+            end
         end
     end
 end
@@ -927,17 +1049,15 @@ local function PostPvPTeamSummary()
     for i = 1, 20 do addEnemy("nameplate" .. i) end
     for i = 1, 6 do addEnemy("arena" .. i) end
 
-    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
-    SendChatMessage(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), "INSTANCE_CHAT")
---    print("=== Rated Stats - Achievements PvP Summary ===")
---    print(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45))
+    local target = GetAnnounceTargetForCurrentMatch()
+    AnnounceLine("=== Rated Stats - Achievements PvP Summary ===", target)
+    AnnounceLine(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), target)
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        SendChatMessage(centerText(left, 45) .. " || " .. centerText(right, 45), "INSTANCE_CHAT")
---        print(centerText(left, 45) .. " || " .. centerText(right, 45))
+        AnnounceLine(centerText(left, 45) .. " || " .. centerText(right, 45), target)
     end
 end
 
@@ -990,8 +1110,8 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 						end
 					end
 
-                    --SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
-                    print("|cffb69e86=== Rated Stats - Achievements ===")
+                    local target = GetAnnounceTargetForCurrentMatch()
+                    AnnounceLine("|cffb69e86=== Rated Stats - Achievements ===|r", target)
                     local maxRows = math.max(#myTeam, #enemyTeam)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
@@ -1000,14 +1120,12 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                             -- apply colors
                             local myTeam  = "|cFFFF3333" .. left .. "|r"
                             local enemyTeam = "|cFF3366FF" .. right .. "|r"
-                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
-                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                            AnnounceLine(string.format("%-45s || %-45s", myTeam, enemyTeam), target)
                         else
                             -- apply colors
                             local myTeam  = "|cFF3366FF" .. left .. "|r"
                             local enemyTeam = "|cFFFF3333" .. right .. "|r"
-                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
-                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                            AnnounceLine(string.format("%-45s || %-45s", myTeam, enemyTeam), target)
                         end
                     end
                 end
