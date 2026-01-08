@@ -288,8 +288,12 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         end
     end
 
-	local result = achievementCache[fullName]
-	local summary = result.summary or {}
+    local result = achievementCache[fullName]
+    -- Safety: never allow non-table cache entries to break the tooltip
+    if type(result) ~= "table" then
+        result = { summary = {}, highest = nil }
+        achievementCache[fullName] = result
+    end	local summary = result.summary or {}
 	local highest = result.highest
 
     tooltip:AddLine("|cffb69e86Rated Stats - Achievements|r")
@@ -1197,10 +1201,14 @@ _G.RSTATS_Achiev_GetHighestPvpRank = function(fullName)
             result = GetPvpAchievementSummary(entry)
             achievementCache[key] = result
         else
-            achievementCache[key] = false
+            -- Keep cache shape consistent with the tooltip’s expectations
+            result = { summary = {}, highest = nil }
+            achievementCache[key] = result
             return nil
         end
-    elseif result == false then
+    end
+
+    if type(result) ~= "table" or not result.highest then
         return nil
     end
 
