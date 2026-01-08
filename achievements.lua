@@ -1169,3 +1169,81 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
         end
     end
 end)
+
+-- ---------------------------------------------------------------------------
+-- Minimal public helpers for RatedStats UI (icon + tooltip reuse)
+-- ---------------------------------------------------------------------------
+
+-- Allow RatedStats to reuse the exact tooltip block we already generate.
+_G.RSTATS_Achiev_AddAchievementInfoToTooltip = AddAchievementInfoToTooltip
+
+-- Return: iconPath, highestText
+-- iconPath is taken from the same PvpRankColumns you use in the tooltip.
+_G.RSTATS_Achiev_GetHighestPvpRank = function(fullName)
+    if type(fullName) ~= "string" or fullName == "" then return nil end
+
+    local baseName, realm = strsplit("-", fullName)
+    if not baseName or baseName == "" then return nil end
+    realm = realm or GetRealmName()
+
+    local normRealm = NormalizeRealmSlug(realm or "")
+    local key = (baseName .. "-" .. normRealm):lower()
+
+    -- prime cache the same way the tooltip does
+    local result = achievementCache[key]
+    if result == nil then
+        local entry = regionLookup[key]
+        if entry then
+            result = GetPvpAchievementSummary(entry)
+            achievementCache[key] = result
+        else
+            achievementCache[key] = false
+            return nil
+        end
+    elseif result == false then
+        return nil
+    end
+
+    if not result or not result.highest then return nil end
+
+    local highest = result.highest
+    local highestLower = highest:lower()
+
+    -- Find the same icon family your tooltip rows are based on.
+    local iconPath
+    for _, col in ipairs(PvpRankColumns) do
+        if col.prefix and highestLower:find(col.prefix:lower(), 1, true) then
+            iconPath = col.icon or (col.icons and col.icons[1])
+            break
+        end
+        if col.r1 and col.icons then
+            for _, r1 in ipairs(R1Titles) do
+                if highestLower == r1:lower() then
+                    iconPath = col.icons[1]
+                    break
+                end
+            end
+            if iconPath then break end
+        end
+        if col.glad and col.icons then
+            for _, g in ipairs(GladTitles) do
+                if highestLower == g:lower() then
+                    iconPath = col.icons[1]
+                    break
+                end
+            end
+            if iconPath then break end
+        end
+        if col.hero and col.icons then
+            for _, h in ipairs(HeroTitles) do
+                if highestLower:find(h:lower(), 1, true) then
+                    iconPath = col.icons[1]
+                    break
+                end
+            end
+            if iconPath then break end
+        end
+    end
+
+    return iconPath, highest
+end
