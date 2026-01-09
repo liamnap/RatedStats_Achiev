@@ -129,25 +129,26 @@ local HeroTitles = {
 }
 
 local PvpRankColumns = {
-    { key = "a",  label = "Combat (1400)",         prefix = "Combatant I:",   icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_01_Small.blp" },
+    { key = "a",  label = "Combat (1400)",         prefix = "Combatant I:",   icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
     { key = "b",  label = "Combat (1500)",         prefix = "Combatant II:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_02_Small.blp" },
     { key = "c",  label = "Chall (1600)",          prefix = "Challenger I:",  icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
-    { key = "d",  label = "Chall (1700)",          prefix = "Challenger II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
-    { key = "e",  label = "Rival (1800)",          prefix = "Rival I:",       icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
-    { key = "f",  label = "Rival (1950)",          prefix = "Rival II:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
-    { key = "g",  label = "Duelist (2100)",        prefix = "Duelist",        icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
-    { key = "h1", label = "General (2200)",        prefix = "General",        hidden = true },
-    { key = "h2", label = "Marshal (2200)",        prefix = "Marshal",        hidden = true },
-    { key = "h3", label = "Warlord (2300)",        prefix = "Warlord",        hidden = true },
-    { key = "h4", label = "Field Marshal (2300)",  prefix = "Field Marshal",  hidden = true },
-    { key = "h5", label = "High Warlord (2400)",   prefix = "High Warlord",   hidden = true },
-    { key = "h6", label = "Grand Marshal (2400)",  prefix = "Grand Marshal",  hidden = true },
-    { key = "i",  label = "Elite (2400)",          prefix = "Elite",          icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
-    { key = "j",  label = "Glad (2400)",           prefix = "Gladiator:",     icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
-    { key = "k",  label = "Legend (2400)",         prefix = "Legend:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l1", label = "Three's Company (2700)",prefix = "Three's Company",hidden = true },
-    { key = "m",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "n",  label = "Hero (0.5%)",           hero = true,               icons = {
+    { key = "d",  label = "Chall (1700)",          prefix = "Challenger II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_03_Small.blp" },
+    { key = "e",  label = "Rival (1800)",          prefix = "Rival I:",       icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
+    { key = "f",  label = "Rival (1950)",          prefix = "Rival II:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
+    { key = "g",  label = "Duelist (2100)",        prefix = "Duelist:",       icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
+    { key = "h1", label = "General (2200)",        prefix = "General",        icon = "Interface\\PvPRankBadges\\PvPRank12.blp", hidden = true },
+    { key = "h2", label = "Marshal (2200)",        prefix = "Marshal",        icon = "Interface\\PvPRankBadges\\PvPRank12.blp", hidden = true },
+    { key = "h3", label = "Warlord (2300)",        prefix = "Warlord",        icon = "Interface\\PvPRankBadges\\PvPRank13.blp", hidden = true },
+    { key = "h4", label = "Field Marshal (2300)",  prefix = "Field Marshal",  icon = "Interface\\PvPRankBadges\\PvPRank13.blp", hidden = true },
+    { key = "h5", label = "High Warlord (2400)",   prefix = "High Warlord",   icon = "Interface\\PvPRankBadges\\PvPRank14.blp", hidden = true },
+    { key = "h6", label = "Grand Marshal (2400)",  prefix = "Grand Marshal",  icon = "Interface\\PvPRankBadges\\PvPRank14.blp", hidden = true },
+    { key = "i",  label = "Elite (2400)",          prefix = "Elite:",         icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
+    { key = "j",  label = "Strategist (2400)",     prefix = "Strategist:",    icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp", tint = { 0.20, 1.00, 0.20 } }, -- brighter green
+    { key = "k",  label = "Glad (2400)",           prefix = "Gladiator:",     icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp", tint = { 1.00, 0.35, 0.95 } }, -- brighter pink
+    { key = "l",  label = "Legend (2400)",         prefix = "Legend:",        icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp", tint = { 1.00, 0.35, 0.20 } }, -- brighter red
+    { key = "m1", label = "Three's Company (2700)",prefix = "Three's Company",icon = "Interface\\Icons\\Achievement_Arena_3v3_7", hidden = true },
+    { key = "n",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
+    { key = "o",  label = "Hero (0.5%)",           hero = true,               icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
     }},
@@ -223,6 +224,23 @@ local function centerIcon(iconTag, width)
     return string.rep(" ", pad) .. iconTag .. string.rep(" ", width - len - pad)
 end
 
+-- Build a |T...|t tag, optionally tinted via vertex color.
+-- UI_RankedPvP_0X_Small icons are 64x64, so we can use full coords safely. :contentReference[oaicite:3]{index=3}
+local function MakeIconTag(texturePath, size, offsetY, tint)
+    offsetY = offsetY or 0
+    if tint and type(tint) == "table" then
+        local r = math.floor(((tint[1] or 1) * 255) + 0.5)
+        local g = math.floor(((tint[2] or 1) * 255) + 0.5)
+        local b = math.floor(((tint[3] or 1) * 255) + 0.5)
+
+        -- |T texture:height:width:offsetX:offsetY:textureW:textureH:left:right:top:bottom:r:g:b |t :contentReference[oaicite:4]{index=4}
+        return string.format("|T%s:%d:%d:0:%d:64:64:0:64:0:64:%d:%d:%d|t",
+            texturePath, size, size, offsetY, r, g, b)
+    end
+
+    return string.format("|T%s:%d:%d:0:%d|t", texturePath, size, size, offsetY)
+end
+
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     -- Only hook OnHide once per tooltip to avoid stacking thousands of handlers
     if not tooltip.__RatedStatsOnHideHooked then
@@ -288,8 +306,12 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         end
     end
 
-	local result = achievementCache[fullName]
-	local summary = result.summary or {}
+    local result = achievementCache[fullName]
+    -- Safety: never allow non-table cache entries to break the tooltip
+    if type(result) ~= "table" then
+        result = { summary = {}, highest = nil }
+        achievementCache[fullName] = result
+    end	local summary = result.summary or {}
 	local highest = result.highest
 
     tooltip:AddLine("|cffb69e86Rated Stats - Achievements|r")
@@ -330,18 +352,20 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
                     valueRow = valueRow .. centerText(count, 12)
 
                 else
-                    -- Normal single-icon column
-                    local iconTag = string.format("|T%s:%d:%d:0:%d|t",
+                    local iconTag = MakeIconTag(
                         col.icon or "Interface\\Icons\\inv_misc_questionmark",
-                        iconSize, iconSize, iconOffsetY)
+                        iconSize,
+                        iconOffsetY,
+                        col.tint
+                    )
                     iconRow  = iconRow  .. centerIcon(iconTag, 6)
                     valueRow = valueRow .. centerText(count, 6)
                 end
 			end
 		end
-	
-		tooltip:AddLine(iconRow)
-		tooltip:AddLine(valueRow)
+
+        tooltip:AddLine(iconRow)
+        tooltip:AddLine(valueRow)
 	end
 
     tooltip:Show()
@@ -725,45 +749,194 @@ end
 -- RatedStats: PvP Queue and Instance Announcements
 -----------------------------------------------------------
 
-local function PrintPartyAchievements()
-    if not IsInGroup() then return end
+local function GetMySettings()
+    local key = UnitName("player") .. "-" .. GetRealmName()
+    local db = RSTATS and RSTATS.Database and RSTATS.Database[key]
+    return db and db.settings or nil
+end
 
-    local inInstance, instanceType = IsInInstance()
-    local channel
-
-    if inInstance and (instanceType == "pvp" or instanceType == "arena") then
-        channel = "INSTANCE_CHAT"  -- /i in PvP instances
-    elseif IsInRaid() then
-        channel = "RAID"           -- /raid for raid groups outside instances
-    else
-        channel = "PARTY"          -- /p for normal parties
+-- Dropdown values:
+-- 1=self (print), 2=party, 3=instance, 4=say, 5=yell
+local function GetAnnounceTargetForCurrentMatch()
+    local settings = GetMySettings()
+    if not settings then
+        return 1
     end
 
-    SendChatMessage("Rated Stats - Achievements for Group", channel)
---    print("Rated Stats - Achievements for Group")
+    if C_PvP and (
+        (C_PvP.IsRatedSoloShuffle and C_PvP.IsRatedSoloShuffle()) or
+        (C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()) or
+        (C_PvP.IsBrawlSoloShuffle and C_PvP.IsBrawlSoloShuffle())
+    ) then
+        return settings.achievAnnounceSS or 3
+    end
 
-    for i = 1, GetNumGroupMembers() do
-        local name = GetRaidRosterInfo(i)
-        if name then
-            local baseName, realm = strsplit("-", name)
-            realm = realm or GetRealmName()
-            local normRealm = NormalizeRealmSlug(realm)
-            local fullName  = (baseName .. "-" .. normRealm):lower()
+    local inInstance, instanceType = IsInInstance()
+    if inInstance and instanceType == "arena" then
+        local enemyCount = (GetNumArenaOpponentSpecs and GetNumArenaOpponentSpecs()) or 0
+        if enemyCount == 2 then
+            return settings.achievAnnounce2v2 or 2
+        elseif enemyCount == 3 then
+            return settings.achievAnnounce3v3 or 2
+        end
+        return settings.achievAnnounce3v3 or settings.achievAnnounce2v2 or 2
+    end
 
-            local cached = achievementCache[fullName]
-            if not cached then
-                for _, entry in ipairs(regionData) do
-                    if entry.character and entry.character:lower() == fullName then
-                        cached = GetPvpAchievementSummary(entry)
-                        achievementCache[fullName] = cached
-                        break
-                    end
-                end
+    if C_PvP and (C_PvP.IsRatedBattleground and C_PvP.IsRatedBattleground()) then
+        return settings.achievAnnounceRBG or 1
+    end
+
+    if C_PvP and (C_PvP.IsSoloRBG and C_PvP.IsSoloRBG()) then
+        return settings.achievAnnounceRBGB or 1
+    end
+
+    -- Random BG / unknown: keep it self to avoid spam.
+    return 1
+end
+
+local function ResolveChatChannelFromTarget(target)
+    -- 0=none, 1=self, 2=party, 3=instance, 4=say, 5=yell, 6=raid, 7=party(only5)
+    if target == 0 or target == nil then
+        return nil
+    end
+
+    if target == 2 then
+        -- PARTY means PARTY (not instance chat), unless we're literally a raid.
+        if IsInRaid() then return "RAID" end
+        if IsInGroup() then return "PARTY" end
+        return nil
+    end
+
+    if target == 3 then
+        -- INSTANCE means instance group chat when available.
+        if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then return "INSTANCE_CHAT" end
+        -- If not available, fall back to group chat if any.
+        if IsInRaid() then return "RAID" end
+        if IsInGroup() then return "PARTY" end
+        return nil
+    end
+
+    if target == 4 then return "SAY" end
+    if target == 5 then return "YELL" end
+
+    if target == 6 then
+        if IsInRaid() then return "RAID" end
+        -- If someone selects RAID while not in a raid, fall back to PARTY if grouped.
+        if IsInGroup() then return "PARTY" end
+        return nil
+    end
+
+    if target == 7 then
+        -- Party (only 5): only send if we're actually a party-sized group.
+        if IsInRaid() then return nil end
+        if IsInGroup() then
+            local n = GetNumGroupMembers()
+            if n and n <= 5 then
+                return "PARTY"
             end
+        end
+        return nil
+    end
 
-            local label = cached and cached.label or "Not Seen in Bracket"
-            SendChatMessage(" - " .. baseName .. ": " .. label, channel)
---            print(" - " .. baseName .. ": " .. label)
+    return nil
+end
+
+local function AnnounceLine(message, target)
+    if not message or message == "" then return end
+
+    if target == 0 then
+        return
+    end
+
+    if target == 1 then
+        print(message)
+        return
+    end
+
+    local channel = ResolveChatChannelFromTarget(target)
+    if not channel then
+        print(message)
+        return
+    end
+
+    -- Chat has strict length limits; your padded formats can exceed them.
+    if #message > 250 then
+        message = message:gsub("%s%s+", " ")
+    end
+    if #message > 250 then
+        print(message)
+        return
+    end
+
+    SendChatMessage(message, channel)
+end
+
+local function PrintPartyAchievements()
+    local settings = GetMySettings()
+    if settings and settings.achievAnnounceOnQueue == false then return end
+
+    if not IsInGroup() then return end
+
+    local channel
+
+    -- Prefer instance group chat only if we actually have an instance-group channel.
+    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        channel = "INSTANCE_CHAT"
+    elseif IsInRaid() then
+        channel = "RAID"
+    else
+        channel = "PARTY"
+    end
+
+    if channel then
+        SendChatMessage("Rated Stats - Achievements for Group", channel)
+    else
+        print("Rated Stats - Achievements for Group")
+    end
+
+    local function AnnounceMember(baseName, realm)
+        if not baseName or baseName == "" then return end
+        realm = realm or GetRealmName()
+        local normRealm = NormalizeRealmSlug(realm)
+        local fullName  = (baseName .. "-" .. normRealm):lower()
+
+        local cached = achievementCache[fullName]
+        if not cached then
+            local entry = regionLookup[fullName]
+            if entry then
+                cached = GetPvpAchievementSummary(entry)
+                achievementCache[fullName] = cached
+            end
+        end
+
+        local label = cached and cached.label or "Not Seen in Bracket"
+        local msg = " - " .. baseName .. ": " .. label
+        if channel then
+            SendChatMessage(msg, channel)
+        else
+            print(msg)
+        end
+    end
+
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name = GetRaidRosterInfo(i)
+            if name then
+                local baseName, realm = strsplit("-", name)
+                AnnounceMember(baseName, realm)
+            end
+        end
+    else
+        -- In a party, iterate party units (party1..party4) + include player.
+        local myName, myRealm = UnitFullName("player")
+        AnnounceMember(myName, myRealm)
+
+        for i = 1, GetNumSubgroupMembers() do
+            local unit = "party" .. i
+            if UnitExists(unit) then
+                local baseName, realm = UnitFullName(unit)
+                AnnounceMember(baseName, realm)
+            end
         end
     end
 end
@@ -927,17 +1100,15 @@ local function PostPvPTeamSummary()
     for i = 1, 20 do addEnemy("nameplate" .. i) end
     for i = 1, 6 do addEnemy("arena" .. i) end
 
-    SendChatMessage("=== Rated Stats - Achievements PvP Summary ===", "INSTANCE_CHAT")
-    SendChatMessage(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), "INSTANCE_CHAT")
---    print("=== Rated Stats - Achievements PvP Summary ===")
---    print(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45))
+    local target = GetAnnounceTargetForCurrentMatch()
+    AnnounceLine("=== Rated Stats - Achievements PvP Summary ===", target)
+    AnnounceLine(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), target)
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        SendChatMessage(centerText(left, 45) .. " || " .. centerText(right, 45), "INSTANCE_CHAT")
---        print(centerText(left, 45) .. " || " .. centerText(right, 45))
+        AnnounceLine(centerText(left, 45) .. " || " .. centerText(right, 45), target)
     end
 end
 
@@ -990,8 +1161,8 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
 						end
 					end
 
-                    --SendChatMessage("=== Rated Stats - Achievements ===", "INSTANCE_CHAT")
-                    print("|cffb69e86=== Rated Stats - Achievements ===")
+                    local target = GetAnnounceTargetForCurrentMatch()
+                    AnnounceLine("|cffb69e86=== Rated Stats - Achievements ===|r", target)
                     local maxRows = math.max(#myTeam, #enemyTeam)
                     for i = 1, maxRows do
                         local left = myTeam[i] or ""
@@ -1000,14 +1171,12 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                             -- apply colors
                             local myTeam  = "|cFFFF3333" .. left .. "|r"
                             local enemyTeam = "|cFF3366FF" .. right .. "|r"
-                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
-                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                            AnnounceLine(string.format("%-45s || %-45s", myTeam, enemyTeam), target)
                         else
                             -- apply colors
                             local myTeam  = "|cFF3366FF" .. left .. "|r"
                             local enemyTeam = "|cFFFF3333" .. right .. "|r"
-                            --SendChatMessage(centerText(myTeam, 45) .. " || " .. centerText(enemyTeam, 45), "INSTANCE_CHAT")
-                            print(string.format("%-45s || %-45s", myTeam, enemyTeam))
+                            AnnounceLine(string.format("%-45s || %-45s", myTeam, enemyTeam), target)
                         end
                     end
                 end
@@ -1024,3 +1193,85 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
         end
     end
 end)
+
+-- ---------------------------------------------------------------------------
+-- Minimal public helpers for RatedStats UI (icon + tooltip reuse)
+-- ---------------------------------------------------------------------------
+
+-- Allow RatedStats to reuse the exact tooltip block we already generate.
+_G.RSTATS_Achiev_AddAchievementInfoToTooltip = AddAchievementInfoToTooltip
+
+-- Return: iconPath, highestText
+-- iconPath is taken from the same PvpRankColumns you use in the tooltip.
+_G.RSTATS_Achiev_GetHighestPvpRank = function(fullName)
+    if type(fullName) ~= "string" or fullName == "" then return nil end
+
+    local baseName, realm = strsplit("-", fullName)
+    if not baseName or baseName == "" then return nil end
+    realm = realm or GetRealmName()
+
+    local normRealm = NormalizeRealmSlug(realm or "")
+    local key = (baseName .. "-" .. normRealm):lower()
+
+    -- prime cache the same way the tooltip does
+    local result = achievementCache[key]
+    if result == nil then
+        local entry = regionLookup[key]
+        if entry then
+            result = GetPvpAchievementSummary(entry)
+            achievementCache[key] = result
+        else
+            -- Keep cache shape consistent with the tooltip’s expectations
+            result = { summary = {}, highest = nil }
+            achievementCache[key] = result
+            return nil
+        end
+    end
+
+    if type(result) ~= "table" or not result.highest then
+        return nil
+    end
+
+    if not result or not result.highest then return nil end
+
+    local highest = result.highest
+    local highestLower = highest:lower()
+
+    -- Find the same icon family your tooltip rows are based on.
+    local iconPath
+    for _, col in ipairs(PvpRankColumns) do
+        if col.prefix and highestLower:find(col.prefix:lower(), 1, true) then
+            iconPath = col.icon or (col.icons and col.icons[1])
+            break
+        end
+        if col.r1 and col.icons then
+            for _, r1 in ipairs(R1Titles) do
+                if highestLower == r1:lower() then
+                    iconPath = col.icons[1]
+                    break
+                end
+            end
+            if iconPath then break end
+        end
+        if col.glad and col.icons then
+            for _, g in ipairs(GladTitles) do
+                if highestLower == g:lower() then
+                    iconPath = col.icons[1]
+                    break
+                end
+            end
+            if iconPath then break end
+        end
+        if col.hero and col.icons then
+            for _, h in ipairs(HeroTitles) do
+                if highestLower:find(h:lower(), 1, true) then
+                    iconPath = col.icons[1]
+                    break
+                end
+            end
+            if iconPath then break end
+        end
+    end
+
+    return iconPath, highest
+end
