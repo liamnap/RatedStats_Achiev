@@ -736,6 +736,7 @@ async def get_pvp_achievements(session, headers):
         {"type": "exact", "value": "Grand Marshal"},
         # Return to Rated PvP Season Tiers
         {"type": "prefix", "value": "Elite:"},
+        {"type": "prefix", "value": "Strategist:"},
         {"type": "prefix", "value": "Gladiator:"},
         {"type": "prefix", "value": "Legend:"},
         # Special Achievements
