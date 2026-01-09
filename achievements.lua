@@ -224,111 +224,21 @@ local function centerIcon(iconTag, width)
     return string.rep(" ", pad) .. iconTag .. string.rep(" ", width - len - pad)
 end
 
--- ---------------------------------------------------------------------------
--- Tooltip icon overlay (needed for tinted icons; inline |T...|t cannot be tinted)
--- ---------------------------------------------------------------------------
-local function EnsureRatedStatsIconOverlay(tooltip)
-    if tooltip.__RatedStatsPvpIconOverlay then
-        return tooltip.__RatedStatsPvpIconOverlay
+-- Build a |T...|t tag, optionally tinted via vertex color.
+-- UI_RankedPvP_0X_Small icons are 64x64, so we can use full coords safely. :contentReference[oaicite:3]{index=3}
+local function MakeIconTag(texturePath, size, offsetY, tint)
+    offsetY = offsetY or 0
+    if tint and type(tint) == "table" then
+        local r = math.floor(((tint[1] or 1) * 255) + 0.5)
+        local g = math.floor(((tint[2] or 1) * 255) + 0.5)
+        local b = math.floor(((tint[3] or 1) * 255) + 0.5)
+
+        -- |T texture:height:width:offsetX:offsetY:textureW:textureH:left:right:top:bottom:r:g:b |t :contentReference[oaicite:4]{index=4}
+        return string.format("|T%s:%d:%d:0:%d:64:64:0:64:0:64:%d:%d:%d|t",
+            texturePath, size, size, offsetY, r, g, b)
     end
 
-    local overlay = CreateFrame("Frame", nil, tooltip)
-    overlay:Hide()
-    overlay.textures = {}
-    tooltip.__RatedStatsPvpIconOverlay = overlay
-
-    -- Keep it tidy when the tooltip hides
-    if not tooltip.__RatedStatsPvpIconOverlayHooked then
-        tooltip.__RatedStatsPvpIconOverlayHooked = true
-        tooltip:HookScript("OnHide", function(tip)
-            if tip.__RatedStatsPvpIconOverlay then
-                tip.__RatedStatsPvpIconOverlay:Hide()
-            end
-        end)
-    end
-
-    return overlay
-end
-
-local function RenderPvpIconRowOverlay(tooltip, lineNum, columns, iconSize)
-    local name = tooltip:GetName()
-    if not name then return end
-
-    local line = _G[name .. "TextLeft" .. lineNum]
-    if not line then return end
-
-    local overlay = EnsureRatedStatsIconOverlay(tooltip)
-    overlay:ClearAllPoints()
-    overlay:SetPoint("LEFT", line, "LEFT", 0, 0)
-    overlay:SetPoint("RIGHT", line, "RIGHT", 0, 0)
-    overlay:SetHeight(iconSize + 2)
-    overlay:SetFrameLevel((tooltip:GetFrameLevel() or 0) + 5)
-    overlay:Show()
-
-    -- Create a measurer to convert your fixed-width "slot chars" into pixels.
-    if not overlay.measurer then
-        overlay.measurer = overlay:CreateFontString(nil, "ARTWORK")
-        overlay.measurer:Hide()
-    end
-
-    -- We must position after the tooltip has laid out the line.
-    C_Timer.After(0, function()
-        if not tooltip:IsShown() or not line:IsShown() then return end
-
-        local font, size, flags = line:GetFont()
-        if font then
-            overlay.measurer:SetFont(font, size, flags)
-        end
-
-        overlay.measurer:SetText(" ")
-        local spaceW = overlay.measurer:GetStringWidth()
-        if not spaceW or spaceW <= 0 then return end
-
-        -- Ensure enough textures for ONLY tinted columns (3 textures normally).
-        local needed = 0
-        for _, col in ipairs(columns) do
-            if not col.hidden and col.tint and col.icon then
-                needed = needed + 1
-            end
-        end
-
-        for i = #overlay.textures + 1, needed do
-            overlay.textures[i] = overlay:CreateTexture(nil, "OVERLAY")
-        end
-        for i = needed + 1, #overlay.textures do
-            overlay.textures[i]:Hide()
-        end
-
-        local texIndex = 0
-        local x = 0
-
-        -- Walk columns in the same order used to build iconRow:
-        -- normal columns use centerIcon(..., 6), hero uses centerIcon(..., 10)
-        for _, col in ipairs(columns) do
-            if not col.hidden then
-                local slotChars = (col.hero and 10) or 6
-                local slotPx = slotChars * spaceW
-
-                if col.tint and type(col.tint) == "table" and col.icon then
-                    texIndex = texIndex + 1
-                    local tex = overlay.textures[texIndex]
-                    tex:ClearAllPoints()
-                    tex:SetSize(iconSize, iconSize)
-                    tex:SetPoint("LEFT", overlay, "LEFT", x + (slotPx - iconSize) / 2, 0)
-                    tex:SetTexture(col.icon)
-
-                    -- Desaturate first, then tint (cleaner color)
-                    if tex.SetDesaturated then
-                        tex:SetDesaturated(true)
-                    end
-                    tex:SetVertexColor(col.tint[1] or 1, col.tint[2] or 1, col.tint[3] or 1, 1)
-                    tex:Show()
-                end
-
-                x = x + slotPx
-            end
-        end
-    end)
+    return string.format("|T%s:%d:%d:0:%d|t", texturePath, size, size, offsetY)
 end
 
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
@@ -442,27 +352,19 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
                     valueRow = valueRow .. centerText(count, 12)
 
                 else
-                    -- Normal single-icon column
-                    -- If this column is tinted, hide the inline icon (0x0) so we don't double-draw.
-                    -- Overlay will render the tinted version.
-                    local inlineSize = iconSize
-                    if col.tint and type(col.tint) == "table" then
-                        inlineSize = 0
-                    end
-                    local iconTag = string.format("|T%s:%d:%d:0:%d|t",
+                    local iconTag = MakeIconTag(
                         col.icon or "Interface\\Icons\\inv_misc_questionmark",
-                        inlineSize, inlineSize, iconOffsetY)
+                        iconSize,
+                        iconOffsetY,
+                        col.tint
+                    )
                     iconRow  = iconRow  .. centerIcon(iconTag, 6)
                     valueRow = valueRow .. centerText(count, 6)
                 end
 			end
 		end
-	
-        -- Keep your original spacing/centering by printing the string row,
-        -- then overlay ONLY the tinted icons on top of their exact slots.
+
         tooltip:AddLine(iconRow)
-        local iconLineNum = tooltip:NumLines()
-        RenderPvpIconRowOverlay(tooltip, iconLineNum, PvpRankColumns, iconSize)
         tooltip:AddLine(valueRow)
 	end
 
