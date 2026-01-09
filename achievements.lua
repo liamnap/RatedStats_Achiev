@@ -443,9 +443,15 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 
                 else
                     -- Normal single-icon column
+                    -- If this column is tinted, hide the inline icon (0x0) so we don't double-draw.
+                    -- Overlay will render the tinted version.
+                    local inlineSize = iconSize
+                    if col.tint and type(col.tint) == "table" then
+                        inlineSize = 0
+                    end
                     local iconTag = string.format("|T%s:%d:%d:0:%d|t",
                         col.icon or "Interface\\Icons\\inv_misc_questionmark",
-                        iconSize, iconSize, iconOffsetY)
+                        inlineSize, inlineSize, iconOffsetY)
                     iconRow  = iconRow  .. centerIcon(iconTag, 6)
                     valueRow = valueRow .. centerText(count, 6)
                 end
