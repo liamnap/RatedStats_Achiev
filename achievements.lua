@@ -262,60 +262,71 @@ local function RenderPvpIconRowOverlay(tooltip, lineNum, columns, iconSize)
     overlay:SetPoint("LEFT", line, "LEFT", 0, 0)
     overlay:SetPoint("RIGHT", line, "RIGHT", 0, 0)
     overlay:SetHeight(iconSize + 2)
+    overlay:SetFrameLevel((tooltip:GetFrameLevel() or 0) + 5)
     overlay:Show()
 
-    -- Count visible columns (hero counts as one slot visually)
-    local visible = {}
-    for _, col in ipairs(columns) do
-        if not col.hidden then
-            table.insert(visible, col)
-        end
+    -- Create a measurer to convert your fixed-width "slot chars" into pixels.
+    if not overlay.measurer then
+        overlay.measurer = overlay:CreateFontString(nil, "ARTWORK")
+        overlay.measurer:Hide()
     end
 
-    local slot = iconSize + 8
-    local totalW = (#visible * slot)
-
-    -- We must position after tooltip has laid out widths
+    -- We must position after the tooltip has laid out the line.
     C_Timer.After(0, function()
-        if not tooltip:IsShown() then return end
-        local w = tooltip:GetWidth()
-        if not w or w <= 0 then return end
+        if not tooltip:IsShown() or not line:IsShown() then return end
 
-        local startX = (w - totalW) / 2
-
-        -- Ensure enough textures
-        local needed = #visible
-        for i = #overlay.textures + 1, needed do
-            local tex = overlay:CreateTexture(nil, "OVERLAY")
-            overlay.textures[i] = tex
+        local font, size, flags = line:GetFont()
+        if font then
+            overlay.measurer:SetFont(font, size, flags)
         end
-        -- Hide extras
+
+        overlay.measurer:SetText(" ")
+        local spaceW = overlay.measurer:GetStringWidth()
+        if not spaceW or spaceW <= 0 then return end
+
+        -- Ensure enough textures for ONLY tinted columns (3 textures normally).
+        local needed = 0
+        for _, col in ipairs(columns) do
+            if not col.hidden and col.tint and col.icon then
+                needed = needed + 1
+            end
+        end
+
+        for i = #overlay.textures + 1, needed do
+            overlay.textures[i] = overlay:CreateTexture(nil, "OVERLAY")
+        end
         for i = needed + 1, #overlay.textures do
             overlay.textures[i]:Hide()
         end
 
-        for idx, col in ipairs(visible) do
-            local tex = overlay.textures[idx]
-            tex:ClearAllPoints()
-            tex:SetSize(iconSize, iconSize)
-            tex:SetPoint("LEFT", overlay, "LEFT", startX + (idx - 1) * slot, 0)
-            tex:SetTexture(col.icon or "Interface\\Icons\\inv_misc_questionmark")
+        local texIndex = 0
+        local x = 0
 
-            -- Clean base state
-            if tex.SetDesaturated then
-                tex:SetDesaturated(false)
-            end
-            tex:SetVertexColor(1, 1, 1, 1)
+        -- Walk columns in the same order used to build iconRow:
+        -- normal columns use centerIcon(..., 6), hero uses centerIcon(..., 10)
+        for _, col in ipairs(columns) do
+            if not col.hidden then
+                local slotChars = (col.hero and 10) or 6
+                local slotPx = slotChars * spaceW
 
-            -- Apply tint if requested (best results when desaturated first)
-            if col.tint and type(col.tint) == "table" then
-                if tex.SetDesaturated then
-                    tex:SetDesaturated(true)
+                if col.tint and type(col.tint) == "table" and col.icon then
+                    texIndex = texIndex + 1
+                    local tex = overlay.textures[texIndex]
+                    tex:ClearAllPoints()
+                    tex:SetSize(iconSize, iconSize)
+                    tex:SetPoint("LEFT", overlay, "LEFT", x + (slotPx - iconSize) / 2, 0)
+                    tex:SetTexture(col.icon)
+
+                    -- Desaturate first, then tint (cleaner color)
+                    if tex.SetDesaturated then
+                        tex:SetDesaturated(true)
+                    end
+                    tex:SetVertexColor(col.tint[1] or 1, col.tint[2] or 1, col.tint[3] or 1, 1)
+                    tex:Show()
                 end
-                tex:SetVertexColor(col.tint[1] or 1, col.tint[2] or 1, col.tint[3] or 1, 1)
-            end
 
-            tex:Show()
+                x = x + slotPx
+            end
         end
     end)
 end
@@ -441,8 +452,9 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 			end
 		end
 	
-        -- Use a blank line and overlay real textures so we can tint Strategist/Glad/Legend.
-        tooltip:AddLine(" ")
+        -- Keep your original spacing/centering by printing the string row,
+        -- then overlay ONLY the tinted icons on top of their exact slots.
+        tooltip:AddLine(iconRow)
         local iconLineNum = tooltip:NumLines()
         RenderPvpIconRowOverlay(tooltip, iconLineNum, PvpRankColumns, iconSize)
         tooltip:AddLine(valueRow)
