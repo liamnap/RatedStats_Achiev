@@ -135,7 +135,7 @@ local PvpRankColumns = {
     { key = "d",  label = "Chall (1700)",          prefix = "Challenger II:", icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_04_Small.blp" },
     { key = "e",  label = "Rival (1800)",          prefix = "Rival I:",       icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_05_Small.blp" },
     { key = "f",  label = "Rival (1950)",          prefix = "Rival II:",      icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_06_Small.blp" },
-    { key = "g",  label = "Duelist (2100)",        prefix = "Duelist",        icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
+    { key = "g",  label = "Duelist (2100)",        prefix = "Duelist:",        icon = "Interface\\PVPFrame\\Icons\\UI_RankedPvP_07_Small.blp" },
     { key = "h1", label = "General (2200)",        prefix = "General",        hidden = true },
     { key = "h2", label = "Marshal (2200)",        prefix = "Marshal",        hidden = true },
     { key = "h3", label = "Warlord (2300)",        prefix = "Warlord",        hidden = true },
@@ -143,11 +143,12 @@ local PvpRankColumns = {
     { key = "h5", label = "High Warlord (2400)",   prefix = "High Warlord",   hidden = true },
     { key = "h6", label = "Grand Marshal (2400)",  prefix = "Grand Marshal",  hidden = true },
     { key = "i",  label = "Elite (2400)",          prefix = "Elite",          icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_03.blp" },
-    { key = "j",  label = "Glad (2400)",           prefix = "Gladiator:",     icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
-    { key = "k",  label = "Legend (2400)",         prefix = "Legend:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "l1", label = "Three's Company (2700)",prefix = "Three's Company",hidden = true },
-    { key = "m",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
-    { key = "n",  label = "Hero (0.5%)",           hero = true,               icons = {
+    { key = "j",  label = "Strategist (2400)",     prefix = "Strategist:",     icon = "Interface\\Icons\\Achievement_BG_winWSG.blp" },
+    { key = "k",  label = "Glad (2400)",           prefix = "Gladiator:",     icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_07.blp" },
+    { key = "l",  label = "Legend (2400)",         prefix = "Legend:",        icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "m1", label = "Three's Company (2700)",prefix = "Three's Company",hidden = true },
+    { key = "n",  label = "Rank 1 (0.1%)",         r1 = true,                 icon = "Interface\\Icons\\Achievement_FeatsOfStrength_Gladiator_08.blp" },
+    { key = "o",  label = "Hero (0.5%)",           hero = true,               icons = {
         "Interface\\PvPRankBadges\\PvPRankHorde.blp",
         "Interface\\PvPRankBadges\\PvPRankAlliance.blp"
     }},
