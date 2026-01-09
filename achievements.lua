@@ -224,6 +224,102 @@ local function centerIcon(iconTag, width)
     return string.rep(" ", pad) .. iconTag .. string.rep(" ", width - len - pad)
 end
 
+-- ---------------------------------------------------------------------------
+-- Tooltip icon overlay (needed for tinted icons; inline |T...|t cannot be tinted)
+-- ---------------------------------------------------------------------------
+local function EnsureRatedStatsIconOverlay(tooltip)
+    if tooltip.__RatedStatsPvpIconOverlay then
+        return tooltip.__RatedStatsPvpIconOverlay
+    end
+
+    local overlay = CreateFrame("Frame", nil, tooltip)
+    overlay:Hide()
+    overlay.textures = {}
+    tooltip.__RatedStatsPvpIconOverlay = overlay
+
+    -- Keep it tidy when the tooltip hides
+    if not tooltip.__RatedStatsPvpIconOverlayHooked then
+        tooltip.__RatedStatsPvpIconOverlayHooked = true
+        tooltip:HookScript("OnHide", function(tip)
+            if tip.__RatedStatsPvpIconOverlay then
+                tip.__RatedStatsPvpIconOverlay:Hide()
+            end
+        end)
+    end
+
+    return overlay
+end
+
+local function RenderPvpIconRowOverlay(tooltip, lineNum, columns, iconSize)
+    local name = tooltip:GetName()
+    if not name then return end
+
+    local line = _G[name .. "TextLeft" .. lineNum]
+    if not line then return end
+
+    local overlay = EnsureRatedStatsIconOverlay(tooltip)
+    overlay:ClearAllPoints()
+    overlay:SetPoint("LEFT", line, "LEFT", 0, 0)
+    overlay:SetPoint("RIGHT", line, "RIGHT", 0, 0)
+    overlay:SetHeight(iconSize + 2)
+    overlay:Show()
+
+    -- Count visible columns (hero counts as one slot visually)
+    local visible = {}
+    for _, col in ipairs(columns) do
+        if not col.hidden then
+            table.insert(visible, col)
+        end
+    end
+
+    local slot = iconSize + 8
+    local totalW = (#visible * slot)
+
+    -- We must position after tooltip has laid out widths
+    C_Timer.After(0, function()
+        if not tooltip:IsShown() then return end
+        local w = tooltip:GetWidth()
+        if not w or w <= 0 then return end
+
+        local startX = (w - totalW) / 2
+
+        -- Ensure enough textures
+        local needed = #visible
+        for i = #overlay.textures + 1, needed do
+            local tex = overlay:CreateTexture(nil, "OVERLAY")
+            overlay.textures[i] = tex
+        end
+        -- Hide extras
+        for i = needed + 1, #overlay.textures do
+            overlay.textures[i]:Hide()
+        end
+
+        for idx, col in ipairs(visible) do
+            local tex = overlay.textures[idx]
+            tex:ClearAllPoints()
+            tex:SetSize(iconSize, iconSize)
+            tex:SetPoint("LEFT", overlay, "LEFT", startX + (idx - 1) * slot, 0)
+            tex:SetTexture(col.icon or "Interface\\Icons\\inv_misc_questionmark")
+
+            -- Clean base state
+            if tex.SetDesaturated then
+                tex:SetDesaturated(false)
+            end
+            tex:SetVertexColor(1, 1, 1, 1)
+
+            -- Apply tint if requested (best results when desaturated first)
+            if col.tint and type(col.tint) == "table" then
+                if tex.SetDesaturated then
+                    tex:SetDesaturated(true)
+                end
+                tex:SetVertexColor(col.tint[1] or 1, col.tint[2] or 1, col.tint[3] or 1, 1)
+            end
+
+            tex:Show()
+        end
+    end)
+end
+
 local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     -- Only hook OnHide once per tooltip to avoid stacking thousands of handlers
     if not tooltip.__RatedStatsOnHideHooked then
@@ -345,8 +441,11 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
 			end
 		end
 	
-		tooltip:AddLine(iconRow)
-		tooltip:AddLine(valueRow)
+        -- Use a blank line and overlay real textures so we can tint Strategist/Glad/Legend.
+        tooltip:AddLine(" ")
+        local iconLineNum = tooltip:NumLines()
+        RenderPvpIconRowOverlay(tooltip, iconLineNum, PvpRankColumns, iconSize)
+        tooltip:AddLine(valueRow)
 	end
 
     tooltip:Show()
