@@ -455,7 +455,9 @@ f:SetScript("OnEvent", function(_, event)
 
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
-			if not self or not self.unit or not UnitIsPlayer(self.unit) then return end
+             if not self or not self.unit then return end
+            local okPlayer, isPlayer = pcall(UnitIsPlayer, self.unit)
+            if not okPlayer or not isPlayer then return end
             if GameTooltip:IsForbidden() then return end  -- prevents blink + hide cycle
 
            -- Blizzard suppresses CompactUnitFrame tooltips depending on UI settings.
@@ -480,8 +482,13 @@ f:SetScript("OnEvent", function(_, event)
 		if TooltipDataProcessor then
 			TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip, data)
 				if not tooltip or not data or not data.unit then return end
-				if not UnitIsPlayer(data.unit) then return end
-				local name, realm = UnitFullName(data.unit)
+
+                local okPlayer, isPlayer = pcall(UnitIsPlayer, data.unit)
+                if not okPlayer or not isPlayer then return end
+
+				local okFull, name, realm = pcall(UnitFullName, data.unit)
+                if not okFull or type(name) ~= "string" then return end
+
 				realm = realm or GetRealmName()
 				if name and realm then
 					AddAchievementInfoToTooltip(tooltip, name, realm)
