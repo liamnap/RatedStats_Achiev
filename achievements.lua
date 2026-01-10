@@ -1079,8 +1079,29 @@ local function PostPvPTeamSummary()
         if not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsFriend("player", unit) then return end
         local name, realm = UnitFullName(unit)
         realm = realm or GetRealmName()
-        local normRealm = NormalizeRealmSlug(realm)
-        local fullName  = (name .. "-" .. normRealm):lower()
+
+        -- Midnight: enemy unit names can be "secret" (cannot be indexed/used in string ops).
+        -- Try a safer fallback; if still unavailable/secret, skip cleanly.
+        if not name or type(name) ~= "string" then
+            local raw = GetUnitName(unit, true) -- can be "Name-Realm"
+            if raw and type(raw) == "string" then
+                local n, r = strsplit("-", raw)
+                name = n
+                if r and r ~= "" then
+                    realm = r
+                end
+            end
+        end
+        if not name or type(name) ~= "string" then return end
+
+        local okRealm, normRealm = pcall(NormalizeRealmSlug, realm)
+        if not okRealm or not normRealm then return end
+
+        local okFull, fullName = pcall(function()
+            return (name .. "-" .. normRealm):lower()
+        end)
+        if not okFull or not fullName then return end
+        
         local cached = achievementCache[fullName]
         if seenEnemies[fullName] then return end  -- skip duplicates
         seenEnemies[fullName] = true
