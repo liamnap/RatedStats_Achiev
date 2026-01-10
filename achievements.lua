@@ -93,6 +93,14 @@ local regionData = mergeRegionParts(regionCode)
 -- Cache table to avoid repeat lookups
 local achievementCache = {}
 
+-- Midnight/PTR: tooltip unit tokens can be "secret" values; never pass them to UnitIsPlayer().
+local function SafeUnitIsPlayer(unit)
+    if not unit or type(unit) ~= "string" then return false end
+    if issecretvalue and issecretvalue(unit) then return false end
+    local ok, res = pcall(UnitIsPlayer, unit)
+    return ok and res
+end
+
 -- 🔹 Build fast lookup index for character → entry
 local regionLookup = {}
 for _, entry in ipairs(regionData) do
@@ -259,7 +267,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     end
     local name, realm
 
-    if unit and UnitIsPlayer(unit) then
+    if unit and SafeUnitIsPlayer(unit) then
         local okFullName, n, r = pcall(UnitFullName, unit)
         if okFullName then
             name, realm = n, r
@@ -388,13 +396,13 @@ end
 local lastTooltipUnit = nil
 
 -- Defer hook until player is fully in the game
-local f = CreateFrame("Frame")
-f:RegisterEvent("PLAYER_LOGIN")
-f:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-f:RegisterEvent("PLAYER_TARGET_CHANGED")
-f:RegisterEvent("PLAYER_FOCUS_CHANGED")
+local tooltipWatcher = CreateFrame("Frame")
+tooltipWatcher:RegisterEvent("PLAYER_LOGIN")
+tooltipWatcher:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+tooltipWatcher:RegisterEvent("PLAYER_TARGET_CHANGED")
+tooltipWatcher:RegisterEvent("PLAYER_FOCUS_CHANGED")
 
-f:SetScript("OnEvent", function(_, event)
+tooltipWatcher:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
 
         -- Table to cache the most recent applicant names for use in tooltips
@@ -423,7 +431,7 @@ f:SetScript("OnEvent", function(_, event)
             local unit
             local ok, _, u = pcall(tooltip.GetUnit, tooltip)
             if ok then unit = u end
-			if not unit or not UnitIsPlayer(unit) then return end
+			if not unit or not SafeUnitIsPlayer(unit) then return end
 		
 			local name, realm = UnitFullName(unit)
 			realm = realm or GetRealmName()
@@ -432,7 +440,7 @@ f:SetScript("OnEvent", function(_, event)
 			local delay = (unit == "target" or unit == "focus") and 0.5 or 0.5
 		
 			C_Timer.After(delay, function()
-				if tooltip:IsShown() and UnitIsPlayer(unit) then
+				if tooltip:IsShown() and SafeUnitIsPlayer(unit) then
 					AddAchievementInfoToTooltip(tooltip, name, realm)
 				end
 			end)
@@ -455,17 +463,16 @@ f:SetScript("OnEvent", function(_, event)
 
 		-- Hook UnitFrame mouseovers (party/raid frames etc.)
 		hooksecurefunc("UnitFrame_OnEnter", function(self)
-             if not self or not self.unit then return end
-            local okPlayer, isPlayer = pcall(UnitIsPlayer, self.unit)
-            if not okPlayer or not isPlayer then return end
+            if not self or not self.unit then return end
+            if not SafeUnitIsPlayer(self.unit) then return end
             if GameTooltip:IsForbidden() then return end  -- prevents blink + hide cycle
 
-           -- Blizzard suppresses CompactUnitFrame tooltips depending on UI settings.
-           -- Force the tooltip to exist so our addon can append lines.
-           if not GameTooltip:IsShown() then
+            -- Blizzard suppresses CompactUnitFrame tooltips depending on UI settings.
+            -- Force the tooltip to exist so our addon can append lines.
+            if not GameTooltip:IsShown() then
                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                GameTooltip:SetUnit(self.unit)
-           end
+            end
 
 			local name, realm = UnitFullName(self.unit)
 			realm = realm or GetRealmName()
@@ -483,8 +490,7 @@ f:SetScript("OnEvent", function(_, event)
 			TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip, data)
 				if not tooltip or not data or not data.unit then return end
 
-                local okPlayer, isPlayer = pcall(UnitIsPlayer, data.unit)
-                if not okPlayer or not isPlayer then return end
+				if not SafeUnitIsPlayer(data.unit) then return end
 
 				local okFull, name, realm = pcall(UnitFullName, data.unit)
                 if not okFull or type(name) ~= "string" then return end
@@ -500,7 +506,7 @@ f:SetScript("OnEvent", function(_, event)
                 local unit
                 local ok, _, u = pcall(tooltip.GetUnit, tooltip)
                 if ok then unit = u end
-                if unit and UnitIsPlayer(unit) then
+                if unit and SafeUnitIsPlayer(unit) then
 					local name, realm = UnitFullName(unit)
 					realm = realm or GetRealmName()
 					C_Timer.After(0.5, function()
@@ -666,7 +672,7 @@ f:SetScript("OnEvent", function(_, event)
         C_Timer.After(0.5, HookApplicantFrames)
 
 	elseif event == "UPDATE_MOUSEOVER_UNIT" then
-		if not UnitExists("mouseover") or not UnitIsPlayer("mouseover") then
+		if not UnitExists("mouseover") or not SafeUnitIsPlayer("mouseover") then
 			return
 		end
 	
@@ -818,9 +824,6 @@ local function ResolveChatChannelFromTarget(target)
     if target == 3 then
         -- INSTANCE means instance group chat when available.
         if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then return "INSTANCE_CHAT" end
-        -- If not available, fall back to group chat if any.
-        if IsInRaid() then return "RAID" end
-        if IsInGroup() then return "PARTY" end
         return nil
     end
 
@@ -857,13 +860,11 @@ local function AnnounceLine(message, target)
     end
 
     if target == 1 then
-        print(message)
         return
     end
 
     local channel = ResolveChatChannelFromTarget(target)
     if not channel then
-        print(message)
         return
     end
 
@@ -872,7 +873,25 @@ local function AnnounceLine(message, target)
         message = message:gsub("%s%s+", " ")
     end
     if #message > 250 then
-        print(message)
+        return
+    end
+
+    -- Avoid ADDON_ACTION_FORBIDDEN: chat sends can be protected/blocked in combat (especially in PvP).
+    if InCombatLockdown and InCombatLockdown() then
+        -- Respect the chosen channel: don't print to self.
+        -- Try again shortly until we leave combat, but don't spin forever.
+        local tries = 0
+        local function retry()
+            tries = tries + 1
+            if not (InCombatLockdown and InCombatLockdown()) then
+                SendChatMessage(message, channel)
+                return
+            end
+            if tries < 20 then -- ~10 seconds at 0.5s intervals
+                C_Timer.After(0.5, retry)
+            end
+        end
+        C_Timer.After(0.5, retry)
         return
     end
 
@@ -885,22 +904,10 @@ local function PrintPartyAchievements()
 
     if not IsInGroup() then return end
 
-    local channel
+    local target = GetAnnounceTargetForCurrentMatch()
+    if not target or target == 0 then return end
 
-    -- Prefer instance group chat only if we actually have an instance-group channel.
-    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        channel = "INSTANCE_CHAT"
-    elseif IsInRaid() then
-        channel = "RAID"
-    else
-        channel = "PARTY"
-    end
-
-    if channel then
-        SendChatMessage("Rated Stats - Achievements for Group", channel)
-    else
-        print("Rated Stats - Achievements for Group")
-    end
+    AnnounceLine("Rated Stats - Achievements for Group", target)
 
     local function AnnounceMember(baseName, realm)
         if not baseName or baseName == "" then return end
@@ -919,11 +926,8 @@ local function PrintPartyAchievements()
 
         local label = cached and cached.label or "Not Seen in Bracket"
         local msg = " - " .. baseName .. ": " .. label
-        if channel then
-            SendChatMessage(msg, channel)
-        else
-            print(msg)
-        end
+
+        AnnounceLine(msg, target)
     end
 
     if IsInRaid() then
@@ -975,7 +979,10 @@ queueWatcher:SetScript("OnEvent", function(_, event, ...)
     -- System message check: only fire on exact PvP queue names
     if event == "CHAT_MSG_SYSTEM" then
         local msg = ...
-        if RatedQueueTriggers[msg] then
+        -- Midnight/PTR: CHAT_MSG_SYSTEM payload can be a "secret" value; never use it as a table key.
+        if not msg or type(msg) ~= "string" then return end
+        if issecretvalue and issecretvalue(msg) then return end
+		if RatedQueueTriggers[msg] then
             lastQueued = now
             lastAllowedQueueMsg = now
             C_Timer.After(1.0, PrintPartyAchievements)
@@ -1030,7 +1037,7 @@ local function PostPvPTeamSummary()
     local function collectTeamData(unitPrefix, count, target)
         for i = 1, count do
             local unit = unitPrefix .. i
-            if UnitExists(unit) and UnitIsPlayer(unit) and not UnitIsUnit(unit, "player") then
+            if UnitExists(unit) and SafeUnitIsPlayer(unit) and not UnitIsUnit(unit, "player") then
                 local name, realm = UnitFullName(unit)
                 realm = realm or GetRealmName()
                 local normRealm = NormalizeRealmSlug(realm)
@@ -1084,7 +1091,7 @@ local function PostPvPTeamSummary()
 
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
     local function addEnemy(unit)
-        if not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsFriend("player", unit) then return end
+        if not UnitExists(unit) or not SafeUnitIsPlayer(unit) or UnitIsFriend("player", unit) then return end
         local name, realm = UnitFullName(unit)
         realm = realm or GetRealmName()
 
@@ -1131,13 +1138,22 @@ local function PostPvPTeamSummary()
 
     local target = GetAnnounceTargetForCurrentMatch()
     AnnounceLine("=== Rated Stats - Achievements PvP Summary ===", target)
-    AnnounceLine(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), target)
+    if #enemyTeam > 0 then
+        AnnounceLine(centerText("My Team", 45) .. " || " .. centerText("Enemy Team", 45), target)
+    else
+        AnnounceLine(centerText("My Team", 45) .. " || " .. centerText("Enemy Team (unavailable)", 45), target)
+    end
 
     local maxRows = math.max(#myTeam, #enemyTeam)
     for i = 1, maxRows do
         local left = myTeam[i] or ""
         local right = enemyTeam[i] or ""
-        AnnounceLine(centerText(left, 45) .. " || " .. centerText(right, 45), target)
+        if #enemyTeam > 0 then
+            AnnounceLine(centerText(left, 45) .. " || " .. centerText(right, 45), target)
+        else
+            -- Don't spam blank enemy rows; just print our team.
+            AnnounceLine(centerText(left, 45), target)
+        end
     end
 end
 
