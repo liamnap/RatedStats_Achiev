@@ -250,68 +250,63 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
         end)
     end
 
-    local _, unit = tooltip:GetUnit()
+    -- Midnight: tooltip:GetUnit() can internally touch secret tooltipData.type and error.
+    -- Never let that propagate and kill the UI.
+    local unit
+    local okGetUnit, _, u = pcall(tooltip.GetUnit, tooltip)
+    if okGetUnit then
+        unit = u
+    end
     local name, realm
 
     if unit and UnitIsPlayer(unit) then
-        name, realm = UnitFullName(unit)
+        local okFullName, n, r = pcall(UnitFullName, unit)
+        if okFullName then
+            name, realm = n, r
+        end
     else
         name, realm = overrideName, overrideRealm
     end
 
-    if not name then return end
+    if not name or type(name) ~= "string" then return end
     realm = realm or GetRealmName()
-    local key = (name .. "-" .. realm):lower()
+
+    local okRealm, normRealm = pcall(NormalizeRealmSlug, realm)
+    if not okRealm or not normRealm then return end
+
+    local okKey, tooltipKey = pcall(function()
+        return (name .. "-" .. normRealm):lower()
+    end)
+    if not okKey or not tooltipKey then return end
 
     -- Avoid adding twice for same target, but allow refreshes
-    if tooltip.__RatedStatsLast == key then return end
-    tooltip.__RatedStatsLast = key
+    if tooltip.__RatedStatsLast == tooltipKey then return end
+    tooltip.__RatedStatsLast = tooltipKey
 
     -- look up our per-char database and bail out if Achiev is off
-    local key = UnitName("player") .. "-" .. GetRealmName()
-    local db  = RSTATS.Database[key]
+    local playerKey = UnitName("player") .. "-" .. GetRealmName()
+    local db  = RSTATS.Database[playerKey]
 	local module = "RatedStats_Achiev"
     if C_AddOns.GetAddOnEnableState(module, nil) == 0 then
         return
     end
-  
-    local baseName, realm
 
-    -- Use override only if tooltip:GetUnit() is not supported or not a unit tooltip
-    local unit
-    if tooltip.GetUnit then
-        _, unit = tooltip:GetUnit()
-    end
-
-    if unit and UnitIsPlayer(unit) then
-        baseName, realm = UnitFullName(unit)
-    elseif overrideName then
-        baseName = overrideName
-        realm = overrideRealm or GetRealmName()
-    else
-        return -- No usable name/realm source
-    end
-
-    realm = realm or GetRealmName()
-    local normRealm = NormalizeRealmSlug(realm)
-    local fullName  = (baseName .. "-" .. normRealm):lower()
-
-    -- Cache lookup using regionLookup (main OR alt)
-    if achievementCache[fullName] == nil then
-        local entry = regionLookup[fullName]
+    if achievementCache[tooltipKey] == nil then
+        local entry = regionLookup[tooltipKey]
         if entry then
-            achievementCache[fullName] = GetPvpAchievementSummary(entry)
+            achievementCache[tooltipKey] = GetPvpAchievementSummary(entry)
         else
-            achievementCache[fullName] = { summary = {}, highest = nil }
+            achievementCache[tooltipKey] = { summary = {}, highest = nil }
         end
     end
 
-    local result = achievementCache[fullName]
+    local result = achievementCache[tooltipKey]
     -- Safety: never allow non-table cache entries to break the tooltip
     if type(result) ~= "table" then
         result = { summary = {}, highest = nil }
-        achievementCache[fullName] = result
-    end	local summary = result.summary or {}
+        achievementCache[tooltipKey] = result
+    end
+	local summary = result.summary or {}
 	local highest = result.highest
 
     tooltip:AddLine("|cffb69e86Rated Stats - Achievements|r")
@@ -425,7 +420,9 @@ f:SetScript("OnEvent", function(_, event)
 
 		-- Hook 1: General player units (includes mouseover, target, focus)
 		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-			local _, unit = tooltip:GetUnit()
+            local unit
+            local ok, _, u = pcall(tooltip.GetUnit, tooltip)
+            if ok then unit = u end
 			if not unit or not UnitIsPlayer(unit) then return end
 		
 			local name, realm = UnitFullName(unit)
@@ -443,7 +440,9 @@ f:SetScript("OnEvent", function(_, event)
 		
 		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
 		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-			local _, unit = tooltip:GetUnit()
+            local unit
+            local ok, _, u = pcall(tooltip.GetUnit, tooltip)
+            if ok then unit = u end
 			if unit == "player" then
 				local name, realm = UnitFullName("player")
 				realm = realm or GetRealmName()
@@ -491,8 +490,10 @@ f:SetScript("OnEvent", function(_, event)
 		else
 			-- Fallback: use general GameTooltip::SetUnit hook if TooltipDataProcessor unavailable
 			hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-				local _, unit = tooltip:GetUnit()
-				if unit and UnitIsPlayer(unit) then
+                local unit
+                local ok, _, u = pcall(tooltip.GetUnit, tooltip)
+                if ok then unit = u end
+                if unit and UnitIsPlayer(unit) then
 					local name, realm = UnitFullName(unit)
 					realm = realm or GetRealmName()
 					C_Timer.After(0.5, function()
@@ -1101,7 +1102,7 @@ local function PostPvPTeamSummary()
             return (name .. "-" .. normRealm):lower()
         end)
         if not okFull or not fullName then return end
-        
+
         local cached = achievementCache[fullName]
         if seenEnemies[fullName] then return end  -- skip duplicates
         seenEnemies[fullName] = true
