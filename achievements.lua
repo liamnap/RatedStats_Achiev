@@ -1239,9 +1239,12 @@ _G.RSTATS_Achiev_GetHighestPvpRank = function(fullName)
 
     -- Find the same icon family your tooltip rows are based on.
     local iconPath
+    local iconTint
+
     for _, col in ipairs(PvpRankColumns) do
         if col.prefix and highestLower:find(col.prefix:lower(), 1, true) then
             iconPath = col.icon or (col.icons and col.icons[1])
+            iconTint = col.tint
             break
         end
         if col.r1 and col.icons then
@@ -1273,5 +1276,5 @@ _G.RSTATS_Achiev_GetHighestPvpRank = function(fullName)
         end
     end
 
-    return iconPath, highest
+    return iconPath, highest, iconTint
 end
