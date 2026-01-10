@@ -1152,7 +1152,7 @@ local function PostPvPTeamSummary()
             AnnounceLine(centerText(left, 45) .. " || " .. centerText(right, 45), target)
         else
             -- Don't spam blank enemy rows; just print our team.
-            AnnounceLine(centerText(left, 45), target)
+            AnnounceLine(left, target)
         end
     end
 end
