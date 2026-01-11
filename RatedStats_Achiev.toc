@@ -5,6 +5,7 @@
 ## RequiredDeps: RatedStats
 ## SavedVariables: RSTATS_Database
 ## IconTexture: Interface\AddOns\RatedStats\RatedStats.tga
+settings.lua
 region_eu_part1.lua
 region_eu_part2.lua
 region_eu_part3.lua
@@ -20,4 +21,3 @@ region_us_part6.lua
 region_tw.lua
 region_kr.lua
 achievements.lua
-settings.lua
