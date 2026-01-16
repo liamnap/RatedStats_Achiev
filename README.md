@@ -32,7 +32,7 @@ The achievement block appears when you interact with players through:
 
 | <img src="images//combatant.png" width="28"> | <img src="images//challenger.png" width="28"> | <img src="images//rival.png" width="28"> | <img src="images//duelist.png" width="28"> | <img src="images//elite.png" width="28"> | <img src="images//strategist.png" width="28"> | <img src="images//gladiator.png" width="28"> | <img src="images//legend.png" width="28"> | <img src="images//r1.png" width="28"> | <img src="images//horde.png" width="28"> <img src="images//alliance.png" width="28"> |
 |---|---|---|---|---|---|---|---|---|---|
-+| Combatant<br>I / II | Challenger<br>I / II | Rival<br>I / II | Duelist | Elite | Strategist | Gladiator | Legend | Rank 1 | Hero of the<br>Horde / Alliance |
+| Combatant<br>I / II | Challenger<br>I / II | Rival<br>I / II | Duelist | Elite | Strategist | Gladiator | Legend | Rank 1 | Hero of the<br>Horde / Alliance |
 
 **Note:** Strategist / Gladiator / Legend / Rank 1 share the same base icon in-game — Rated Stats differentiates them by colour.
 
