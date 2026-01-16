@@ -3,7 +3,7 @@
 PvP achievement + rank tracking on tooltips — instantly spot **Gladiators, Legends, Strategists, Rank 1s** (plus Duelist/Rival/etc) on mouseover/target/party/raid, **guild roster**, and **LFG leaders/applicants**.
 
 **Download (recommended):** https://www.curseforge.com/wow/addons/rated-stats-achievements  
-**Core addon (Rated Stats):** https://www.curseforge.com/wow/addons/rated-stats
+**Core addon (Rated Stats):** https://www.curseforge.com/wow/addons/rated-stats (REQUIRED)
 
 ---
 
