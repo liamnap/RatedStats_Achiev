@@ -34,8 +34,6 @@ The achievement block appears when you interact with players through:
 |---|---|---|---|---|---|---|---|---|---|
 | Combatant<br>I / II | Challenger<br>I / II | Rival<br>I / II | Duelist | Elite | Strategist | Gladiator | Legend | Rank 1 | Hero of the<br>Horde / Alliance |
 
-**Note:** Strategist / Gladiator / Legend / Rank 1 share the same base icon in-game — Rated Stats differentiates them by colour.
-
 ---
 
 ## Optional announcements (settings)
