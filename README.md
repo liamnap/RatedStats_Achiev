@@ -30,10 +30,11 @@ The achievement block appears when you interact with players through:
 
 ## Icon Legend (Titles)
 
-| ![Combatant I/II]((https://www.wowhead.com/icon=2022757/achievement-rankedpvp-02)) | ![Challenger I/II]([<challenger-i-ii-image>](https://www.wowhead.com/icon=2022758/achievement-rankedpvp-03)) | ![Rival I/II]([<rival-i-ii-image>](https://www.wowhead.com/icon=2023036/ui-rankedpvp-04-small)) | ![Duelist]([<duelist-image>](https://www.wowhead.com/icon=2022760/achievement-rankedpvp-05)) | ![Elite]([<elite-image>](https://www.wowhead.com/icon=2022761/achievement-rankedpvp-06)) | ![Strategist](https://www.wowhead.com/icon=2022762/achievement-rankedpvp-07) | ![Gladiator]([<gladiator-image>](https://www.wowhead.com/icon=2022762/achievement-rankedpvp-07)) | ![Legend]([<legend-image>](https://www.wowhead.com/icon=2022762/achievement-rankedpvp-07)) | ![Rank 1]([<rank1-image>](https://www.wowhead.com/icon=2022762/achievement-rankedpvp-07)) | ![Hero Horde](https://www.wowhead.com/icon=236629/achievement-pvp-h-h) ![Hero Alliance](https://www.wowhead.com/icon=236593/achievement-pvp-a-a) |
+| <img src="images//combatant.png" width="28"> | <img src="images//challenger.png" width="28"> | <img src="images//rival.png" width="28"> | <img src="images//duelist.png" width="28"> | <img src="images//elite.png" width="28"> | <img src="images//strategist.png" width="28"> | <img src="images//gladiator.png" width="28"> | <img src="images//legend.png" width="28"> | <img src="images//r1.png" width="28"> | <img src="images//horde.png" width="28"> <img src="images//alliance.png" width="28"> |
+|---|---|---|---|---|---|---|---|---|---|
 | Combatant I / II | Challenger I / II | Rival I / II | Duelist | Elite | Strategist | Gladiator | Legend | Rank 1 | Hero of the Horde / Alliance |
 
-**Note:** Strategist / Gladiator / Legend / Rank 1 use the same base icon in-game — the addon differentiates them by tint.
+**Note:** Strategist / Gladiator / Legend / Rank 1 share the same base icon in-game — Rated Stats differentiates them by colour.
 
 ---
 
