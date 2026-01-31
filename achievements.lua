@@ -453,11 +453,13 @@ tooltipWatcher:SetScript("OnEvent", function(_, event)
 		end)
 		
 		-- Hook 2: Ensure the player's own tooltip *always* updates cleanly
-		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip)
-            local unit
-            local ok, _, u = pcall(tooltip.GetUnit, tooltip)
-            if ok then unit = u end
-			if unit == "player" then
+		hooksecurefunc(GameTooltip, "SetUnit", function(tooltip, unit)
+            if unit and type(unit) == "string" and issecretvalue and issecretvalue(unit) and scrubsecretvalues then
+                local ok, clean = pcall(scrubsecretvalues, unit)
+                if ok then unit = clean else return end
+            end
+            if not unit then return end
+			if UnitIsUnit(unit, "player") then
 				local name, realm = UnitFullName("player")
 				realm = realm or GetRealmName()
 --				tooltip.__RatedStatsLast = nil -- force refresh
