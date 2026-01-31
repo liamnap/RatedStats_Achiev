@@ -374,6 +374,12 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     tooltip:Show()
 end
 
+-- Export for other Rated Stats modules to reuse the exact same tooltip.
+_G.RSTATS_Achiev_AddAchievementInfoToTooltip = function(tooltip, name, realm)
+    if not tooltip or type(name) ~= "string" or name == "" then return end
+    AddAchievementInfoToTooltip(tooltip, name, realm)
+end
+
 -- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
 local ScrollBoxUtil = {}
 
