@@ -374,6 +374,12 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     tooltip:Show()
 end
 
+-- Export for other Rated Stats modules to reuse the exact same tooltip.
+_G.RSTATS_Achiev_AddAchievementInfoToTooltip = function(tooltip, name, realm)
+    if not tooltip or type(name) ~= "string" or name == "" then return end
+    AddAchievementInfoToTooltip(tooltip, name, realm)
+end
+
 -- Minimal ScrollBoxUtil helper (mirrors Raider.IO core.lua)
 local ScrollBoxUtil = {}
 
@@ -824,9 +830,6 @@ local function ResolveChatChannelFromTarget(target)
     if target == 3 then
         -- INSTANCE means instance group chat when available.
         if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then return "INSTANCE_CHAT" end
-        -- RBGB/RBG can present as a raid without the instance-category flag at some points.
-        if IsInRaid() then return "RAID" end
-        if IsInGroup() then return "PARTY" end
         return nil
     end
 
