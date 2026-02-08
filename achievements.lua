@@ -892,7 +892,7 @@ local function AnnounceLine(message, target)
         local function retry()
             tries = tries + 1
             if not (InCombatLockdown and InCombatLockdown()) then
-                SendChatMessage(message, channel)
+                C_ChatInfo.SendChatMessage(message, channel, nil, nil)
                 return
             end
             if tries < 20 then -- ~10 seconds at 0.5s intervals
@@ -903,7 +903,7 @@ local function AnnounceLine(message, target)
         return
     end
 
-    SendChatMessage(message, channel)
+    C_ChatInfo.SendChatMessage(message, channel, nil, nil)
 end
 
 local function PrintPartyAchievements()
