@@ -1,5 +1,5 @@
 ## Title: RatedStats – Achievements
-## Interface: 110207, 120000
+## Interface: 110207, 120000, 120001
 ## DefaultState: enabled
 ## LoadOnDemand: 1
 ## RequiredDeps: RatedStats
