@@ -15,7 +15,7 @@ confirm_env="${RS_CONFIRM_SPAM:-}"
 
 orig_branch="$(git rev-parse --abbrev-ref HEAD)"
 
-echo "== RatedStats_Achiev: Promote ${dev_branch} -> ${main_branch} (lua/toc only; tag main) =="
+echo "== RatedStats_Achiev: Promote ${dev_branch} -> ${main_branch} (history merge; tag main) =="
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "ERROR: Working tree is dirty. Commit/stash first."
@@ -94,31 +94,6 @@ fi
 echo "Changed files (${#changed[@]}):"
 printf ' - %s\n' "${changed[@]}"
 
-allowed=()
-disallowed=()
-for f in "${changed[@]}"; do
-  if [[ "$f" == *.toc ]]; then
-    allowed+=("$f")
-  elif [[ "$f" == *.lua && "$f" != region_*.lua ]]; then
-    allowed+=("$f")
-  else
-    disallowed+=("$f")
-  fi
-done
-
-echo
-echo "Selective merge policy:"
-echo " - Allowed: *.lua (excluding region_*.lua), and *.toc"
-if [[ ${#allowed[@]} -eq 0 ]]; then
-  echo "Nothing allowed to merge (only region/data or non-Lua/non-TOC changes). Aborting."
-  git checkout -q "${orig_branch}"
-  exit 0
-fi
-if [[ ${#disallowed[@]} -gt 0 ]]; then
-  echo " - Disallowed (will remain as main's version):"
-  printf '   - %s\n' "${disallowed[@]}"
-fi
-
 echo
 echo "[4/8] Spam scan (prints/chat/event/ticker/onupdate)..."
 
@@ -145,7 +120,7 @@ scan_file() {
   fi
 }
 
-for f in "${allowed[@]}"; do
+for f in "${changed[@]}"; do
   scan_file "$f"
 done
 
@@ -187,9 +162,8 @@ fi
 git merge --no-ff "${dev_branch}" -m "${merge_msg}"
 
 echo
-echo "[6/8] Tagging main with next version (based on latest main tag)..."
-tag="$(next_main_tag)"
-echo "Next main tag: ${tag}"
+echo "[6/8] Tagging main with next version..."
+echo "Using pre-calculated tag: ${tag}"
 
 default_tag_msg="Automated tag for main ${tag}"
 echo "Tag message (enter to accept default): ${default_tag_msg}"
