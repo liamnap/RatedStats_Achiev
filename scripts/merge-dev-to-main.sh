@@ -159,7 +159,21 @@ if [[ -n "${user_msg}" ]]; then
 fi
 
 # --- TRUE HISTORY MERGE ---
-git merge --no-ff "${dev_branch}" -m "${merge_msg}"
+if ! git merge --no-ff "${dev_branch}" -m "${merge_msg}"; then
+    echo "Merge reported conflicts. Attempting scripted resolution..."
+fi
+
+# AUTO RESOLVE SAFE FILES
+if git ls-files -u | grep -q .; then
+  echo "Merge conflict detected. Attempting auto-resolution for known safe files..."
+
+  git checkout --theirs .gitattributes 2>/dev/null || true
+  git checkout --theirs .vscode/* 2>/dev/null || true
+  git checkout --theirs RatedStats_Achiev.toc 2>/dev/null || true
+
+  git add -A
+  git commit --no-edit || true
+fi
 
 echo
 echo "[6/8] Tagging main with next version..."
