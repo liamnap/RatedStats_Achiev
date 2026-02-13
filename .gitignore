@@ -1,12 +1,19 @@
 # Ignore GitHub Actions and project settings
 .github/
+<<<<<<< HEAD
 .vscode/
 _dl/
 partial_outputs/
+=======
+>>>>>>> dev
 
 # Ignore log files
 *.log
 
 # Ignore JavaScript and Python files
 *.js
+<<<<<<< HEAD
 *.py
+=======
+*.py
+>>>>>>> dev
