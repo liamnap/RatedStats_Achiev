@@ -65,7 +65,7 @@ next_main_tag() {
   printf '%s\n' "${candidate}"
 }
 
-echo "[1/7] Fetching ${remote} (including tags)..."
+echo "[1/8] Fetching ${remote} (including tags)..."
 git fetch --prune --tags "${remote}"
 
 for b in "${dev_branch}" "${main_branch}"; do
@@ -76,14 +76,14 @@ for b in "${dev_branch}" "${main_branch}"; do
   fi
 done
 
-echo "[2/7] Fast-forwarding local branches..."
+echo "[2/8] Fast-forwarding local branches..."
 git checkout -q "${dev_branch}"
 git pull --ff-only "${remote}" "${dev_branch}"
 
 git checkout -q "${main_branch}"
 git pull --ff-only "${remote}" "${main_branch}"
 
-echo "[3/7] Calculating diff ${remote}/${main_branch}..${remote}/${dev_branch}..."
+echo "[3/8] Calculating diff ${remote}/${main_branch}..${remote}/${dev_branch}..."
 mapfile -t changed < <(git diff --name-only "${remote}/${main_branch}..${remote}/${dev_branch}" | tr -d '\r')
 if [[ ${#changed[@]} -eq 0 ]]; then
   echo "Nothing to merge: ${dev_branch} has no changes vs ${main_branch}."
@@ -120,7 +120,7 @@ if [[ ${#disallowed[@]} -gt 0 ]]; then
 fi
 
 echo
-echo "[4/7] Spam scan (prints/chat/event/ticker/onupdate)..."
+echo "[4/8] Spam scan (prints/chat/event/ticker/onupdate)..."
 
 spam_hits=0
 
@@ -168,46 +168,26 @@ else
 fi
 
 echo
-echo "[5/7] Promoting allowed files from ${dev_branch} onto ${main_branch}..."
-merge_msg="Promote ${dev_branch} -> ${main_branch} (lua/toc only)"merge_msg="Merge ${dev_branch} into ${main_branch}"
-echo "Merge commit message (enter to accept default): ${merge_msg}"
+echo "[5/8] Merging ${dev_branch} into ${main_branch} (preserve history)..."
+
+git checkout -q "${main_branch}"
+
+# Pre-calc next release tag
+tag="$(next_main_tag)"
+echo "Next main tag: ${tag}"
+
+merge_msg="Release ${tag}"
+echo "Merge message (enter to accept default): ${merge_msg}"
 read -r user_msg || true
 if [[ -n "${user_msg}" ]]; then
   merge_msg="${user_msg}"
 fi
 
-git checkout -q "${main_branch}"
-
-echo "[5b] Applying allowed files from ${remote}/${dev_branch}..."
-
-# We are NOT merging. We are copying the allowed paths from dev onto main.
-# Using restore --source updates worktree and index when combined with --staged --worktree. :contentReference[oaicite:1]{index=1}
-for p in "${allowed[@]}"; do
-  if git cat-file -e "${remote}/${dev_branch}:${p}" >/dev/null 2>&1; then
-    if git restore -h >/dev/null 2>&1; then
-      git restore --source "${remote}/${dev_branch}" --staged --worktree -- "${p}"
-    else
-      git checkout "${remote}/${dev_branch}" -- "${p}"
-      git add -- "${p}"
-    fi
-  else
-    # Allowed file was deleted on dev; reflect that on main.
-    git rm -f --ignore-unmatch -- "${p}" >/dev/null 2>&1 || true
-  fi
-done
-
-if git diff --cached --quiet; then
-  echo "Nothing staged after promotion. Exiting."
-  git checkout -q "${orig_branch}"
-  exit 0
-fi
+# --- TRUE HISTORY MERGE ---
+git merge --no-ff "${dev_branch}" -m "${merge_msg}"
 
 echo
-echo "[5c] Committing promoted changes..."
-git commit -m "${merge_msg}"
-
-echo
-echo "[6/7] Tagging main with next version (based on latest main tag)..."
+echo "[6/8] Tagging main with next version (based on latest main tag)..."
 tag="$(next_main_tag)"
 echo "Next main tag: ${tag}"
 
@@ -221,10 +201,22 @@ fi
 git tag -a "${tag}" -m "${default_tag_msg}"
 
 echo
-echo "[7/7] Pushing ${main_branch} + tags to ${remote}..."
+echo "[7/8] Pushing ${main_branch} + tags to ${remote}..."
 git push "${remote}" "${main_branch}"
 git push "${remote}" --tags
 
 echo
 echo "Merge complete."
 git checkout -q "${orig_branch}"
+
+echo
+echo "[8/8] Creating GitHub release..."
+
+if command -v gh >/dev/null 2>&1; then
+  gh release create "${tag}" \
+    --title "${tag}" \
+    --notes "RatedStats Achievements release ${tag}" \
+    --target "${main_branch}"
+else
+  echo "WARNING: GitHub CLI not installed. Release not created."
+fi
