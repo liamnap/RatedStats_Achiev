@@ -202,8 +202,8 @@ echo "[8/8] Creating GitHub release..."
 
 if command -v gh >/dev/null 2>&1; then
   gh release create "${tag}" \
-    --title "${tag}" \
-    --notes "RatedStats Achievements release ${tag}" \
+    --title "Rated Stats Achievements ${tag}" \
+    --notes "Rated Stats Achievements release ${tag}" \
     --target "${main_branch}"
 else
   echo "WARNING: GitHub CLI not installed. Release not created."
