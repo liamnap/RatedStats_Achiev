@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "ERROR: Not inside a git repo."
+  exit 1
+fi
+
+remote="origin"
+dev_branch="dev"
+main_branch="main"
+
+# If set to YES, bypass the interactive spam prompt.
+confirm_env="${RS_CONFIRM_SPAM:-}"
+
+orig_branch="$(git rev-parse --abbrev-ref HEAD)"
+
+echo "== RatedStats_Achiev: Promote ${dev_branch} -> ${main_branch} (history merge; tag main) =="
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "ERROR: Working tree is dirty. Commit/stash first."
+  git status --porcelain
+  exit 1
+fi
+
+next_main_tag() {
+  # Main tag pattern (seen in your published artifacts):
+  # v<major>.<build>-YYYY-MM-DD with tag message "Automated tag for main <tag>"
+  # :contentReference[oaicite:5]{index=5}
+  local max_major=-1
+  local max_build=-1
+  local t major build
+
+  while IFS= read -r t; do
+    if [[ "$t" =~ ^v([0-9]+)\.([0-9]+)-([0-9]{4}-[0-9]{2}-[0-9]{2})$ ]]; then
+      major="${BASH_REMATCH[1]}"
+      build="${BASH_REMATCH[2]}"
+
+      if (( 10#$major > max_major )); then
+          max_major="$((10#$major))"
+          max_build="$((10#$build))"
+      elif (( 10#$major == max_major && 10#$build > max_build )); then
+        max_build="$((10#$build))"
+      fi
+    fi
+  done < <(git tag --list 'v*')
+
+  if (( max_major < 0 || max_build < 0 )); then
+    echo "ERROR: Could not find any existing main tags matching v<major>.<build>-YYYY-MM-DD"
+    echo "       This script refuses to invent a scheme."
+    return 1
+  fi
+
+  local today
+  today="$(date -u +%F)"
+
+  local next_build=$((10#$max_build + 1))
+  local candidate="v${max_major}.${next_build}-${today}"
+
+  while git rev-parse -q --verify "refs/tags/${candidate}" >/dev/null; do
+    next_build=$((next_build + 1))
+    candidate="v${max_major}.${next_build}-${today}"
+  done
+
+  printf '%s\n' "${candidate}"
+}
+
+echo "[1/8] Fetching ${remote} (including tags)..."
+git fetch --prune --tags "${remote}"
+
+for b in "${dev_branch}" "${main_branch}"; do
+  if ! git show-ref --verify --quiet "refs/heads/${b}"; then
+    echo "ERROR: Local branch '${b}' not found."
+    echo "Fix: git checkout -b ${b} ${remote}/${b}"
+    exit 1
+  fi
+done
+
+echo "[2/8] Fast-forwarding local branches..."
+git checkout -q "${dev_branch}"
+git pull --ff-only "${remote}" "${dev_branch}"
+
+git checkout -q "${main_branch}"
+git pull --ff-only "${remote}" "${main_branch}"
+
+echo "[3/8] Calculating diff ${remote}/${main_branch}..${remote}/${dev_branch}..."
+mapfile -t changed < <(git diff --name-only "${remote}/${main_branch}..${remote}/${dev_branch}" | tr -d '\r')
+if [[ ${#changed[@]} -eq 0 ]]; then
+  echo "Nothing to merge: ${dev_branch} has no changes vs ${main_branch}."
+  git checkout -q "${orig_branch}"
+  exit 0
+fi
+
+echo "Changed files (${#changed[@]}):"
+printf ' - %s\n' "${changed[@]}"
+
+echo
+echo "[4/8] Spam scan (prints/chat/event/ticker/onupdate)..."
+
+spam_hits=0
+
+scan_file() {
+  local f="$1"
+  [[ -f "$f" ]] || return 0
+
+  case "$f" in
+    *.lua|*.toc) ;;
+    *) return 0 ;;
+  esac
+
+  if grep -nE \
+    '(^|[^a-zA-Z0-9_])(print|DEFAULT_CHAT_FRAME:AddMessage|ChatFrame[0-9]+:AddMessage|SendChatMessage|BNSendWhisper)\s*\(|RegisterEvent\s*\(|RegisterAllEvents\s*\(|C_Timer\.NewTicker\s*\(|C_Timer\.After\s*\(|SetScript\s*\(\s*["'\'']OnUpdate["'\'']' \
+    "$f" >/dev/null 2>&1; then
+    echo
+    echo "---- ${f} ----"
+    grep -nE \
+      '(^|[^a-zA-Z0-9_])(print|DEFAULT_CHAT_FRAME:AddMessage|ChatFrame[0-9]+:AddMessage|SendChatMessage|BNSendWhisper)\s*\(|RegisterEvent\s*\(|RegisterAllEvents\s*\(|C_Timer\.NewTicker\s*\(|C_Timer\.After\s*\(|SetScript\s*\(\s*["'\'']OnUpdate["'\'']' \
+      "$f" || true
+    spam_hits=1
+  fi
+}
+
+for f in "${changed[@]}"; do
+  scan_file "$f"
+done
+
+if [[ "${spam_hits}" -eq 1 ]]; then
+  echo
+  echo "WARNING: Potentially spammy changes detected above."
+  if [[ "${confirm_env}" != "YES" ]]; then
+    echo "Type YES to proceed (or Ctrl+C to abort):"
+    read -r ans
+    if [[ "${ans}" != "YES" ]]; then
+      echo "Aborted."
+      git checkout -q "${orig_branch}"
+      exit 1
+    fi
+  else
+    echo "RS_CONFIRM_SPAM=YES set; proceeding without prompt."
+  fi
+else
+  echo "No spam triggers detected."
+fi
+
+echo
+echo "[5/8] Merging ${dev_branch} into ${main_branch} (preserve history)..."
+
+git checkout -q "${main_branch}"
+
+# Pre-calc next release tag
+tag="$(next_main_tag)"
+echo "Next main tag: ${tag}"
+
+merge_msg="Release ${tag}"
+echo "Merge message (enter to accept default): ${merge_msg}"
+read -r user_msg || true
+if [[ -n "${user_msg}" ]]; then
+  merge_msg="${user_msg}"
+fi
+
+# --- TRUE HISTORY MERGE ---
+if ! git merge --no-ff "${dev_branch}" -m "${merge_msg}"; then
+    echo "Merge reported conflicts. Attempting scripted resolution..."
+fi
+
+# AUTO RESOLVE SAFE FILES
+if git ls-files -u | grep -q .; then
+  echo "Merge conflict detected. Attempting auto-resolution for known safe files..."
+
+  git checkout --theirs .gitattributes 2>/dev/null || true
+  git checkout --theirs .vscode/* 2>/dev/null || true
+  git checkout --theirs RatedStats_Achiev.toc 2>/dev/null || true
+
+  git add -A
+  git commit --no-edit || true
+fi
+
+echo
+echo "[6/8] Tagging main with next version..."
+echo "Using pre-calculated tag: ${tag}"
+
+default_tag_msg="Automated tag for main ${tag}"
+echo "Tag message (enter to accept default): ${default_tag_msg}"
+read -r user_tag_msg || true
+if [[ -n "${user_tag_msg}" ]]; then
+  default_tag_msg="${user_tag_msg}"
+fi
+
+git tag -a "${tag}" -m "${default_tag_msg}"
+
+echo
+echo "[7/8] Pushing ${main_branch} + tags to ${remote}..."
+git push "${remote}" "${main_branch}"
+git push "${remote}" --tags
+
+echo
+echo "Merge complete."
+git checkout -q "${orig_branch}"
+
+echo
+echo "[8/8] Creating GitHub release..."
+
+if command -v gh >/dev/null 2>&1; then
+  gh release create "${tag}" \
+    --title "${tag}" \
+    --notes "RatedStats Achievements release ${tag}" \
+    --target "${main_branch}"
+else
+  echo "WARNING: GitHub CLI not installed. Release not created."
+fi

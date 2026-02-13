@@ -1,2 +1,4 @@
 ## .gitattributes
 region_*.lua              -filter -diff -merge -text
+
+.vscode/** merge=ours
