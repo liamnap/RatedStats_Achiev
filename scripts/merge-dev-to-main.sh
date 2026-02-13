@@ -36,11 +36,11 @@ next_main_tag() {
       major="${BASH_REMATCH[1]}"
       build="${BASH_REMATCH[2]}"
 
-      if (( major > max_major )); then
-        max_major="$major"
-        max_build="$build"
-      elif (( major == max_major && build > max_build )); then
-        max_build="$build"
+      if (( 10#$major > max_major )); then
+          max_major="$((10#$major))"
+          max_build="$((10#$build))"
+      elif (( 10#$major == max_major && 10#$build > max_build )); then
+        max_build="$((10#$build))"
       fi
     fi
   done < <(git tag --list 'v*')
@@ -54,7 +54,7 @@ next_main_tag() {
   local today
   today="$(date -u +%F)"
 
-  local next_build=$((max_build + 1))
+  local next_build=$((10#$max_build + 1))
   local candidate="v${max_major}.${next_build}-${today}"
 
   while git rev-parse -q --verify "refs/tags/${candidate}" >/dev/null; do
