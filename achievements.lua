@@ -591,8 +591,14 @@ tooltipWatcher:SetScript("OnEvent", function(_, event)
                 frame.__ratedStatsHooked = true
 
                 frame:HookScript("OnEnter", function(self)
+                    -- Do not touch guild roster names once a PvP match is engaged.
+                    if IsMatchPastPreGame and IsMatchPastPreGame() then
+                        return
+                    end
                     local info = self.memberInfo
                     if not info or not info.name then return end
+                    if type(info.name) ~= "string" then return end
+                    if issecretvalue and issecretvalue(info.name) then return end
 
                     local name, realm = strsplit("-", info.name)
                     realm = realm or GetRealmName()
