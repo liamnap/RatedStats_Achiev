@@ -1,6 +1,8 @@
 local RatedStats, Achiev = ...
 local playerName   = UnitName("player") .. "-" .. GetRealmName()
 local lastMatchActive = 0
+local hasAnnouncedCurrentMatch = false
+local pendingArenaSummary = false
 
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
@@ -860,6 +862,57 @@ local function ResolveChatChannelFromTarget(target)
     return nil
 end
 
+local function GetExpectedRatedRosterSize()
+    if C_PvP and C_PvP.IsRatedBattleground and C_PvP.IsRatedBattleground() then
+        return 20
+    end
+
+    if C_PvP and C_PvP.IsSoloRBG and C_PvP.IsSoloRBG() then
+        return 16
+    end
+
+    return nil
+end
+
+local function HasFullRatedScoreboardRoster()
+    local expected = GetExpectedRatedRosterSize()
+    if not expected then return false end
+
+    local numScores = GetNumBattlefieldScores()
+    if not numScores or numScores ~= expected then
+        return false
+    end
+
+    local myFaction = UnitFactionGroup("player")
+    local friendlyCount, enemyCount = 0, 0
+
+    for i = 1, numScores do
+        local name, _, _, _, _, factionIndex = GetBattlefieldScore(i)
+        if name and factionIndex ~= nil then
+            local faction = (factionIndex == 0) and "Horde" or "Alliance"
+            if faction == myFaction then
+                friendlyCount = friendlyCount + 1
+            else
+                enemyCount = enemyCount + 1
+            end
+        end
+    end
+
+    return (friendlyCount + enemyCount) == expected and friendlyCount > 0 and enemyCount > 0
+end
+
+local function IsMatchPastPreGame()
+    if not (C_PvP and C_PvP.GetActiveMatchState and Enum and Enum.PvPMatchState) then
+        return false
+    end
+
+    local state = C_PvP.GetActiveMatchState()
+
+    return state == Enum.PvPMatchState.Engaged
+        or state == Enum.PvPMatchState.PostRound
+        or state == Enum.PvPMatchState.Complete
+end
+
 local function AnnounceLine(message, target)
     if not message or message == "" then return end
 
@@ -883,27 +936,11 @@ local function AnnounceLine(message, target)
     if #message > 250 then
         return
     end
-
-    -- Avoid ADDON_ACTION_FORBIDDEN: chat sends can be protected/blocked in combat (especially in PvP).
     if InCombatLockdown and InCombatLockdown() then
-        -- Respect the chosen channel: don't print to self.
-        -- Try again shortly until we leave combat, but don't spin forever.
-        local tries = 0
-        local function retry()
-            tries = tries + 1
-            if not (InCombatLockdown and InCombatLockdown()) then
-                C_ChatInfo.SendChatMessage(message, channel, nil, nil)
-                return
-            end
-            if tries < 20 then -- ~10 seconds at 0.5s intervals
-                C_Timer.After(0.5, retry)
-            end
-        end
-        C_Timer.After(0.5, retry)
         return
     end
 
-    C_ChatInfo.SendChatMessage(message, channel, nil, nil)
+    pcall(C_ChatInfo.SendChatMessage, message, channel, nil, nil)
 end
 
 local function PrintPartyAchievements()
@@ -1168,81 +1205,117 @@ end
 local instanceWatcher = CreateFrame("Frame")
 instanceWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 instanceWatcher:RegisterEvent("PVP_MATCH_ACTIVE")
+instanceWatcher:RegisterEvent("PVP_MATCH_COMPLETE")
 
 instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     local inInstance, instanceType = IsInInstance()
 
     -- 🔸 PvP Instances (BG / RBG / Blitz)
     if event == "PLAYER_ENTERING_WORLD" then
+        hasAnnouncedCurrentMatch = false
+        pendingArenaSummary = false
         -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
-        if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then            -- battlegrounds: enemy list available right away via GetBattlefieldScore()
-            C_Timer.After(30, function()
-                -- collect both teams based on battlefield score API
+        if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then
+            local tries = 0
+
+            local function TryRatedBGAnnounce()
+                tries = tries + 1
+
+                if hasAnnouncedCurrentMatch then
+                    return
+                end
+
+                if IsMatchPastPreGame() then
+                    return
+                end
+
+                if not HasFullRatedScoreboardRoster() then
+                    if tries < 30 then
+                        C_Timer.After(1.0, TryRatedBGAnnounce)
+                    end
+                    return
+                end
+
                 local numScores = GetNumBattlefieldScores()
-                if numScores and numScores > 0 then
-                    local myFaction = UnitFactionGroup("player")
-                    local myTeam, enemyTeam = {}, {}
+                if not numScores or numScores <= 0 then
+                    if tries < 30 then
+                        C_Timer.After(1.0, TryRatedBGAnnounce)
+                    end
+                    return
+                end
 
-					for i = 1, numScores do
-						local name, _, _, _, _, factionIndex = GetBattlefieldScore(i)
-						if name and factionIndex ~= nil then
-							-- Convert numeric faction index (0 = Horde, 1 = Alliance)
-							local faction = (factionIndex == 0) and "Horde" or "Alliance"
-							local myFaction = UnitFactionGroup("player")
-							local isEnemy = (faction ~= myFaction)
-					
-							local baseName, realm = strsplit("-", name)
-							realm = realm or GetRealmName()
-							local normRealm = NormalizeRealmSlug(realm)
-                            local fullName  = (baseName .. "-" .. normRealm):lower()
-					
-							local cached = achievementCache[fullName]
-							if not cached then
-								local entry = regionLookup[fullName]
-								if entry then
-									cached = GetPvpAchievementSummary(entry)
-									achievementCache[fullName] = cached
-								end
-							end
-					
-							local label = cached and cached.label or "Not Seen in Bracket"
-							if isEnemy then
-								table.insert(enemyTeam, string.format("%s - %s", baseName, label))
-							else
-								table.insert(myTeam, string.format("%s - %s", baseName, label))
-							end
-						end
-					end
+                hasAnnouncedCurrentMatch = true
 
-                    local target = GetAnnounceTargetForCurrentMatch()
-                    AnnounceLine("|cffb69e86=== Rated Stats - Achievements ===|r", target)
-                    local maxRows = math.max(#myTeam, #enemyTeam)
-                    for i = 1, maxRows do
-                        local left = myTeam[i] or ""
-                        local right = enemyTeam[i] or ""
-                        if myFaction == "Horde" then
-                            -- apply colors
-                            local myTeam  = "|cFFFF3333" .. left .. "|r"
-                            local enemyTeam = "|cFF3366FF" .. right .. "|r"
-                            AnnounceLine(string.format("%-45s || %-45s", myTeam, enemyTeam), target)
+                local myFaction = UnitFactionGroup("player")
+                local myTeam, enemyTeam = {}, {}
+
+                for i = 1, numScores do
+                    local name, _, _, _, _, factionIndex = GetBattlefieldScore(i)
+                    if name and factionIndex ~= nil then
+                        local faction = (factionIndex == 0) and "Horde" or "Alliance"
+                        local isEnemy = (faction ~= myFaction)
+
+                        local baseName, realm = strsplit("-", name)
+                        realm = realm or GetRealmName()
+                        local normRealm = NormalizeRealmSlug(realm)
+                        local fullName = (baseName .. "-" .. normRealm):lower()
+
+                        local cached = achievementCache[fullName]
+                        if not cached then
+                            local entry = regionLookup[fullName]
+                            if entry then
+                                cached = GetPvpAchievementSummary(entry)
+                                achievementCache[fullName] = cached
+                            end
+                        end
+
+                        local label = cached and cached.label or "Not Seen in Bracket"
+                        if isEnemy then
+                            table.insert(enemyTeam, string.format("%s - %s", baseName, label))
                         else
-                            -- apply colors
-                            local myTeam  = "|cFF3366FF" .. left .. "|r"
-                            local enemyTeam = "|cFFFF3333" .. right .. "|r"
-                            AnnounceLine(string.format("%-45s || %-45s", myTeam, enemyTeam), target)
+                            table.insert(myTeam, string.format("%s - %s", baseName, label))
                         end
                     end
                 end
-            end)
+
+                local target = GetAnnounceTargetForCurrentMatch()
+                AnnounceLine("|cffb69e86=== Rated Stats - Achievements ===|r", target)
+
+                local maxRows = math.max(#myTeam, #enemyTeam)
+                for i = 1, maxRows do
+                    local left = myTeam[i] or ""
+                    local right = enemyTeam[i] or ""
+
+                    if myFaction == "Horde" then
+                        left = "|cFFFF3333" .. left .. "|r"
+                        right = "|cFF3366FF" .. right .. "|r"
+                    else
+                        left = "|cFF3366FF" .. left .. "|r"
+                        right = "|cFFFF3333" .. right .. "|r"
+                    end
+
+                    AnnounceLine(string.format("%-45s || %-45s", left, right), target)
+                end
+            end
+
+            C_Timer.After(1.0, TryRatedBGAnnounce)
         end
+    end
+
+    if event == "PVP_MATCH_COMPLETE" then
+        if inInstance and instanceType == "arena" and pendingArenaSummary and not hasAnnouncedCurrentMatch then
+            pendingArenaSummary = false
+            hasAnnouncedCurrentMatch = true
+            C_Timer.After(1.0, PostPvPTeamSummary)
+        end
+        return
     end
 
     -- 🔸 Arenas / Skirmishes / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
         if inInstance and instanceType == "arena" then
             lastMatchActive = GetTime()
-            -- Fires once when gates open (Arenas, Skirmishes, Solo Shuffle)
-            C_Timer.After(90, PostPvPTeamSummary)
+            pendingArenaSummary = true
         end
     end
 end)
