@@ -1312,7 +1312,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
         if inInstance and instanceType == "arena" and pendingArenaSummary and not hasAnnouncedCurrentMatch then
             pendingArenaSummary = false
             hasAnnouncedCurrentMatch = true
-            C_Timer.After(1.0, PostPvPTeamSummary)
+            C_Timer.After(0.01, PostPvPTeamSummary)
         end
         return
     end
