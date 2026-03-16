@@ -1139,6 +1139,41 @@ local function PostPvPTeamSummary()
         table.insert(myTeam, 1, baseName .. " - " .. label)
     end
 
+    local function addScoreboardPlayer(name, isEnemy)
+        if not name or type(name) ~= "string" then return end
+
+        local baseName, realm = strsplit("-", name)
+        if not baseName or baseName == "" then return end
+
+        realm = realm or GetRealmName()
+
+        local okRealm, normRealm = pcall(NormalizeRealmSlug, realm)
+        if not okRealm or not normRealm then return end
+
+        local okFull, fullName = pcall(function()
+            return (baseName .. "-" .. normRealm):lower()
+        end)
+        if not okFull or not fullName then return end
+
+        if seenEnemies[fullName] then return end
+
+        local cached = achievementCache[fullName]
+        if not cached then
+            local entry = regionLookup[fullName]
+            if entry then
+                cached = GetPvpAchievementSummary(entry)
+                achievementCache[fullName] = cached
+            end
+        end
+
+        local label = cached and cached.label or "Not Seen in Bracket"
+
+        if isEnemy then
+            seenEnemies[fullName] = true
+            table.insert(enemyTeam, baseName .. " - " .. label)
+        end
+    end
+
     -- Attempt enemy team collection (only works in rated battlegrounds/shuffle)
     local function addEnemy(unit)
         if not UnitExists(unit) or not SafeUnitIsPlayer(unit) or UnitIsFriend("player", unit) then return end
@@ -1182,9 +1217,25 @@ local function PostPvPTeamSummary()
         table.insert(enemyTeam, baseName .. " - " .. label)
     end
 
-    -- Prefer nameplates, but fall back to arena enemies if available
-    for i = 1, 20 do addEnemy("nameplate" .. i) end
-    for i = 1, 6 do addEnemy("arena" .. i) end
+    if instanceType == "arena" then
+        local numScores = GetNumBattlefieldScores()
+        local myFaction = UnitFactionGroup("player")
+
+        if numScores and numScores > 0 then
+            for i = 1, numScores do
+                local name, _, _, _, _, factionIndex = GetBattlefieldScore(i)
+                if name and factionIndex ~= nil then
+                    local faction = (factionIndex == 0) and "Horde" or "Alliance"
+                    local isEnemy = (faction ~= myFaction)
+                    addScoreboardPlayer(name, isEnemy)
+                end
+            end
+        end
+    else
+        -- Prefer nameplates, but fall back to arena enemies if available
+        for i = 1, 20 do addEnemy("nameplate" .. i) end
+        for i = 1, 6 do addEnemy("arena" .. i) end
+    end
 
     local target = GetAnnounceTargetForCurrentMatch()
     AnnounceLine("=== Rated Stats - Achievements PvP Summary ===", target)
@@ -1319,7 +1370,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     -- 🔸 Arenas / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
         if inInstance and instanceType == "arena" then
-            if not C_PvP.IsRatedArena() then
+            if not IsActiveBattlefieldArena() then
                 pendingArenaSummary = false
                 return
             end
