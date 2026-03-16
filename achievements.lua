@@ -1319,6 +1319,11 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     -- 🔸 Arenas / Skirmishes / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
         if inInstance and instanceType == "arena" then
+            local _, isRegistered = IsActiveBattlefieldArena()
+            if not isRegistered then
+                pendingArenaSummary = false
+                return
+           end
             lastMatchActive = GetTime()
             pendingArenaSummary = true
         end
