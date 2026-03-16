@@ -831,8 +831,7 @@ local function ResolveChatChannelFromTarget(target)
     end
 
     if target == 2 then
-        -- PARTY means PARTY (not instance chat), unless we're literally a raid.
-        if IsInRaid() then return "RAID" end
+        -- PARTY means PARTY
         if IsInGroup() then return "PARTY" end
         return nil
     end
