@@ -1370,7 +1370,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     -- 🔸 Arenas / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
         if inInstance and instanceType == "arena" then
-            if not IsActiveBattlefieldArena() then
+            if not IsActiveBattlefieldArena then
                 pendingArenaSummary = false
                 return
             end
