@@ -67,7 +67,10 @@
       "GetUnitName",
       "CommunitiesFrame",
       "LFGListFrame",
-      "UIParent"
+      "UIParent",
+      "EventUtil",
+      "Settings",
+      "CreateSettingsListSectionHeaderInitializer"
     ]
   }
 }
