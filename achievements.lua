@@ -3,6 +3,7 @@ local playerName   = UnitName("player") .. "-" .. GetRealmName()
 local lastMatchActive = 0
 local hasAnnouncedCurrentMatch = false
 local pendingArenaSummary = false
+local pendingArenaBracket = nil
 
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
@@ -803,7 +804,7 @@ local function GetAnnounceTargetForCurrentMatch()
 
     local inInstance, instanceType = IsInInstance()
     if inInstance and instanceType == "arena" then
-        local enemyCount = (GetNumArenaOpponentSpecs and GetNumArenaOpponentSpecs()) or 0
+        local enemyCount = pendingArenaBracket or ((GetNumArenaOpponentSpecs and GetNumArenaOpponentSpecs()) or 0)
         if enemyCount == 2 then
             return settings.achievAnnounce2v2 or 2
         elseif enemyCount == 3 then
@@ -1270,6 +1271,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         hasAnnouncedCurrentMatch = false
         pendingArenaSummary = false
+        pendingArenaBracket = nil
         -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
         if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then
             local tries = 0
@@ -1367,15 +1369,14 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
         return
     end
 
+    pendingArenaSummary = false
+    pendingArenaBracket = nil
     -- 🔸 Arenas / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
-        if inInstance and instanceType == "arena" then
-            if not isRatedArena() then
-                pendingArenaSummary = false
-                return
-            end
+        if inInstance and instanceType == "arena" and isRatedArena then
             lastMatchActive = GetTime()
             pendingArenaSummary = true
+            pendingArenaBracket = (GetNumArenaOpponentSpecs and GetNumArenaOpponentSpecs()) or nil
         end
     end
 end)
