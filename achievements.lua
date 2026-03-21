@@ -927,6 +927,7 @@ local function AnnounceLine(message, target)
     end
 
     if target == 1 then
+        print(message)
         return
     end
 
@@ -1003,13 +1004,6 @@ local function PrintPartyAchievements()
         end
     end
 end
-
--- Only announce for these queue messages
-local RatedQueueTriggers = {
-    ["Your group has joined the queue for Rated Battleground."] = true,
-    ["You have joined the queue for Rated Battleground Blitz."] = true,
-    ["Your group has joined the queue for Rated Battleground Blitz."] = true,
-}
 
 -- === Queue watcher: fires once per queue start ===
 local queueState = { "none", "none", "none" }
