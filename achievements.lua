@@ -1005,6 +1005,9 @@ local function PrintPartyAchievements()
     end
 end
 
+-- Queue join announces disabled; instance-based logic handles this now.
+local RatedQueueTriggers = {}
+
 -- === Queue watcher: fires once per queue start ===
 local queueState = { "none", "none", "none" }
 local queueWatcher = CreateFrame("Frame")
