@@ -1006,11 +1006,8 @@ end
 
 -- Only announce for these queue messages
 local RatedQueueTriggers = {
-    ["Your group has joined the queue for Random Battleground."] = true,
-    ["Your group has joined the queue for Arena Skirmish."] = true,
-    ["Your group has joined the queue for 2v2."] = true,
-    ["Your group has joined the queue for 3v3."] = true,
     ["Your group has joined the queue for Rated Battleground."] = true,
+    ["You have joined the queue for Rated Battleground Blitz."] = true,
     ["Your group has joined the queue for Rated Battleground Blitz."] = true,
 }
 
@@ -1218,7 +1215,7 @@ local function PostPvPTeamSummary()
         table.insert(enemyTeam, baseName .. " - " .. label)
     end
 
-    if instanceType == "arena" then
+    if instanceType == "arena" or (C_PvP and C_PvP.IsRatedSoloShuffle and C_PvP.IsRatedSoloShuffle()) then
         local numScores = GetNumBattlefieldScores()
         local myFaction = UnitFactionGroup("player")
 
@@ -1273,7 +1270,15 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
         pendingArenaSummary = false
         pendingArenaBracket = nil
         -- exclude arena/skirmish/shuffle; handled by PVP_MATCH_ACTIVE instead
-        if inInstance and instanceType == "pvp" and not IsActiveBattlefieldArena() then
+        if inInstance
+            and instanceType == "pvp"
+            and not IsActiveBattlefieldArena()
+            and (
+                (C_PvP and C_PvP.IsRatedBattleground and C_PvP.IsRatedBattleground())
+                or
+                (C_PvP and C_PvP.IsSoloRBG and C_PvP.IsSoloRBG())
+            )
+        then
             local tries = 0
 
             local function TryRatedBGAnnounce()
@@ -1361,7 +1366,16 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     end
 
     if event == "PVP_MATCH_COMPLETE" then
-        if inInstance and instanceType == "arena" and pendingArenaSummary and not hasAnnouncedCurrentMatch then
+        if inInstance
+            and (instanceType == "arena" or instanceType == "pvp")
+            and (
+                (C_PvP and C_PvP.IsRatedSoloShuffle and C_PvP.IsRatedSoloShuffle())
+                or
+                (C_PvP and C_PvP.IsRatedArena and C_PvP.IsRatedArena() and not IsArenaSkirmish())
+            )
+            and pendingArenaSummary
+            and not hasAnnouncedCurrentMatch
+        then
             pendingArenaSummary = false
             hasAnnouncedCurrentMatch = true
             C_Timer.After(0.01, PostPvPTeamSummary)
@@ -1373,7 +1387,14 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
     pendingArenaBracket = nil
     -- 🔸 Arenas / Solo Shuffle
     if event == "PVP_MATCH_ACTIVE" then
-        if inInstance and instanceType == "arena" and isRatedArena then
+        if inInstance
+            and (instanceType == "arena" or instanceType == "pvp")
+            and (
+                (C_PvP and C_PvP.IsRatedSoloShuffle and C_PvP.IsRatedSoloShuffle())
+                or
+                (C_PvP and C_PvP.IsRatedArena and C_PvP.IsRatedArena() and not IsArenaSkirmish())
+            )
+        then
             lastMatchActive = GetTime()
             pendingArenaSummary = true
             pendingArenaBracket = (GetNumArenaOpponentSpecs and GetNumArenaOpponentSpecs()) or nil
