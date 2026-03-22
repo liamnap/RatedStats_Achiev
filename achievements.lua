@@ -885,7 +885,7 @@ local function HasFullRatedScoreboardRoster()
     if not expected then return false end
 
     local numScores = GetNumBattlefieldScores()
-    if not numScores or numScores ~= expected then
+    if not numScores or numScores < expected then
         return false
     end
 
@@ -1282,10 +1282,6 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                 tries = tries + 1
 
                 if hasAnnouncedCurrentMatch then
-                    return
-                end
-
-                if IsMatchPastPreGame() then
                     return
                 end
 
