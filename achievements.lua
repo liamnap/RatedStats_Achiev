@@ -650,7 +650,8 @@ tooltipWatcher:SetScript("OnEvent", function(_, event)
                         end
 
                         if fullName and fullName ~= "" then
-                            local baseName, realm = strsplit("-", fullName)
+                            local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
+                            baseName = baseName or fullName
                             realm = realm or GetRealmName()
                             AddAchievementInfoToTooltip(self, baseName, realm)
                         end
@@ -688,7 +689,8 @@ tooltipWatcher:SetScript("OnEvent", function(_, event)
                     if type(info.name) ~= "string" then return end
                     if issecretvalue and issecretvalue(info.name) then return end
 
-                    local name, realm = strsplit("-", info.name)
+                    local name, realm = info.name:match("^([^-]+)%-(.+)$")
+                    name = name or info.name
                     realm = realm or GetRealmName()
                     AddAchievementInfoToTooltip(GameTooltip, name, realm)
                 end)
@@ -728,7 +730,8 @@ tooltipWatcher:SetScript("OnEvent", function(_, event)
                                 end
 
                                 if fullName and fullName ~= "" then
-                                    local baseName, realm = strsplit("-", fullName)
+                                    local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
+                                    baseName = baseName or fullName
                                     realm = realm or GetRealmName()
                                     AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
                                 end
@@ -744,7 +747,8 @@ tooltipWatcher:SetScript("OnEvent", function(_, event)
                         fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, idx))
                     end
                     if fullName and fullName ~= "" then
-                        local baseName, realm = strsplit("-", fullName)
+                        local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
+                        baseName = baseName or fullName
                         realm = realm or GetRealmName()
                         AddAchievementInfoToTooltip(GameTooltip, baseName, realm)
                     end
@@ -829,7 +833,8 @@ do
         -- Parse "Name-Realm" if present; never assume our realm.
         local baseName, realm = leaderName, nil
         if string.find(leaderName, "-", 1, true) then
-            baseName, realm = strsplit("-", leaderName)
+            baseName, realm = leaderName:match("^([^-]+)%-(.+)$")
+            baseName = baseName or leaderName
         end
         realm = (realm or (info and info.leaderRealm) or GetRealmName()):gsub("%s+", "")
 
@@ -1052,7 +1057,7 @@ local function PrintPartyAchievements()
         if not baseName or baseName == "" then return end
         realm = realm or GetRealmName()
         local normRealm = NormalizeRealmSlug(realm)
-        local fullName  = NormalizeCharacterKey(name .. "-" .. normRealm)
+        local fullName  = NormalizeCharacterKey(baseName .. "-" .. normRealm)
 
         local cached = achievementCache[fullName]
         if not cached then
@@ -1073,7 +1078,7 @@ local function PrintPartyAchievements()
         for i = 1, GetNumGroupMembers() do
             local name = GetRaidRosterInfo(i)
             if name then
-                local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
+                local baseName, realm = name:match("^([^-]+)%-(.+)$")
                 AnnounceMember(baseName, realm)
             end
         end
@@ -1224,7 +1229,7 @@ local function PostPvPTeamSummary()
     local function addScoreboardPlayer(name, isEnemy)
         if not name or type(name) ~= "string" then return end
 
-        local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
+        local baseName, realm = name:match("^([^-]+)%-(.+)$")
         if not baseName or baseName == "" then return end
 
         realm = realm or GetRealmName()
@@ -1267,7 +1272,8 @@ local function PostPvPTeamSummary()
         if not name or type(name) ~= "string" then
             local raw = GetUnitName(unit, true) -- can be "Name-Realm"
             if raw and type(raw) == "string" then
-                local n, r = strsplit("-", raw)
+                local n, r = raw:match("^([^-]+)%-(.+)$")
+                n = n or raw
                 name = n
                 if r and r ~= "" then
                     realm = r
@@ -1398,10 +1404,10 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                         local faction = (factionIndex == 0) and "Horde" or "Alliance"
                         local isEnemy = (faction ~= myFaction)
 
-                        local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
+                        local baseName, realm = name:match("^([^-]+)%-(.+)$")
                         realm = realm or GetRealmName()
                         local normRealm = NormalizeRealmSlug(realm)
-                        local fullName = NormalizeCharacterKey(name .. "-" .. normRealm)
+                        local fullName = NormalizeCharacterKey(baseName .. "-" .. normRealm)
 
                         local cached = achievementCache[fullName]
                         if not cached then
@@ -1494,12 +1500,13 @@ _G.RSTATS_Achiev_AddAchievementInfoToTooltip = AddAchievementInfoToTooltip
 _G.RSTATS_Achiev_GetHighestPvpRank = function(fullName)
     if type(fullName) ~= "string" or fullName == "" then return nil end
 
-    local baseName, realm = strsplit("-", fullName)
+    local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
+    baseName = baseName or fullName
     if not baseName or baseName == "" then return nil end
     realm = realm or GetRealmName()
 
     local normRealm = NormalizeRealmSlug(realm or "")
-    local key = (baseName .. "-" .. normRealm):lower()
+    local key = NormalizeCharacterKey(baseName .. "-" .. normRealm)
 
     -- prime cache the same way the tooltip does
     local result = achievementCache[key]
