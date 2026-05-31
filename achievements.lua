@@ -741,8 +741,9 @@ tooltipWatcher:SetScript("OnEvent", function(_, event)
                     end
                 elseif self.memberIdx then
                     local parent = self:GetParent()
+                    local applicantID = parent and parent.applicantID
                     local idx = self.memberIdx
-                    local fullName = recentApplicants[applicantID .. "-" .. idx]
+                    local fullName = applicantID and recentApplicants[applicantID .. "-" .. idx]
                     if (not fullName or fullName == "") and applicantID then
                         fullName = select(1, C_LFGList.GetApplicantMemberInfo(applicantID, idx))
                     end
@@ -1079,6 +1080,7 @@ local function PrintPartyAchievements()
             local name = GetRaidRosterInfo(i)
             if name then
                 local baseName, realm = name:match("^([^-]+)%-(.+)$")
+                baseName = baseName or name
                 AnnounceMember(baseName, realm)
             end
         end
@@ -1091,6 +1093,7 @@ local function PrintPartyAchievements()
             local unit = "party" .. i
             if UnitExists(unit) then
                 local baseName, realm = UnitFullName(unit)
+                baseName = baseName or name
                 AnnounceMember(baseName, realm)
             end
         end
@@ -1230,6 +1233,7 @@ local function PostPvPTeamSummary()
         if not name or type(name) ~= "string" then return end
 
         local baseName, realm = name:match("^([^-]+)%-(.+)$")
+        baseName = baseName or name
         if not baseName or baseName == "" then return end
 
         realm = realm or GetRealmName()
@@ -1405,6 +1409,7 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                         local isEnemy = (faction ~= myFaction)
 
                         local baseName, realm = name:match("^([^-]+)%-(.+)$")
+                        baseName = baseName or name
                         realm = realm or GetRealmName()
                         local normRealm = NormalizeRealmSlug(realm)
                         local fullName = NormalizeCharacterKey(baseName .. "-" .. normRealm)
