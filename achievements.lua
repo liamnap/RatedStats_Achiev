@@ -98,7 +98,6 @@ local RealmSlugOverrides = {
     ["雲蛟衛"] = "order-of-the-cloud-serpent",
     ["克羅之刃"] = "krol-blade",
     ["老馬布蘭契"] = "old-blanchy",
-    ["老布蘭契"] = "old-blanchy",
 }
 
 local function NormalizeTextLower(text)
