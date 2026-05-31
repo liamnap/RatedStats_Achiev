@@ -38,6 +38,32 @@ local regionCode = regionMap[regionID] or "US"
 --  - spaces -> '-'
 --  - apostrophes removed
 --  - common accents stripped
+-- Normalize names/realms to the key format used by the Blizzard API / region files.
+local CyrillicLowerMap = {
+    ["А"]="а", ["Б"]="б", ["В"]="в", ["Г"]="г", ["Д"]="д", ["Е"]="е", ["Ё"]="ё",
+    ["Ж"]="ж", ["З"]="з", ["И"]="и", ["Й"]="й", ["К"]="к", ["Л"]="л", ["М"]="м",
+    ["Н"]="н", ["О"]="о", ["П"]="п", ["Р"]="р", ["С"]="с", ["Т"]="т", ["У"]="у",
+    ["Ф"]="ф", ["Х"]="х", ["Ц"]="ц", ["Ч"]="ч", ["Ш"]="ш", ["Щ"]="щ", ["Ъ"]="ъ",
+    ["Ы"]="ы", ["Ь"]="ь", ["Э"]="э", ["Ю"]="ю", ["Я"]="я",
+    ["І"]="і", ["Ї"]="ї", ["Є"]="є", ["Ґ"]="ґ",
+}
+
+local RealmSlugOverrides = {
+    ["гордунни"] = "gordunni",
+}
+
+local function NormalizeTextLower(text)
+    if not text or text == "" then return text end
+
+    text = text:lower()
+
+    for upper, lower in pairs(CyrillicLowerMap) do
+        text = text:gsub(upper, lower)
+    end
+
+    return text
+end
+
 local function NormalizeRealmSlug(realm)
     if not realm or realm == "" then
         realm = GetRealmName() or ""
@@ -48,10 +74,12 @@ local function NormalizeRealmSlug(realm)
     -- Do this *before* lowercasing so we can detect %u properly.
     realm = realm:gsub("(%l's)(%u)", "%1 %2")
 
-    realm = realm:lower()
+    realm = NormalizeTextLower(realm)
 
     -- remove apostrophes and similar
     realm = realm:gsub("['’`]", "")
+
+    realm = realm:gsub("^%s+", ""):gsub("%s+$", "")
 
     -- spaces become hyphens
     realm = realm:gsub("%s+", "-")
@@ -64,7 +92,31 @@ local function NormalizeRealmSlug(realm)
         :gsub("[òóôö]", "o")
         :gsub("[ùúûü]", "u")
 
+    realm = realm:gsub("%-+", "-")
+    realm = realm:gsub("^%-+", ""):gsub("%-+$", "")
+
+    realm = RealmSlugOverrides[realm] or realm
+
     return realm
+end
+
+local function NormalizeCharacterKey(key, fallbackRealm)
+    if not key or type(key) ~= "string" or key == "" then return nil end
+
+    local name, realm = key:match("^([^-]+)%-(.+)$")
+    if not name then
+        name = key
+        realm = fallbackRealm
+    end
+
+    name = NormalizeTextLower(name)
+    realm = NormalizeRealmSlug(realm or GetRealmName() or "")
+
+    if realm and realm ~= "" then
+        return name .. "-" .. realm, name
+    end
+
+    return name, name
 end
 
 -- Merge monolithic or chunked achievement files into one table
@@ -106,16 +158,51 @@ end
 
 -- 🔹 Build fast lookup index for character → entry
 local regionLookup = {}
+local regionLookupByName = {}
+
+local function AddRegionLookupKey(key, entry)
+    local fullKey, baseName = NormalizeCharacterKey(key)
+    if not fullKey then return end
+
+    regionLookup[fullKey] = entry
+
+    if baseName and baseName ~= "" then
+        local existing = regionLookupByName[baseName]
+        if existing == nil then
+            regionLookupByName[baseName] = entry
+        elseif existing ~= entry then
+            regionLookupByName[baseName] = false
+        end
+    end
+end
+
+local function LookupRegionEntry(key)
+    local fullKey, baseName = NormalizeCharacterKey(key)
+    if not fullKey then return nil, nil end
+
+    local entry = regionLookup[fullKey]
+    if entry then
+        return entry, fullKey
+    end
+
+    local nameEntry = baseName and regionLookupByName[baseName]
+    if nameEntry then
+        return nameEntry, fullKey
+    end
+
+    return nil, fullKey
+end
+
 for _, entry in ipairs(regionData) do
     -- main character key
     if entry.character then
-        regionLookup[entry.character:lower()] = entry
+        AddRegionLookupKey(entry.character, entry)
     end
     -- alt keys: point each alt at the same entry as the main
     if entry.alts and type(entry.alts) == "table" then
         for _, altName in ipairs(entry.alts) do
             if type(altName) == "string" and altName ~= "" then
-                regionLookup[altName:lower()] = entry
+                AddRegionLookupKey(altName, entry)
             end
         end
     end
@@ -286,7 +373,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     if not okRealm or not normRealm then return end
 
     local okKey, tooltipKey = pcall(function()
-        return (name .. "-" .. normRealm):lower()
+        return NormalizeCharacterKey(name .. "-" .. normRealm)
     end)
     if not okKey or not tooltipKey then return end
 
@@ -303,7 +390,7 @@ local function AddAchievementInfoToTooltip(tooltip, overrideName, overrideRealm)
     end
 
     if achievementCache[tooltipKey] == nil then
-        local entry = regionLookup[tooltipKey]
+        local entry = LookupRegionEntry(tooltipKey)
         if entry then
             achievementCache[tooltipKey] = GetPvpAchievementSummary(entry)
         else
@@ -965,11 +1052,11 @@ local function PrintPartyAchievements()
         if not baseName or baseName == "" then return end
         realm = realm or GetRealmName()
         local normRealm = NormalizeRealmSlug(realm)
-        local fullName  = (baseName .. "-" .. normRealm):lower()
+        local fullName  = NormalizeCharacterKey(name .. "-" .. normRealm)
 
         local cached = achievementCache[fullName]
         if not cached then
-            local entry = regionLookup[fullName]
+            local entry = LookupRegionEntry(fullName)
             if entry then
                 cached = GetPvpAchievementSummary(entry)
                 achievementCache[fullName] = cached
@@ -986,7 +1073,7 @@ local function PrintPartyAchievements()
         for i = 1, GetNumGroupMembers() do
             local name = GetRaidRosterInfo(i)
             if name then
-                local baseName, realm = strsplit("-", name)
+                local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
                 AnnounceMember(baseName, realm)
             end
         end
@@ -1086,10 +1173,10 @@ local function PostPvPTeamSummary()
                 local name, realm = UnitFullName(unit)
                 realm = realm or GetRealmName()
                 local normRealm = NormalizeRealmSlug(realm)
-                local fullName  = (name .. "-" .. normRealm):lower()
+                local fullName  = NormalizeCharacterKey(name .. "-" .. normRealm)
                 local cached = achievementCache[fullName]
                 if not cached then
-                    local entry = regionLookup[fullName]
+                    local entry = LookupRegionEntry(fullName)
                     if entry then
                         cached = GetPvpAchievementSummary(entry)
                         achievementCache[fullName] = cached
@@ -1112,7 +1199,7 @@ local function PostPvPTeamSummary()
     local name, realm = UnitFullName("player")
     realm = realm or GetRealmName()
     local normRealm = NormalizeRealmSlug(realm)
-    local fullName  = (name .. "-" .. normRealm):lower()
+    local fullName  = NormalizeCharacterKey(name .. "-" .. normRealm)
     local foundSelf = false
     for _, member in ipairs(myTeam) do
         if member:lower():find(fullName, 1, true) then
@@ -1123,7 +1210,7 @@ local function PostPvPTeamSummary()
     if not foundSelf then
         local cached = achievementCache[fullName]
         if not cached then
-            local entry = regionLookup[fullName]
+            local entry = LookupRegionEntry(fullName)
             if entry then
                 cached = GetPvpAchievementSummary(entry)
                 achievementCache[fullName] = cached
@@ -1137,7 +1224,7 @@ local function PostPvPTeamSummary()
     local function addScoreboardPlayer(name, isEnemy)
         if not name or type(name) ~= "string" then return end
 
-        local baseName, realm = strsplit("-", name)
+        local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
         if not baseName or baseName == "" then return end
 
         realm = realm or GetRealmName()
@@ -1146,7 +1233,7 @@ local function PostPvPTeamSummary()
         if not okRealm or not normRealm then return end
 
         local okFull, fullName = pcall(function()
-            return (baseName .. "-" .. normRealm):lower()
+            return NormalizeCharacterKey(baseName .. "-" .. normRealm)
         end)
         if not okFull or not fullName then return end
 
@@ -1154,7 +1241,7 @@ local function PostPvPTeamSummary()
 
         local cached = achievementCache[fullName]
         if not cached then
-            local entry = regionLookup[fullName]
+            local entry = LookupRegionEntry(fullName)
             if entry then
                 cached = GetPvpAchievementSummary(entry)
                 achievementCache[fullName] = cached
@@ -1193,7 +1280,7 @@ local function PostPvPTeamSummary()
         if not okRealm or not normRealm then return end
 
         local okFull, fullName = pcall(function()
-            return (name .. "-" .. normRealm):lower()
+            return NormalizeCharacterKey(name .. "-" .. normRealm)
         end)
         if not okFull or not fullName then return end
 
@@ -1201,7 +1288,7 @@ local function PostPvPTeamSummary()
         if seenEnemies[fullName] then return end  -- skip duplicates
         seenEnemies[fullName] = true
         if not cached then
-            local entry = regionLookup[fullName]
+            local entry = LookupRegionEntry(fullName)
             if entry then
                 cached = GetPvpAchievementSummary(entry)
                 achievementCache[fullName] = cached
@@ -1311,14 +1398,14 @@ instanceWatcher:SetScript("OnEvent", function(_, event, ...)
                         local faction = (factionIndex == 0) and "Horde" or "Alliance"
                         local isEnemy = (faction ~= myFaction)
 
-                        local baseName, realm = strsplit("-", name)
+                        local baseName, realm = fullName:match("^([^-]+)%-(.+)$")
                         realm = realm or GetRealmName()
                         local normRealm = NormalizeRealmSlug(realm)
-                        local fullName = (baseName .. "-" .. normRealm):lower()
+                        local fullName = NormalizeCharacterKey(name .. "-" .. normRealm)
 
                         local cached = achievementCache[fullName]
                         if not cached then
-                            local entry = regionLookup[fullName]
+                            local entry = LookupRegionEntry(fullName)
                             if entry then
                                 cached = GetPvpAchievementSummary(entry)
                                 achievementCache[fullName] = cached
@@ -1417,7 +1504,7 @@ _G.RSTATS_Achiev_GetHighestPvpRank = function(fullName)
     -- prime cache the same way the tooltip does
     local result = achievementCache[key]
     if result == nil then
-        local entry = regionLookup[key]
+        local entry = LookupRegionEntry(key)
         if entry then
             result = GetPvpAchievementSummary(entry)
             achievementCache[key] = result
