@@ -1,5 +1,6 @@
 ## Title: RatedStats – Achievements
-## Interface: 110207, 120000, 120001, 120005, 120007, 120100
+## Version: v2.127-beta
+## Interface: 110207, 120000, 120001, 120005, 120007, 120100, 120105
 ## DefaultState: enabled
 ## LoadOnDemand: 1
 ## RequiredDeps: RatedStats
