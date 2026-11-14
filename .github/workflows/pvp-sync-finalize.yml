@@ -248,16 +248,20 @@ jobs:
           # Otherwise, fall back to the last-batch commit like before.
           group_id="${{ needs.guard.outputs.group_id }}"
           if [[ -n "$group_id" ]]; then
-            mapfile -t ids < <(gh run list \
+            runs=$(gh run list \
               --workflow "$wf" --branch "$branch" \
-              --status completed -L 500 --json databaseId \
-              --jq '.[].databaseId')
+              -L 500 --json databaseId,status \
+              --jq '.[] | select(.status == "completed") | .databaseId')
           else
-            mapfile -t ids < <(gh run list \
+            runs=$(gh run list \
               --workflow "$wf" --branch "$branch" --commit "$sha" \
-              --status completed -L 500 --json databaseId \
-              --jq '.[].databaseId')
+              -L 500 --json databaseId,status \
+              --jq '.[] | select(.status == "completed") | .databaseId')
           fi
+          # Filter locally: GitHub's status=completed filter can omit completed runs.
+          # Assign first so a failed lookup exits under set -e (unlike < <(...)).
+          ids=()
+          if [[ -n "$runs" ]]; then mapfile -t ids <<< "$runs"; fi
 
           # Build: batch_index -> artifact_name and run_id
           declare -A art_by_batch
@@ -265,8 +269,10 @@ jobs:
 
           for id in "${ids[@]}"; do
             # List artifact names for the run (REST: list workflow run artifacts)
-            mapfile -t names < <(gh api repos/"$repo"/actions/runs/"$id"/artifacts \
+            artifacts=$(gh api repos/"$repo"/actions/runs/"$id"/artifacts \
               --paginate --jq '.artifacts[].name')
+            names=()
+            if [[ -n "$artifacts" ]]; then mapfile -t names <<< "$artifacts"; fi
           
             for nm in "${names[@]}"; do
               if [[ -n "$group_id" ]]; then
@@ -291,23 +297,34 @@ jobs:
           done
 
           # Determine expected count if not provided
-          min_idx=999999; max_idx=-1
+          max_idx=-1
           for k in "${!art_by_batch[@]}"; do
-            (( k < min_idx )) && min_idx="$k"
-            (( k > max_idx )) && max_idx="$k"
+            if (( k > max_idx )); then max_idx="$k"; fi
           done
           # If caller provided total_batches, trust that; else derive.
           if [[ -z "${expected:-}" || "${expected}" == "0" ]]; then
-            if (( max_idx >= 0 )); then expected=$(( max_idx - min_idx + 1 )); else expected=0; fi
+            expected=$(( max_idx + 1 ))
           fi
-          if (( expected == 0 )); then
-            echo "❌ No matching artifacts found for region=$region / sha=$sha"
+          if [[ ! "$expected" =~ ^[1-9][0-9]*$ ]]; then
+            echo "❌ Invalid or empty batch count '$expected' for region=$region / sha=$sha"
             exit 1
           fi
-          echo "Expecting ${expected} shard(s) for region=${region} (index base = ${min_idx})"
+          # Batch IDs are zero-based. Check the full range, including both ends,
+          # before downloading or merging anything.
+          missing=()
+          for (( n=0; n<expected; n++ )); do
+            if [[ -z "${art_by_batch[$n]:-}" || -z "${run_by_batch[$n]:-}" ]]; then
+              missing+=("$n")
+            fi
+          done
+          if (( ${#missing[@]} )); then
+            echo "❌ Missing artifacts for batch indices: ${missing[*]} (region=$region, group=$group_id, expected=$expected)"
+            exit 1
+          fi
+          echo "Expecting ${expected} shard(s) for region=${region} (index base = 0)"
 
           # Download by exact artifact name (no globs)
-          for n in $(seq "$min_idx" "$max_idx"); do
+          for (( n=0; n<expected; n++ )); do
             nm="${art_by_batch[$n]:-}"
             id="${run_by_batch[$n]:-}"
             if [[ -z "$nm" || -z "$id" ]]; then
