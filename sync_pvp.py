@@ -1309,37 +1309,33 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 outf.write(content)
             out_files.append(fname)
             print(
-                f"[DEBUG] Wrote chunk: {fname.name} with ~{len(content.encode('utf-8'))} bytes"
+                f"[DEBUG] Wrote chunk: {fname.name} with ~{len(content.encode('utf-8'))} bytes", flush=True
             )
 
-        # Try to chunk the data
+        # Count each UTF-8 entry once rather than rebuilding the entire chunk.
         region_check = f"if GetCurrentRegion() ~= {REGION_ID} then return end\n"
-        region_check_len = len(region_check.encode("utf-8"))
+        header_len = len(
+            f"-- File: RatedStats_Achiev/region_{REGION}.lua\n{region_check}local achievements={{\n".encode("utf-8")
+        )
+        footer_len = len(
+            f"}}\n\nACHIEVEMENTS_{REGION.upper()} = achievements\n".encode("utf-8")
+        )
+        current_bytes = 0
+        chunk_started = time.monotonic()
+        print(f"[DEBUG] Chunking {len(entry_lines)} Lua entries", flush=True)
 
         for line in entry_lines:
-            candidate = "".join(current_lines + [line])
-            header_len = len(
-                f"-- File: RatedStats_Achiev/region_{REGION}.lua\nlocal achievements={{\n".encode(
-                    "utf-8"
-                )
-            )
-            footer_len = len(
-                f"}}\n\nACHIEVEMENTS_{REGION.upper()} = achievements\n".encode("utf-8")
-            )
-
-            total_size = (
-                len(candidate.encode("utf-8"))
-                + header_len
-                + footer_len
-                + region_check_len
-            )
+            line_bytes = len(line.encode("utf-8"))
+            total_size = current_bytes + line_bytes + header_len + footer_len
 
             if total_size > MAX_BYTES:
                 write_chunk(part_index, current_lines, is_single_file=False)
                 part_index += 1
                 current_lines = [line]
+                current_bytes = line_bytes
             else:
                 current_lines.append(line)
+                current_bytes += line_bytes
 
         # Final write
         if part_index == 1:
@@ -1352,6 +1348,7 @@ async def process_characters(characters: dict, leaderboard_keys: set):
                 os.remove(OUTFILE)
                 print(f"[DEBUG] Removed stale {OUTFILE.name}")
 
+        print(f"[DEBUG] Lua chunking completed in {time.monotonic() - chunk_started:.2f}s", flush=True)
         print(f"[DEBUG] {len(out_files)} region files produced: {', '.join(f.name for f in out_files)}")
 
         final_marker = Path("partial_outputs") / f"{REGION}_final.marker"
